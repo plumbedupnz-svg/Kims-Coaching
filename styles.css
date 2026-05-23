@@ -1,10 +1,10 @@
 :root {
-  --bg: #070b1f;
-  --surface: #101938;
-  --text: #edf2ff;
-  --muted: #b8c1e3;
+  --bg: #ffffff;
+  --surface: #f7f9fc;
+  --text: #13213d;
+  --muted: #5f6f8f;
   --primary: #27adff;
-  --border: rgba(255, 255, 255, 0.12);
+  --border: #dbe3f1;
   --radius: 14px;
 }
 
@@ -22,7 +22,7 @@ body {
   position: sticky;
   top: 0;
   backdrop-filter: blur(10px);
-  background: rgba(7, 11, 31, 0.9);
+  background: rgba(255, 255, 255, 0.95);
   border-bottom: 1px solid var(--border);
 }
 
@@ -34,7 +34,7 @@ body {
   gap: 1rem;
 }
 
-.brand { text-decoration: none; color: white; display: grid; line-height: 1; }
+.brand { text-decoration: none; color: var(--text); display: grid; line-height: 1; }
 .brand-main { font-weight: 800; }
 .brand-sub { color: var(--primary); letter-spacing: 6px; font-size: 0.75rem; margin-top: 0.35rem; }
 
@@ -76,7 +76,7 @@ h2, h3 { margin: 0.3rem 0 0.8rem; }
 .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--border); }
 .full { width: 100%; margin-top: 0.7rem; }
 
-.alt { background: rgba(255, 255, 255, 0.02); }
+.alt { background: #f2f6fc; }
 .cart-layout {
   display: grid;
   grid-template-columns: 1.35fr 0.65fr;
@@ -134,7 +134,7 @@ input[type="url"] {
   margin-top: 0.4rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #080f2a;
+  background: #ffffff;
   color: var(--text);
   padding: 0.6rem 0.7rem;
 }
