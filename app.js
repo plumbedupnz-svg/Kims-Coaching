@@ -32,9 +32,11 @@ const ownerProductDescEl = document.getElementById("owner-product-desc");
 const ownerProductImageEl = document.getElementById("owner-product-image");
 const ownerProductsListEl = document.getElementById("owner-products-list");
 const ownerLogoutBtnEl = document.getElementById("owner-logout-btn");
+const categoryFilterEl = document.getElementById("category-filter");
 
 const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+let selectedCategory = "all";
 
 function getDiscountedPrice(product) {
   const base = Number(product.price);
@@ -66,10 +68,27 @@ const saveProducts = (products) => localStorage.setItem(PRODUCTS_KEY, JSON.strin
 const loadCart = () => JSON.parse(localStorage.getItem(CART_KEY) || "[]");
 const saveCart = (cart) => localStorage.setItem(CART_KEY, JSON.stringify(cart));
 
+function getCategoryList(products) {
+  return [...new Set(products.map((p) => (p.category?.trim() || "Uncategorized")))].sort((a,b)=>a.localeCompare(b));
+}
+
+function renderCategoryFilter(products) {
+  if (!categoryFilterEl) return;
+  const categories = getCategoryList(products);
+  const options = ["<option value=\"all\">All categories</option>", ...categories.map((cat)=>`<option value=\"${cat}\">${cat}</option>`)].join("");
+  categoryFilterEl.innerHTML = options;
+  categoryFilterEl.value = categories.includes(selectedCategory) || selectedCategory === "all" ? selectedCategory : "all";
+}
+
 function renderProducts() {
   const products = loadProducts();
+  renderCategoryFilter(products);
 
-  const cards = products
+  const filteredProducts = selectedCategory === "all"
+    ? products
+    : products.filter((p) => (p.category?.trim() || "Uncategorized") === selectedCategory);
+
+  const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
     .map((p) => {
       const discounted = getDiscountedPrice(p);
@@ -91,7 +110,7 @@ function renderProducts() {
     })
     .join("");
 
-  productListEl.innerHTML = `<div class="cards three-col">${cards}</div>`;
+  productListEl.innerHTML = cards ? `<div class="cards three-col">${cards}</div>` : `<p class="empty-cart">No products found in this category.</p>`;
 }
 
 function renderCart() {
@@ -170,6 +189,10 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
 });
 
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
+if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
+  selectedCategory = categoryFilterEl.value;
+  renderProducts();
+});
 if (checkoutBtnEl) checkoutBtnEl.addEventListener("click", () => {
   const cart = loadCart();
   const link = (localStorage.getItem(STRIPE_KEY) || "").trim();

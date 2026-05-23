@@ -27,6 +27,10 @@ h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); margin: 0.3rem 0 0.8rem; }
 h2, h3 { margin: 0.3rem 0 0.8rem; }
 
 .shop-categories { display: grid; gap: 2rem; }
+.shop-toolbar { display: flex; align-items: center; gap: 0.7rem; margin: 0.5rem 0 1rem; }
+.shop-filter-label { font-weight: 600; color: var(--text); }
+.shop-filter-select { min-width: 220px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); padding: 0.55rem 0.7rem; }
+
 .category-section { display: grid; gap: 1rem; }
 .category-title { margin: 0; font-size: 1.2rem; }
 
