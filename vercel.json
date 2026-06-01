@@ -5,6 +5,7 @@
     { "source": "/", "destination": "/index.html" },
     { "source": "/shop", "destination": "/shop.html" },
     { "source": "/account", "destination": "/account.html" },
+    { "source": "/admin", "destination": "/admin.html" },
     { "source": "/owner", "destination": "/owner.html" }
   ]
 }
