@@ -43,10 +43,10 @@
         <div class="container account-grid">
           <div class="account-copy">
             <p class="eyebrow">Client Access</p>
-            <h1>Login or create an account before checkout.</h1>
+            <h1>Login or create your coaching profile.</h1>
             <p>
-              Save your details, return to SportsCo recommendations, and keep
-              purchases connected to your coaching account.
+              Save parent and player details, keep contact information current,
+              and return to your coaching account when you need it.
             </p>
           </div>
 
@@ -61,8 +61,13 @@
 
             <form class="auth-form" data-auth-form novalidate>
               <label data-name-field hidden>
-                Full name
-                <input type="text" name="name" placeholder="Alex Morgan" autocomplete="name" />
+                First name
+                <input type="text" name="first_name" placeholder="Alex" autocomplete="given-name" />
+              </label>
+
+              <label data-last-name-field hidden>
+                Last name
+                <input type="text" name="last_name" placeholder="Morgan" autocomplete="family-name" />
               </label>
 
               <label>
@@ -89,16 +94,59 @@
 
       <section class="section account-area" id="customer-account" data-customer-area hidden>
         <div class="container dashboard-grid">
-          <div>
+          <div class="account-summary">
             <p class="eyebrow">Customer Account</p>
             <h1 data-customer-greeting>Your coaching hub</h1>
-            <p>Review your cart, saved details, and coaching next steps from one place.</p>
+            <p data-customer-details>Review your profile, saved details, and coaching next steps from one place.</p>
           </div>
-          <div class="dashboard-card">
-            <h3>Saved Details</h3>
-            <p data-customer-details>No details saved yet.</p>
-          </div>
-          <div class="dashboard-card">
+
+          <form class="profile-form dashboard-card" data-profile-form>
+            <h2>Profile Details</h2>
+            <div class="profile-grid">
+              <label>
+                First name
+                <input type="text" name="first_name" autocomplete="given-name" />
+              </label>
+              <label>
+                Last name
+                <input type="text" name="last_name" autocomplete="family-name" />
+              </label>
+              <label>
+                Phone
+                <input type="tel" name="phone" autocomplete="tel" />
+              </label>
+              <label>
+                Parent name
+                <input type="text" name="parent_name" autocomplete="name" />
+              </label>
+              <label>
+                Player name
+                <input type="text" name="player_name" />
+              </label>
+              <label>
+                Player age
+                <input type="number" name="player_age" min="0" max="120" inputmode="numeric" />
+              </label>
+              <label>
+                Tennis level
+                <select name="tennis_level">
+                  <option value="">Select level</option>
+                  <option value="Beginner">Beginner</option>
+                  <option value="Developing">Developing</option>
+                  <option value="Interclub">Interclub</option>
+                  <option value="Tournament">Tournament</option>
+                </select>
+              </label>
+              <label class="profile-notes">
+                Notes
+                <textarea name="notes" rows="4" placeholder="Anything Kim should know before coaching"></textarea>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary full">Save Changes</button>
+            <p class="form-message" data-profile-message role="status" aria-live="polite"></p>
+          </form>
+
+          <div class="dashboard-card account-cart-card">
             <h3>Current Cart</h3>
             <p data-customer-cart>Your cart is empty.</p>
             <a class="btn btn-primary full" href="shop.html#cart">Continue Shopping</a>
@@ -107,6 +155,8 @@
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
   </body>
 </html>
