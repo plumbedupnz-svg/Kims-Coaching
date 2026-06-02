@@ -57,6 +57,8 @@ const customerDetailsEl = document.querySelector("[data-customer-details]");
 const customerCartEl = document.querySelector("[data-customer-cart]");
 const profileFormEl = document.querySelector("[data-profile-form]");
 const profileMessageEl = document.querySelector("[data-profile-message]");
+const playerCountEl = document.querySelector("[data-player-count]");
+const playersListEl = document.querySelector("[data-players-list]");
 const publicAuthEls = document.querySelectorAll("[data-auth-public]");
 const privateAuthEls = document.querySelectorAll("[data-auth-private]");
 const signOutEls = document.querySelectorAll("[data-sign-out]");
@@ -69,6 +71,8 @@ let selectedCategory = "all";
 let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
 let currentUser = null;
 let currentProfile = null;
+
+const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
 const supabaseSettings = window.KIMS_SUPABASE || {};
 const hasSupabaseConfig = Boolean(supabaseSettings.url && supabaseSettings.anonKey && window.supabase);
@@ -342,24 +346,124 @@ function setProfileMessage(message, tone = "neutral") {
 
 function populateProfileForm() {
   if (!profileFormEl || !currentProfile) return;
-  const fields = ["first_name", "last_name", "phone", "parent_name", "player_name", "player_age", "tennis_level", "notes"];
+  const fields = ["first_name", "last_name", "phone", "parent_name", "notes"];
   fields.forEach((field) => {
     if (!profileFormEl.elements[field]) return;
     profileFormEl.elements[field].value = currentProfile[field] ?? "";
   });
+
+  const players = getProfilePlayers(currentProfile);
+  if (playerCountEl) playerCountEl.value = String(players.length || 1);
+  renderPlayerFields(players);
+}
+
+function getProfilePlayers(profile) {
+  if (Array.isArray(profile?.players) && profile.players.length) {
+    return profile.players.map(normalizePlayer);
+  }
+
+  if (profile?.player_name || profile?.player_age || profile?.tennis_level) {
+    return [
+      normalizePlayer({
+        name: profile.player_name || "",
+        age: profile.player_age || "",
+        level: profile.tennis_level || ""
+      })
+    ];
+  }
+
+  return [normalizePlayer({})];
+}
+
+function normalizePlayer(player) {
+  return {
+    name: player?.name || "",
+    dob: player?.dob || "",
+    age: player?.age ?? "",
+    level: player?.level || player?.tennis_level || "",
+    notes: player?.notes || ""
+  };
+}
+
+function getSelectedPlayerCount() {
+  const count = Number(playerCountEl?.value || 1);
+  if (Number.isNaN(count)) return 1;
+  return Math.min(6, Math.max(1, count));
+}
+
+function renderPlayerFields(players = []) {
+  if (!playersListEl) return;
+  const count = getSelectedPlayerCount();
+  const nextPlayers = [...players];
+  while (nextPlayers.length < count) nextPlayers.push(normalizePlayer({}));
+
+  playersListEl.innerHTML = nextPlayers
+    .slice(0, count)
+    .map((player, index) => {
+      const levelOptions = [
+        '<option value="">Select skill level</option>',
+        ...tennisLevelOptions.map((level) => `<option value="${level}" ${player.level === level ? "selected" : ""}>${level}</option>`)
+      ].join("");
+
+      return `
+        <article class="player-card">
+          <h4>Player ${index + 1}</h4>
+          <div class="player-grid">
+            <label>
+              Player name
+              <input type="text" name="player_name_${index}" value="${escapeAttribute(player.name)}" />
+            </label>
+            <label>
+              Date of birth
+              <input type="date" name="player_dob_${index}" value="${escapeAttribute(player.dob)}" />
+            </label>
+            <label>
+              Age
+              <input type="number" name="player_age_${index}" min="0" max="120" inputmode="numeric" value="${escapeAttribute(String(player.age ?? ""))}" />
+            </label>
+            <label>
+              Skill level
+              <select name="player_level_${index}">${levelOptions}</select>
+            </label>
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function getPlayersFromForm(formData) {
+  return Array.from({ length: getSelectedPlayerCount() }, (_item, index) =>
+    normalizePlayer({
+      name: formData.get(`player_name_${index}`)?.trim() || "",
+      dob: formData.get(`player_dob_${index}`) || "",
+      age: formData.get(`player_age_${index}`) ? Number(formData.get(`player_age_${index}`)) : null,
+      level: formData.get(`player_level_${index}`) || ""
+    })
+  );
 }
 
 async function saveProfile(formData) {
   if (!supabaseClient || !currentUser) return;
+  const players = getPlayersFromForm(formData);
+  const primaryPlayer = players[0] || normalizePlayer({});
 
   const payload = {
     first_name: formData.get("first_name").trim(),
     last_name: formData.get("last_name").trim(),
     phone: formData.get("phone").trim(),
     parent_name: formData.get("parent_name").trim(),
-    player_name: formData.get("player_name").trim(),
-    player_age: formData.get("player_age") ? Number(formData.get("player_age")) : null,
-    tennis_level: formData.get("tennis_level"),
+    player_name: primaryPlayer.name,
+    player_age: primaryPlayer.age === "" ? null : primaryPlayer.age,
+    tennis_level: primaryPlayer.level,
+    players,
     notes: formData.get("notes").trim()
   };
 
@@ -742,6 +846,11 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", (event) =
 
 document.querySelectorAll("[data-mode-button]").forEach((button) => {
   button.addEventListener("click", () => setAuthMode(button.dataset.modeButton));
+});
+
+if (playerCountEl) playerCountEl.addEventListener("change", () => {
+  const formData = profileFormEl ? new FormData(profileFormEl) : null;
+  renderPlayerFields(formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile));
 });
 
 if (authFormEl) authFormEl.addEventListener("submit", async (event) => {
