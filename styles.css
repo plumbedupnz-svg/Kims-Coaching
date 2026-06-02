@@ -379,7 +379,7 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .cart-items { padding: 1rem; min-height: 170px; }
 .empty-cart { margin: 0; color: var(--muted); }
 .cart-item { padding: 0.8rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
-cart-item h4, .cart-item p { margin: 0; }
+.cart-item h4, .cart-item p { margin: 0; }
 .cart-item p { color: var(--muted); }
 .qty-controls { display: flex; align-items: center; gap: 0.6rem; }
 .qty-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
