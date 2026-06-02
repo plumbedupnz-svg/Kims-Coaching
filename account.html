@@ -119,24 +119,26 @@
                 Parent name
                 <input type="text" name="parent_name" autocomplete="name" />
               </label>
-              <label>
-                Player name
-                <input type="text" name="player_name" />
-              </label>
-              <label>
-                Player age
-                <input type="number" name="player_age" min="0" max="120" inputmode="numeric" />
-              </label>
-              <label>
-                Tennis level
-                <select name="tennis_level">
-                  <option value="">Select level</option>
-                  <option value="Beginner">Beginner</option>
-                  <option value="Developing">Developing</option>
-                  <option value="Interclub">Interclub</option>
-                  <option value="Tournament">Tournament</option>
-                </select>
-              </label>
+              <section class="players-section">
+                <div class="players-heading">
+                  <div>
+                    <h3>Players</h3>
+                    <p class="helper-text">Add each child who will be part of coaching.</p>
+                  </div>
+                  <label>
+                    Number of players
+                    <select name="player_count" data-player-count>
+                      <option value="1">1 player</option>
+                      <option value="2">2 players</option>
+                      <option value="3">3 players</option>
+                      <option value="4">4 players</option>
+                      <option value="5">5 players</option>
+                      <option value="6">6 players</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="players-list" data-players-list></div>
+              </section>
               <label class="profile-notes">
                 Notes
                 <textarea name="notes" rows="4" placeholder="Anything Kim should know before coaching"></textarea>
