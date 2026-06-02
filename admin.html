@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin-availability.css" />
   </head>
   <body>
     <header class="site-header">
@@ -40,39 +41,93 @@
         <div class="container owner-wrap">
           <div class="section-head">
             <p class="eyebrow">Admin Dashboard</p>
-            <h1>Manage products, categories, and prices</h1>
+            <h1>Manage lesson availability</h1>
             <p id="owner-status" class="helper-text"></p>
           </div>
 
           <div id="owner-panel" hidden>
-            <form id="owner-promo-form" class="owner-add-form">
-              <h3>Promo Code Settings</h3>
-              <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
-              <input id="owner-promo-percent" type="number" step="0.01" min="0" max="100" placeholder="Promo discount %" />
-              <button type="submit" class="btn btn-primary">Save Promo Settings</button>
-              <p class="helper-text" id="owner-promo-status"></p>
-            </form>
+            <div class="admin-panel-grid">
+              <section class="admin-primary">
+                <form class="availability-form" data-availability-form>
+                  <div class="availability-form-head">
+                    <div>
+                      <h2>Lesson times</h2>
+                      <p class="helper-text">Create open lesson slots or block out times Kim is unavailable.</p>
+                    </div>
+                    <button class="btn btn-secondary" type="button" data-cancel-availability-edit hidden>Cancel edit</button>
+                  </div>
+                  <input type="hidden" name="availability_id" data-availability-id />
+                  <div class="availability-grid">
+                    <label>
+                      Date
+                      <input type="date" name="slot_date" required />
+                    </label>
+                    <label>
+                      Start time
+                      <input type="time" name="start_time" required />
+                    </label>
+                    <label>
+                      End time
+                      <input type="time" name="end_time" required />
+                    </label>
+                    <label>
+                      Slot type
+                      <select name="is_available" required>
+                        <option value="true">Available for lessons</option>
+                        <option value="false">Blocked out</option>
+                      </select>
+                    </label>
+                    <label class="availability-repeat">
+                      <span>Repeat weekly</span>
+                      <input type="checkbox" name="recurring_weekly" data-recurring-weekly />
+                    </label>
+                    <label>
+                      Number of weeks
+                      <input type="number" name="repeat_weeks" min="1" max="52" value="1" data-repeat-weeks />
+                    </label>
+                    <label class="availability-wide">
+                      Internal label
+                      <input type="text" name="recurrence_label" placeholder="e.g. Tuesday after-school lessons" />
+                    </label>
+                  </div>
+                  <button class="btn btn-primary" type="submit" data-save-availability>Save lesson time</button>
+                  <p class="form-message" data-availability-message></p>
+                </form>
 
-            <form id="owner-add-form" class="owner-add-form">
-              <h3>Add Product</h3>
-              <input id="owner-product-name" type="text" placeholder="Product name" required />
-              <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
-              <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
-              <label for="owner-product-category">Category</label>
-              <select id="owner-product-category" required>
-                <option value="">Select category</option>
-              </select>
-              <div class="category-add-row">
-                <input id="owner-new-category" type="text" placeholder="Add new category" />
-                <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
+                <div class="availability-list" data-availability-list></div>
+              </section>
+
+              <div class="admin-secondary">
+                <form id="owner-promo-form" class="owner-add-form">
+                  <h3>Promo Code Settings</h3>
+                  <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
+                  <input id="owner-promo-percent" type="number" step="0.01" min="0" max="100" placeholder="Promo discount %" />
+                  <button type="submit" class="btn btn-primary">Save Promo Settings</button>
+                  <p class="helper-text" id="owner-promo-status"></p>
+                </form>
+
+                <form id="owner-add-form" class="owner-add-form">
+                  <h3>Add Product</h3>
+                  <input id="owner-product-name" type="text" placeholder="Product name" required />
+                  <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
+                  <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
+                  <label for="owner-product-category">Category</label>
+                  <select id="owner-product-category" required>
+                    <option value="">Select category</option>
+                  </select>
+                  <div class="category-add-row">
+                    <input id="owner-new-category" type="text" placeholder="Add new category" />
+                    <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
+                  </div>
+                  <input id="owner-product-desc" type="text" placeholder="Short description" />
+                  <label for="owner-product-image">Product image</label>
+                  <input id="owner-product-image" type="file" accept="image/*" />
+                  <button type="submit" class="btn btn-primary">Add Product</button>
+                </form>
+
+                <div class="owner-products" id="owner-products-list"></div>
               </div>
-              <input id="owner-product-desc" type="text" placeholder="Short description" />
-              <label for="owner-product-image">Product image</label>
-              <input id="owner-product-image" type="file" accept="image/*" />
-              <button type="submit" class="btn btn-primary">Add Product</button>
-            </form>
-
-            <div class="owner-products" id="owner-products-list"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -81,5 +136,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+    <script src="admin-availability-state.js"></script>
+    <script src="admin-availability.js"></script>
   </body>
 </html>

@@ -24,6 +24,9 @@ create table if not exists public.availability (
   end_time timestamptz not null,
   is_available boolean not null default true,
   created_by uuid references public.profiles(id) on delete set null,
+  recurrence_group_id uuid,
+  recurrence_label text default '',
+  recurrence_weekly boolean not null default false,
   check (end_time > start_time)
 );
 
