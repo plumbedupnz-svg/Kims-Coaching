@@ -47,9 +47,13 @@ const authMessageEl = document.querySelector("[data-auth-message]");
 const authTitleEl = document.querySelector("[data-auth-title]");
 const authCopyEl = document.querySelector("[data-auth-copy]");
 const authSubmitEl = document.querySelector("[data-submit-auth]");
+const modeSwitchEl = document.querySelector(".mode-switch");
+const emailFieldEl = document.querySelector("[data-email-field]");
 const nameFieldEl = document.querySelector("[data-name-field]");
 const lastNameFieldEl = document.querySelector("[data-last-name-field]");
 const phoneFieldEl = document.querySelector("[data-phone-field]");
+const loginActionsEl = document.querySelector("[data-login-actions]");
+const forgotPasswordEl = document.querySelector("[data-forgot-password]");
 const authSectionEl = document.querySelector("[data-auth-section]");
 const customerAreaEl = document.querySelector("[data-customer-area]");
 const customerGreetingEl = document.querySelector("[data-customer-greeting]");
@@ -68,7 +72,10 @@ const navLinksEl = document.querySelector("[data-nav-links]");
 const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 let selectedCategory = "all";
-let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
+const urlParams = new URLSearchParams(window.location.search);
+const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.get("type") === "recovery" || urlParams.get("mode") === "reset";
+let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
 let currentUser = null;
 let currentProfile = null;
 
@@ -184,8 +191,9 @@ function redirectAfterAuth(profile = currentProfile) {
 }
 
 function setAuthMode(mode) {
-  authMode = mode === "signup" ? "signup" : "login";
+  authMode = mode === "signup" || mode === "reset" ? mode : "login";
   const isSignup = authMode === "signup";
+  const isReset = authMode === "reset";
 
   document.querySelectorAll("[data-mode-button]").forEach((button) => {
     const isActive = button.dataset.modeButton === authMode;
@@ -193,17 +201,26 @@ function setAuthMode(mode) {
     button.setAttribute("aria-selected", String(isActive));
   });
 
+  if (modeSwitchEl) modeSwitchEl.hidden = isReset;
+  if (emailFieldEl) emailFieldEl.hidden = isReset;
+  if (authFormEl?.email) authFormEl.email.required = !isReset;
   if (nameFieldEl) nameFieldEl.hidden = !isSignup;
   if (lastNameFieldEl) lastNameFieldEl.hidden = !isSignup;
   if (phoneFieldEl) phoneFieldEl.hidden = !isSignup;
-  if (authTitleEl) authTitleEl.textContent = isSignup ? "Create your account" : "Welcome back";
+  if (loginActionsEl) loginActionsEl.hidden = isSignup || isReset;
+  if (authTitleEl) authTitleEl.textContent = isReset ? "Set a new password" : isSignup ? "Create your account" : "Welcome back";
   if (authCopyEl) {
-    authCopyEl.textContent = isSignup
+    authCopyEl.textContent = isReset
+      ? "Enter a new password for your Kim Jones Coaching account."
+      : isSignup
       ? "Set up your customer profile before booking or buying SportsCo gear."
       : "Access your coaching account and continue where you left off.";
   }
-  if (authSubmitEl) authSubmitEl.textContent = isSignup ? "Create Account" : "Login";
-  if (authFormEl?.password) authFormEl.password.autocomplete = isSignup ? "new-password" : "current-password";
+  if (authSubmitEl) authSubmitEl.textContent = isReset ? "Update Password" : isSignup ? "Create Account" : "Login";
+  if (authFormEl?.password) {
+    authFormEl.password.autocomplete = isSignup || isReset ? "new-password" : "current-password";
+    authFormEl.password.placeholder = isReset ? "Enter a new password" : "Enter your password";
+  }
   if (authMessageEl) {
     authMessageEl.textContent = "";
     authMessageEl.removeAttribute("data-tone");
@@ -291,6 +308,60 @@ async function login(formData) {
   currentUser = data.user;
   currentProfile = currentUser ? await loadProfile(currentUser) : null;
   redirectAfterAuth(currentProfile);
+}
+
+async function sendPasswordReset() {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    return;
+  }
+
+  const email = authFormEl?.email?.value.trim();
+  if (!email) {
+    showAuthMessage("Enter your email address first, then use Forgot password.", "error");
+    authFormEl?.email?.focus();
+    return;
+  }
+
+  forgotPasswordEl.disabled = true;
+  showAuthMessage("Sending password reset email...", "neutral");
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/account`
+  });
+
+  forgotPasswordEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  showAuthMessage("Check your email for the password reset link.", "success");
+}
+
+async function updatePassword(formData) {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    return;
+  }
+
+  const password = formData.get("password");
+  authSubmitEl.disabled = true;
+  showAuthMessage("Updating password...", "neutral");
+
+  const { error } = await supabaseClient.auth.updateUser({ password });
+
+  authSubmitEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  showAuthMessage("Password updated. You can now log in.", "success");
+  setAuthMode("login");
+  if (authFormEl?.password) authFormEl.password.value = "";
 }
 
 function renderAccountNavigation() {
@@ -848,6 +919,8 @@ document.querySelectorAll("[data-mode-button]").forEach((button) => {
   button.addEventListener("click", () => setAuthMode(button.dataset.modeButton));
 });
 
+if (forgotPasswordEl) forgotPasswordEl.addEventListener("click", sendPasswordReset);
+
 if (playerCountEl) playerCountEl.addEventListener("change", () => {
   const formData = profileFormEl ? new FormData(profileFormEl) : null;
   renderPlayerFields(formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile));
@@ -863,7 +936,8 @@ if (authFormEl) authFormEl.addEventListener("submit", async (event) => {
   }
 
   const formData = new FormData(authFormEl);
-  if (authMode === "signup") await createAccount(formData);
+  if (authMode === "reset") await updatePassword(formData);
+  else if (authMode === "signup") await createAccount(formData);
   else await login(formData);
 });
 
@@ -929,9 +1003,10 @@ async function init() {
   }
 
   if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
       currentUser = session?.user || null;
       currentProfile = currentUser ? await loadProfile(currentUser) : null;
+      if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
       renderAccountNavigation();
       renderCustomerAccount();
       if (ownerStatusEl) setOwnerUI();
