@@ -417,6 +417,10 @@ textarea { resize: vertical; min-height: 120px; }
 .mode-switch button.active { background: var(--primary); color: #ffffff; }
 .auth-form { display: grid; gap: 0.95rem; margin-top: 1rem; }
 .auth-form label { display: grid; gap: 0.35rem; color: var(--text); font-weight: 600; }
+.auth-form-actions { display: flex; justify-content: flex-end; margin-top: -0.35rem; }
+.link-button { border: 0; background: transparent; color: var(--primary-dark); padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
+.link-button:hover { text-decoration: underline; }
+.link-button:disabled { color: var(--muted); cursor: wait; text-decoration: none; }
 .auth-form input:focus, .profile-form input:focus, .profile-form select:focus, .profile-form textarea:focus { outline: 2px solid rgba(39, 173, 255, 0.35); border-color: var(--primary); }
 .muted, .form-message { color: var(--muted); }
 .form-message { min-height: 1.4rem; margin: 0; }
