@@ -70,7 +70,7 @@
                 <input type="text" name="last_name" placeholder="Morgan" autocomplete="family-name" />
               </label>
 
-              <label>
+              <label data-email-field>
                 Email
                 <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
               </label>
@@ -79,6 +79,10 @@
                 Password
                 <input type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required minlength="8" />
               </label>
+
+              <div class="auth-form-actions" data-login-actions>
+                <button type="button" class="link-button" data-forgot-password>Forgot password?</button>
+              </div>
 
               <label data-phone-field hidden>
                 Mobile
