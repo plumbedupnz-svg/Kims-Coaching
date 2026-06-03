@@ -9,6 +9,7 @@
   const saveEl = document.querySelector("[data-save-availability]");
   const messageEl = document.querySelector("[data-availability-message]");
   const state = { user: null, profile: null, slots: [] };
+  const invalidStartMessage = "Lesson times must start on the hour or half hour.";
 
   function isAdmin() {
     return state.profile?.role === "admin";
@@ -51,6 +52,40 @@
     return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
   }
 
+  function formatTimeLabel(time) {
+    const [hours, minutes] = time.split(":").map(Number);
+    return new Intl.DateTimeFormat(undefined, {
+      hour: "numeric",
+      minute: "2-digit"
+    }).format(new Date(2000, 0, 1, hours, minutes));
+  }
+
+  function buildHalfHourOptions() {
+    return Array.from({ length: 48 }, (_item, index) => {
+      const hours = Math.floor(index / 2);
+      const minutes = index % 2 === 0 ? "00" : "30";
+      const value = `${String(hours).padStart(2, "0")}:${minutes}`;
+      return `<option value="${value}">${formatTimeLabel(value)}</option>`;
+    }).join("");
+  }
+
+  function populateTimeSelectors() {
+    if (!formEl) return;
+    formEl.querySelectorAll("[data-time-select]").forEach((select) => {
+      const placeholder = select.querySelector("option")?.outerHTML || '<option value="">Select time</option>';
+      select.innerHTML = `${placeholder}${buildHalfHourOptions()}`;
+    });
+  }
+
+  function isHalfHourStart(value) {
+    const minutes = new Date(value).getMinutes();
+    return minutes === 0 || minutes === 30;
+  }
+
+  function isAllowedTimeValue(value) {
+    return /^\d{2}:(00|30)$/.test(value);
+  }
+
   function addWeeks(date, weeks) {
     const next = new Date(date);
     next.setDate(next.getDate() + weeks * 7);
@@ -87,6 +122,8 @@
     if (!slotDate || !startTime || !endTime || Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       throw new Error("Choose a date, start time, and end time.");
     }
+    if (!isAllowedTimeValue(startTime) || !isHalfHourStart(start)) throw new Error(invalidStartMessage);
+    if (!isAllowedTimeValue(endTime)) throw new Error("End time must use 30-minute intervals.");
     if (end <= start) throw new Error("End time must be after start time.");
 
     const recurrenceGroupId = recurringWeekly && repeatWeeks > 1 && window.crypto?.randomUUID
@@ -110,6 +147,7 @@
     formEl.elements.slot_date.value = formatDateInput(slot.start_time);
     formEl.elements.start_time.value = formatTimeInput(slot.start_time);
     formEl.elements.end_time.value = formatTimeInput(slot.end_time);
+    const hasInvalidStart = !formEl.elements.start_time.value || !isHalfHourStart(slot.start_time);
     formEl.elements.is_available.value = String(slot.is_available);
     formEl.elements.recurrence_label.value = slot.recurrence_label || "";
     formEl.elements.recurring_weekly.checked = false;
@@ -117,13 +155,14 @@
     if (cancelEditEl) cancelEditEl.hidden = false;
     if (saveEl) saveEl.textContent = "Save edit";
     setRepeatControls();
-    setMessage("Editing one lesson time.", "success");
+    setMessage(hasInvalidStart ? invalidStartMessage : "Editing one lesson time.", hasInvalidStart ? "error" : "success");
     formEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   window.KimsAvailability = {
     client,
     state,
+    invalidStartMessage,
     statusEl: document.getElementById("owner-status"),
     formEl,
     listEl: document.querySelector("[data-availability-list]"),
@@ -134,9 +173,12 @@
     escapeHtml,
     formatDateTime,
     formatTimeInput,
+    isHalfHourStart,
+    populateTimeSelectors,
     resetForm,
     getPayloads,
     fillForm,
     isAdmin
   };
+  populateTimeSelectors();
 })();
