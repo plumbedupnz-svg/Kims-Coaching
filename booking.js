@@ -14,6 +14,7 @@
   const bookingSuccessEl = document.querySelector("[data-booking-success]");
   const authRequiredEl = document.querySelector("[data-auth-required]");
   const myBookingsEl = document.querySelector("[data-my-bookings]");
+  const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const state = {
     user: null,
     profile: null,
@@ -49,6 +50,20 @@
   function getDurationMinutes(slot) {
     if (slot.duration) return Number(slot.duration);
     return Math.round((new Date(slot.end_time) - new Date(slot.start_time)) / 60000);
+  }
+
+  function isHalfHourStart(value) {
+    const date = new Date(value);
+    const minutes = date.getMinutes();
+    return !Number.isNaN(date.getTime()) && (minutes === 0 || minutes === 30);
+  }
+
+  function onlyValidStartSlots(slots) {
+    const validSlots = (slots || []).filter((slot) => isHalfHourStart(slot.start_time));
+    if (slots?.length && validSlots.length !== slots.length) {
+      setStatus(invalidStartMessage, "error");
+    }
+    return validSlots;
   }
 
   function escapeHtml(value = "") {
@@ -117,12 +132,12 @@
       return;
     }
 
-    state.slots = (data || []).map((slot) => ({
+    state.slots = onlyValidStartSlots((data || []).map((slot) => ({
       id: slot.availability_id || slot.id,
       start_time: slot.start_time,
       end_time: slot.end_time,
       duration: slot.duration || getDurationMinutes(slot)
-    }));
+    })));
     renderCalendar();
   }
 
@@ -140,7 +155,7 @@
       return;
     }
 
-    state.slots = data || [];
+    state.slots = onlyValidStartSlots(data || []);
     renderCalendar();
   }
 
@@ -201,6 +216,12 @@
   function selectSlot(slotId) {
     state.selectedSlot = state.slots.find((slot) => slot.id === slotId);
     if (!state.selectedSlot) return;
+    if (!isHalfHourStart(state.selectedSlot.start_time)) {
+      state.selectedSlot = null;
+      setStatus(invalidStartMessage, "error");
+      renderCalendar();
+      return;
+    }
 
     selectedSlotTitleEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })}`;
     selectedSlotCopyEl.textContent = `${formatTime(state.selectedSlot.start_time)} for ${getDurationMinutes(state.selectedSlot)} minutes`;
@@ -229,6 +250,11 @@
     if (!client || !state.user || !state.selectedSlot) return;
     if (!state.lessonType) {
       setStatus("Private lesson type is not configured yet.", "error");
+      return;
+    }
+    if (!isHalfHourStart(state.selectedSlot.start_time)) {
+      setStatus(invalidStartMessage, "error");
+      await loadAvailableSlots();
       return;
     }
 
