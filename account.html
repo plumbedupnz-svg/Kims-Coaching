@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="booking-calendar.css" />
   </head>
   <body>
     <header class="site-header">
@@ -102,6 +103,7 @@
             <p class="eyebrow">Customer Account</p>
             <h1 data-customer-greeting>Your coaching hub</h1>
             <p data-customer-details>Review your profile, saved details, and coaching next steps from one place.</p>
+            <a class="btn btn-primary" href="booking.html">Book Private Lesson</a>
           </div>
 
           <form class="profile-form dashboard-card" data-profile-form>
@@ -157,6 +159,14 @@
             <p data-customer-cart>Your cart is empty.</p>
             <a class="btn btn-primary full" href="shop.html#cart">Continue Shopping</a>
           </div>
+
+          <div class="dashboard-card account-bookings-card">
+            <h3>My Bookings</h3>
+            <div class="booking-list" data-my-bookings>
+              <p class="helper-text">Loading private lesson bookings...</p>
+            </div>
+            <a class="btn btn-secondary full" href="booking.html">Book Private Lesson</a>
+          </div>
         </div>
       </section>
     </main>
@@ -164,5 +174,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+    <script src="booking-notifications.js"></script>
+    <script src="booking.js"></script>
   </body>
 </html>
