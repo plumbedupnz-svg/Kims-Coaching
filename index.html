@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Learn about Kimberley Jones, qualified tennis coach at Maraetai Tennis Club, and book junior tennis coaching for beginner, interclub, and tournament players."
+      content="Shop Kim Jones Coaching tennis training essentials and learn about junior coaching at Maraetai Tennis Club."
     />
-    <title>About Kim | Kim Jones Coaching</title>
+    <title>Shop | Kim Jones Coaching</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -29,11 +29,11 @@
           <span></span>
         </button>
         <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="#shop">Shop</a>
           <a href="#about">About</a>
           <a href="#philosophy">Philosophy</a>
           <a href="#programmes">Programmes</a>
           <a href="#contact">Contact</a>
-          <a href="shop.html">Shop</a>
           <a href="account.html" data-auth-public>Login</a>
           <a href="account.html?mode=signup" data-auth-public>Create Account</a>
           <a href="account.html" data-auth-private hidden>My Account</a>
@@ -43,6 +43,58 @@
     </header>
 
     <main>
+      <section class="section shop-home" id="shop">
+        <div class="container">
+          <div class="section-head">
+            <p class="eyebrow">SportsCo Products</p>
+            <h1>Shop tennis training essentials</h1>
+            <p>Browse Kim's selected gear for movement, strength, recovery, and court-ready practice.</p>
+            <a class="btn btn-primary" href="booking.html">Book Private Lesson</a>
+          </div>
+          <div class="shop-toolbar">
+            <label for="category-filter" class="shop-filter-label">Filter by category</label>
+            <select id="category-filter" class="shop-filter-select">
+              <option value="all">All categories</option>
+            </select>
+          </div>
+
+          <div id="product-list" class="shop-categories"></div>
+        </div>
+      </section>
+
+      <section class="section alt" id="cart">
+        <div class="container cart-layout">
+          <div>
+            <div class="section-head">
+              <p class="eyebrow">Cart</p>
+              <h2>Your selected items</h2>
+            </div>
+            <div id="cart-items" class="cart-items"></div>
+          </div>
+          <aside class="cart-summary" id="checkout">
+            <h3>Order Summary</h3>
+            <div class="summary-row"><span>Subtotal</span><strong id="subtotal">$0.00</strong></div>
+            <div class="summary-row"><span>Estimated Tax (10%)</span><strong id="tax">$0.00</strong></div>
+            <div class="summary-row"><span>Promo Discount</span><strong id="promo-discount">-$0.00</strong></div>
+            <div class="summary-row total"><span>Total</span><strong id="total">$0.00</strong></div>
+
+            <label for="promo-code">Promo Code</label>
+            <div class="category-add-row">
+              <input id="promo-code" type="text" placeholder="Enter promo code" />
+              <button class="btn btn-secondary" id="apply-promo-btn" type="button">Apply</button>
+            </div>
+            <p class="helper-text" id="promo-message"></p>
+
+            <label for="stripe-link">Stripe Checkout Link</label>
+            <input id="stripe-link" type="url" placeholder="https://checkout.stripe.com/..." />
+            <p class="helper-text">Paste your Stripe payment link. The checkout button will use this URL.</p>
+            <p class="helper-text" id="checkout-account-message"></p>
+            <button class="btn btn-primary full" id="checkout-btn">Proceed to Payment</button>
+            <button class="btn btn-secondary full" id="clear-cart-btn">Clear Cart</button>
+          </aside>
+        </div>
+      </section>
+
       <section class="hero about-hero" id="about">
         <div class="container hero-grid">
           <div class="hero-copy">
@@ -54,7 +106,7 @@
               skills, friendships, resilience, and a lifelong love of sport.
             </p>
             <div class="hero-actions">
-              <a class="btn btn-primary" href="mailto:kimjonescoaching@outlook.com?subject=Coaching%20booking%20enquiry">Book Coaching</a>
+              <a class="btn btn-primary" href="booking.html">Book Private Lesson</a>
               <a class="btn btn-secondary" href="#contact">Get In Touch</a>
             </div>
             <dl class="trust-strip" aria-label="Programme highlights">
@@ -290,5 +342,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+    <script src="shop-homepage.js"></script>
   </body>
 </html>
