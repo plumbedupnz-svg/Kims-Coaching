@@ -1,10 +1,24 @@
 (function () {
   function notifyAdminOfNewBooking(payload) {
-    console.info("Admin booking notification placeholder", payload);
-    return Promise.resolve({ queued: false, payload });
+    const emailPayload = {
+      ...payload,
+      title: `Private lesson with ${payload.playerName || "player"}`,
+      startTime: payload.startTime || payload.dateTime,
+      endTime: payload.endTime,
+      description: payload.notes || ""
+    };
+
+    return Promise.allSettled([
+      window.KimsEmailService?.sendBookingAdminNotification(emailPayload),
+      window.KimsEmailService?.sendBookingCustomerConfirmation(emailPayload)
+    ]).then((results) => ({ queued: true, payload, results }));
   }
 
   function generateCalendarInviteData({ title, description, startTime, endTime, location = "Kim Jones Coaching" }) {
+    if (window.KimsEmailService?.generateBookingICS) {
+      return window.KimsEmailService.generateBookingICS({ title, description, startTime, endTime, location });
+    }
+
     const formatDate = (value) => new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
 
     return [
@@ -32,6 +46,8 @@
   window.KimsBookingServices = {
     notifyAdminOfNewBooking,
     generateCalendarInviteData,
+    sendBookingAdminNotification: (payload) => window.KimsEmailService?.sendBookingAdminNotification(payload),
+    sendBookingCustomerConfirmation: (payload) => window.KimsEmailService?.sendBookingCustomerConfirmation(payload),
     smsReminderNotes
   };
 })();
