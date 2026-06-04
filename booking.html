@@ -64,7 +64,29 @@
               <br />
               <a href="#waitlist">Can’t find a suitable time? Join the waitlist.</a>
             </div>
-            <div class="booking-calendar" data-booking-calendar aria-live="polite"></div>
+            <section class="booking-step-panel" aria-labelledby="booking-date-heading">
+              <div class="booking-step-head">
+                <span>1</span>
+                <div>
+                  <h3 id="booking-date-heading">Select Date</h3>
+                  <p>Choose a day with open lesson times.</p>
+                </div>
+              </div>
+              <div class="booking-calendar" data-booking-calendar aria-live="polite"></div>
+            </section>
+
+            <section class="booking-step-panel" aria-labelledby="booking-time-heading">
+              <div class="booking-step-head">
+                <span>2</span>
+                <div>
+                  <h3 id="booking-time-heading">Available Times</h3>
+                  <p>Start times are shown in 30-minute increments.</p>
+                </div>
+              </div>
+              <div class="booking-time-grid" data-time-grid aria-live="polite">
+                <p class="helper-text">Select a date to see available times.</p>
+              </div>
+            </section>
           </div>
 
           <aside class="booking-confirmation" aria-label="Booking confirmation">
@@ -76,12 +98,10 @@
               <a class="btn btn-primary full" href="account.html?mode=signup">Login or Create Account</a>
             </div>
             <form class="booking-form" data-booking-form hidden>
-              <label>
-                Lesson duration
-                <select name="duration_minutes" data-duration-select required>
-                  <option value="">Select duration</option>
-                </select>
-              </label>
+              <fieldset class="booking-duration-field">
+                <legend>Lesson Duration</legend>
+                <div class="duration-options" data-duration-options></div>
+              </fieldset>
               <label>
                 Player name
                 <input type="text" name="player_name" required />
@@ -112,6 +132,7 @@
                 Notes
                 <textarea name="notes" rows="4" placeholder="Anything Kim should know before the lesson"></textarea>
               </label>
+              <div class="booking-summary" data-booking-summary></div>
               <button class="btn btn-primary full" type="submit">Confirm Private Lesson</button>
               <p class="form-message booking-status" data-booking-status role="status" aria-live="polite"></p>
             </form>

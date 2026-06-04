@@ -14,13 +14,16 @@
   const bookingSuccessEl = document.querySelector("[data-booking-success]");
   const authRequiredEl = document.querySelector("[data-auth-required]");
   const myBookingsEl = document.querySelector("[data-my-bookings]");
-  const durationSelectEl = document.querySelector("[data-duration-select]");
+  const timeGridEl = document.querySelector("[data-time-grid]");
+  const durationOptionsEl = document.querySelector("[data-duration-options]");
+  const bookingSummaryEl = document.querySelector("[data-booking-summary]");
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 60, 90, 120];
   const state = {
     user: null,
     profile: null,
     lessonType: null,
+    selectedDayKey: null,
     selectedSlot: null,
     selectedDuration: null,
     weekStart: getMonday(new Date()),
@@ -64,6 +67,10 @@
     return `${slot.id}|${slot.start_time}`;
   }
 
+  function getDayKey(value) {
+    return new Date(value).toDateString();
+  }
+
   function getBookingEndTime(slot, durationMinutes) {
     return new Date(new Date(slot.start_time).getTime() + Number(durationMinutes) * 60000).toISOString();
   }
@@ -99,6 +106,11 @@
     if (!bookingStatusEl) return;
     bookingStatusEl.textContent = message;
     bookingStatusEl.dataset.tone = tone;
+  }
+
+  function getSelectedDuration() {
+    const checkedDuration = bookingFormEl?.querySelector("input[name='duration_minutes']:checked");
+    return Number(checkedDuration?.value || state.selectedDuration || 0);
   }
 
   async function refreshSession() {
@@ -161,6 +173,7 @@
       max_duration_minutes: slot.max_duration_minutes || getDurationMinutes(slot),
       lesson_type_id: slot.lesson_type_id
     })));
+    ensureSelectedDay();
     renderCalendar();
   }
 
@@ -196,7 +209,23 @@
     });
 
     state.slots = onlyValidStartSlots(expandedSlots);
+    ensureSelectedDay();
     renderCalendar();
+  }
+
+  function ensureSelectedDay() {
+    const availableDays = new Set(state.slots.map((slot) => getDayKey(slot.start_time)));
+    if (state.selectedDayKey && availableDays.has(state.selectedDayKey)) return;
+    state.selectedDayKey = availableDays.values().next().value || null;
+    state.selectedSlot = null;
+    state.selectedDuration = null;
+  }
+
+  function getSlotsForSelectedDay() {
+    if (!state.selectedDayKey) return [];
+    return state.slots
+      .filter((slot) => getDayKey(slot.start_time) === state.selectedDayKey)
+      .sort((first, second) => new Date(first.start_time) - new Date(second.start_time));
   }
 
   function renderCalendar() {
@@ -207,7 +236,7 @@
     const days = Array.from({ length: 7 }, (_item, index) => addDays(state.weekStart, index));
     const slotsByDay = new Map();
     state.slots.forEach((slot) => {
-      const key = new Date(slot.start_time).toDateString();
+      const key = getDayKey(slot.start_time);
       slotsByDay.set(key, [...(slotsByDay.get(key) || []), slot]);
     });
 
@@ -215,24 +244,39 @@
     if (emptyEl) emptyEl.hidden = hasSlots;
 
     calendarEl.innerHTML = days.map((day) => {
-      const daySlots = slotsByDay.get(day.toDateString()) || [];
-      const slotButtons = daySlots.map((slot) => `
-        <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
-          ${formatTime(slot.start_time)}
-          <span>${formatTime(slot.start_time)} start · up to ${getMaxDurationMinutes(slot)} min</span>
-        </button>
-      `).join("");
-
+      const dayKey = getDayKey(day);
+      const daySlots = slotsByDay.get(dayKey) || [];
+      const isSelected = state.selectedDayKey === dayKey;
       return `
-        <section class="booking-day">
-          <div>
-            <h3>${formatDate(day, { weekday: "long" })}</h3>
-            <p class="booking-day-date">${formatDate(day, { month: "short", day: "numeric" })}</p>
-          </div>
-          ${slotButtons || '<p class="helper-text">No open times</p>'}
-        </section>
+        <button class="booking-day ${daySlots.length ? "has-slots" : ""} ${isSelected ? "selected" : ""}" type="button" data-day-key="${escapeHtml(dayKey)}" ${daySlots.length ? "" : "disabled"}>
+          <span>${formatDate(day, { weekday: "short" })}</span>
+          <strong>${formatDate(day, { day: "numeric" })}</strong>
+          <small>${daySlots.length ? `${daySlots.length} times` : "No times"}</small>
+        </button>
       `;
     }).join("");
+    renderTimeGrid();
+    renderDurationOptions();
+    renderSummary();
+  }
+
+  function renderTimeGrid() {
+    if (!timeGridEl) return;
+    const daySlots = getSlotsForSelectedDay();
+    if (!state.selectedDayKey) {
+      timeGridEl.innerHTML = '<p class="helper-text">Select a date to see available times.</p>';
+      return;
+    }
+    if (!daySlots.length) {
+      timeGridEl.innerHTML = '<p class="helper-text">No open times for this date.</p>';
+      return;
+    }
+
+    timeGridEl.innerHTML = daySlots.map((slot) => `
+      <button class="time-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
+        ${formatTime(slot.start_time)}
+      </button>
+    `).join("");
   }
 
   function getProfilePlayers(profile) {
@@ -254,16 +298,21 @@
   }
 
   function renderDurationOptions() {
-    if (!durationSelectEl) return;
+    if (!durationOptionsEl) return;
     const durations = state.selectedSlot ? getAvailableDurations(state.selectedSlot) : [];
-    durationSelectEl.innerHTML = [
-      '<option value="">Select duration</option>',
-      ...durations.map((duration) => `<option value="${duration}">${duration} minutes</option>`)
-    ].join("");
+    if (!durations.length) {
+      durationOptionsEl.innerHTML = '<p class="helper-text">Select a time to see duration options.</p>';
+      return;
+    }
 
     const preferredDuration = durations.includes(60) ? 60 : durations[0] || "";
     state.selectedDuration = preferredDuration || null;
-    durationSelectEl.value = preferredDuration ? String(preferredDuration) : "";
+    durationOptionsEl.innerHTML = durations.map((duration) => `
+      <label class="duration-option ${duration === state.selectedDuration ? "selected" : ""}">
+        <input type="radio" name="duration_minutes" value="${duration}" ${duration === state.selectedDuration ? "checked" : ""} required />
+        <span>${duration} minutes</span>
+      </label>
+    `).join("");
   }
 
   function selectSlot(slotKey) {
@@ -283,7 +332,38 @@
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
     renderDurationOptions();
     prefillBookingForm();
+    renderTimeGrid();
+    renderSummary();
+  }
+
+  function selectDay(dayKey) {
+    state.selectedDayKey = dayKey;
+    state.selectedSlot = null;
+    state.selectedDuration = null;
+    if (bookingFormEl) bookingFormEl.hidden = true;
+    if (authRequiredEl) authRequiredEl.hidden = true;
+    if (bookingSuccessEl) bookingSuccessEl.hidden = true;
+    selectedSlotTitleEl.textContent = formatDate(dayKey, { weekday: "long", month: "short", day: "numeric" });
+    selectedSlotCopyEl.textContent = "Choose an available start time.";
     renderCalendar();
+  }
+
+  function renderSummary() {
+    if (!bookingSummaryEl) return;
+    if (!state.selectedSlot || !state.selectedDuration) {
+      bookingSummaryEl.innerHTML = "";
+      return;
+    }
+
+    bookingSummaryEl.innerHTML = `
+      <h3>Booking Summary</h3>
+      <dl>
+        <div><dt>Date</dt><dd>${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "long", day: "numeric" })}</dd></div>
+        <div><dt>Start Time</dt><dd>${formatTime(state.selectedSlot.start_time)}</dd></div>
+        <div><dt>Duration</dt><dd>${state.selectedDuration} minutes</dd></div>
+        <div><dt>Coach</dt><dd>Kim Jones</dd></div>
+      </dl>
+    `;
   }
 
   function buildNotes(formData) {
@@ -313,7 +393,7 @@
     }
 
     const formData = new FormData(bookingFormEl);
-    const selectedDuration = Number(formData.get("duration_minutes"));
+    const selectedDuration = getSelectedDuration();
     const availableDurations = getAvailableDurations(state.selectedSlot);
     if (!availableDurations.includes(selectedDuration)) {
       setStatus("Choose a lesson duration that fits this available time.", "error");
@@ -458,6 +538,7 @@
 
   if (previousWeekEl) previousWeekEl.addEventListener("click", async () => {
     state.weekStart = addDays(state.weekStart, -7);
+    state.selectedDayKey = null;
     state.selectedSlot = null;
     state.selectedDuration = null;
     await loadAvailableSlots();
@@ -465,21 +546,31 @@
 
   if (nextWeekEl) nextWeekEl.addEventListener("click", async () => {
     state.weekStart = addDays(state.weekStart, 7);
+    state.selectedDayKey = null;
     state.selectedSlot = null;
     state.selectedDuration = null;
     await loadAvailableSlots();
   });
 
   if (calendarEl) calendarEl.addEventListener("click", (event) => {
+    const dayButton = event.target.closest("[data-day-key]");
+    if (dayButton) selectDay(dayButton.dataset.dayKey);
+  });
+
+  if (timeGridEl) timeGridEl.addEventListener("click", (event) => {
     const button = event.target.closest("[data-slot-id]");
     if (button) selectSlot(button.dataset.slotId);
   });
 
-  if (durationSelectEl) durationSelectEl.addEventListener("change", () => {
-    state.selectedDuration = Number(durationSelectEl.value) || null;
+  if (durationOptionsEl) durationOptionsEl.addEventListener("change", () => {
+    state.selectedDuration = getSelectedDuration() || null;
+    durationOptionsEl.querySelectorAll(".duration-option").forEach((option) => {
+      option.classList.toggle("selected", Number(option.querySelector("input")?.value) === state.selectedDuration);
+    });
     if (state.selectedSlot && state.selectedDuration) {
       selectedSlotCopyEl.textContent = `${formatTime(state.selectedSlot.start_time)} start · ${state.selectedDuration} minutes`;
     }
+    renderSummary();
   });
 
   if (bookingFormEl) bookingFormEl.addEventListener("submit", createBooking);
