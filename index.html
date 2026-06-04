@@ -3,290 +3,61 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Learn about Kimberley Jones, qualified tennis coach at Maraetai Tennis Club, and book junior tennis coaching for beginner, interclub, and tournament players."
-    />
-    <title>About Kim | Kim Jones Coaching</title>
+    <title>Kim Jones Coaching</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="page-routes.css" />
   </head>
   <body>
     <header class="site-header">
       <nav class="container nav" aria-label="Primary navigation">
-        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
-          <span class="brand-main">KIM JONES</span>
-          <span class="brand-sub">COACHING</span>
-        </a>
-        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
-          <span></span>
-          <span></span>
-          <span></span>
-        </button>
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home"><span class="brand-main">KIM JONES</span><span class="brand-sub">COACHING</span></a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle><span></span><span></span><span></span></button>
         <div class="nav-links" id="primary-nav" data-nav-links>
-          <a href="#about">About</a>
-          <a href="#philosophy">Philosophy</a>
-          <a href="#programmes">Programmes</a>
-          <a href="#contact">Contact</a>
+          <a href="index.html" aria-current="page">Home</a>
+          <a href="booking.html">Book Private Lesson</a>
           <a href="shop.html">Shop</a>
           <a href="account.html" data-auth-public>Login</a>
           <a href="account.html?mode=signup" data-auth-public>Create Account</a>
           <a href="account.html" data-auth-private hidden>My Account</a>
+          <a href="admin.html" data-admin-link hidden>Admin</a>
           <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
         </div>
       </nav>
     </header>
-
     <main>
-      <section class="hero about-hero" id="about">
+      <section class="hero about-hero home-hero">
         <div class="container hero-grid">
           <div class="hero-copy">
-            <p class="eyebrow">Maraetai Tennis Club</p>
-            <h1>Junior tennis coaching that builds skill, confidence, and love for the game.</h1>
-            <p>
-              Kimberley Jones is a qualified tennis coach passionate about helping young players grow both on and off the court.
-              Through coaching, competition, and community connection, Kim creates a positive environment where players can develop
-              skills, friendships, resilience, and a lifelong love of sport.
-            </p>
-            <div class="hero-actions">
-              <a class="btn btn-primary" href="mailto:kimjonescoaching@outlook.com?subject=Coaching%20booking%20enquiry">Book Coaching</a>
-              <a class="btn btn-secondary" href="#contact">Get In Touch</a>
-            </div>
-            <dl class="trust-strip" aria-label="Programme highlights">
-              <div>
-                <dt>120+</dt>
-                <dd>junior players</dd>
-              </div>
-              <div>
-                <dt>TNZ L1</dt>
-                <dd>qualified coach</dd>
-              </div>
-              <div>
-                <dt>All ages</dt>
-                <dd>beginner to tournament</dd>
-              </div>
-            </dl>
+            <p class="eyebrow">Kim Jones Coaching</p>
+            <h1>Private tennis coaching with a sharper way in.</h1>
+            <p>Book private lessons, shop tennis training essentials, and manage your coaching profile from one clean client hub.</p>
+            <div class="hero-actions"><a class="btn btn-primary" href="booking.html">Book Private Lesson</a><a class="btn btn-secondary" href="shop.html">Shop</a></div>
+            <dl class="trust-strip"><div><dt>Private</dt><dd>One-on-one tennis lessons</dd></div><div><dt>Flexible</dt><dd>Admin-opened lesson times</dd></div><div><dt>Premium</dt><dd>Clear coaching pathway</dd></div></dl>
           </div>
-          <div class="kim-photo-panel" aria-label="Professional photo space for Kim">
-            <div class="kim-photo-placeholder">
-              <span>Kim photo</span>
-            </div>
-            <div class="photo-caption">
-              <strong>Kimberley Jones</strong>
-              <span>Qualified tennis coach and junior programme lead</span>
-            </div>
-          </div>
+          <aside class="kim-photo-panel" aria-label="Kim Jones Coaching"><div class="kim-photo-placeholder">Kim Jones Coaching</div><div class="photo-caption"><strong>Private lessons and player development</strong><span>Built for juniors, parents, and serious progress.</span></div></aside>
         </div>
       </section>
-
-      <section class="section intro-section">
-        <div class="container split-section">
-          <div class="section-head">
-            <p class="eyebrow">About Kim</p>
-            <h2>Warm, structured coaching for every stage of junior development.</h2>
-          </div>
-          <div class="rich-copy">
-            <p>
-              Based at Maraetai Tennis Club, Kim works with junior players of all ages and abilities - from complete beginners
-              through to competitive interclub and tournament players.
-            </p>
-            <p>
-              With a strong background in sport, science, and nutrition, Kim takes a holistic approach to coaching that focuses
-              not only on technical development, but also confidence, enjoyment, resilience, and long-term participation in sport.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section philosophy-section" id="philosophy">
+      <section class="section">
         <div class="container">
-          <div class="section-head centered">
-            <p class="eyebrow">Coaching Philosophy</p>
-            <h2>The best results come when players feel ready to grow.</h2>
-            <p>
-              Every session is designed to be engaging, structured, and encouraging while building strong technical and tactical foundations.
-            </p>
-          </div>
-          <div class="pill-grid" aria-label="What players feel through Kim's coaching">
-            <span>Supported</span>
-            <span>Confident</span>
-            <span>Challenged appropriately</span>
-            <span>Excited to improve</span>
-            <span>Connected to their club and teammates</span>
+          <div class="section-head centered"><p class="eyebrow">Choose Your Page</p><h2>Everything has its own place.</h2><p>No more long scrolling homepage. Go straight to the part of Kim Jones Coaching you need.</p></div>
+          <div class="cards route-card-grid">
+            <article class="product-card feature-card route-card"><span class="card-number">01</span><h3>Book Private Lesson</h3><p>View Kim's available private lesson times and request a booking.</p><a class="btn btn-primary" href="booking.html">Book Private Lesson</a></article>
+            <article class="product-card feature-card route-card"><span class="card-number">02</span><h3>Shop</h3><p>Browse tennis training products and manage your cart.</p><a class="btn btn-primary" href="shop.html">Open Shop</a></article>
+            <article class="product-card feature-card route-card"><span class="card-number">03</span><h3>My Account</h3><p>Update profile details and review your private lesson bookings.</p><a class="btn btn-primary" href="account.html">My Account</a></article>
           </div>
         </div>
       </section>
-
-      <section class="section" id="programmes">
-        <div class="container">
-          <div class="section-head">
-            <p class="eyebrow">Programmes</p>
-            <h2>Clear pathways from first rallies to competition.</h2>
-          </div>
-          <div class="cards programme-grid">
-            <article class="product-card feature-card">
-              <span class="card-number">01</span>
-              <h3>Junior Group Coaching</h3>
-              <p>Weekly sessions for young players to build fundamentals, confidence, friendships, and match-ready habits.</p>
-            </article>
-            <article class="product-card feature-card">
-              <span class="card-number">02</span>
-              <h3>Private Lessons</h3>
-              <p>Focused coaching for players who need personalised technical, tactical, or confidence support.</p>
-            </article>
-            <article class="product-card feature-card">
-              <span class="card-number">03</span>
-              <h3>Holiday Programmes</h3>
-              <p>Fun, structured tennis blocks that keep players active, connected, and improving during school breaks.</p>
-            </article>
-            <article class="product-card feature-card">
-              <span class="card-number">04</span>
-              <h3>Interclub Pathways</h3>
-              <p>Support for junior players moving into interclub, local competition, and tournament environments.</p>
-            </article>
-          </div>
-        </div>
+      <section class="section alt">
+        <div class="container split-section"><div class="section-head"><p class="eyebrow">About Kim</p><h2>Coaching that meets the player in front of her.</h2></div><div class="rich-copy"><p>Kim Jones Coaching helps players build better habits, stronger technique, and more confidence on court.</p><p>Parents and players can use the booking page for private lesson times, the shop for tennis essentials, and the account area for saved details.</p></div></div>
       </section>
-
-      <section class="section alt" id="experience">
-        <div class="container experience-layout">
-          <div>
-            <p class="eyebrow">Coaching Experience</p>
-            <h2>Junior Programme Lead - Cockle Bay Tennis Club</h2>
-            <p>
-              Kim leads and manages a rapidly growing junior tennis programme with more than 120 active junior players.
-            </p>
-          </div>
-          <div class="check-list">
-            <p>Delivers weekly junior group coaching</p>
-            <p>Provides private lessons and school holiday programmes</p>
-            <p>Organises and runs junior tournaments</p>
-            <p>Supports junior interclub development pathways</p>
-            <p>Focuses on confidence, enjoyment, and long-term player development</p>
-            <p>Maintains strong relationships with families and the local community</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section credentials-section" id="qualifications">
-        <div class="container credentials-grid">
-          <div>
-            <div class="section-head">
-              <p class="eyebrow">Education & Qualifications</p>
-              <h2>Sport, science, nutrition, and tennis coaching expertise.</h2>
-            </div>
-            <div class="credential-list">
-              <p>Bachelor of Sport and Recreation</p>
-              <p>Graduate Certificate in Chemistry</p>
-              <p>Postgraduate Diploma in Human Nutrition</p>
-              <p>Tennis New Zealand Level 1 Coaching Qualification</p>
-            </div>
-          </div>
-          <aside class="qualification-panel">
-            <p class="eyebrow">Additional Sporting Experience</p>
-            <h3>High-performance environment exposure</h3>
-            <p>
-              Kim has experience coaching within high-performance sporting environments through involvement with Netball Counties
-              Manukau as both a netball coach and high-performance intern.
-            </p>
-            <div class="mini-tags">
-              <span>Athlete development</span>
-              <span>Performance pathways</span>
-              <span>Team culture</span>
-              <span>Programme structure</span>
-              <span>Player wellbeing</span>
-            </div>
-          </aside>
-        </div>
-      </section>
-
-      <section class="section achievements-section" id="achievements">
-        <div class="container achievement-layout">
-          <div class="section-head">
-            <p class="eyebrow">Playing Background</p>
-            <h2>Current match-play experience brought into every session.</h2>
-          </div>
-          <div class="achievement-stack">
-            <article class="achievement-item">
-              <span>Active</span>
-              <p>Interclub and local competition player</p>
-            </article>
-            <article class="achievement-item">
-              <span>Regular</span>
-              <p>Masters tennis competitor</p>
-            </article>
-            <article class="achievement-item highlight">
-              <span>2025</span>
-              <p>Winner - Division 1 Mixed Doubles Tournament, Tauranga</p>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section impact-section">
-        <div class="container impact-grid">
-          <div class="section-head">
-            <p class="eyebrow">Community Impact</p>
-            <h2>Helping grassroots tennis feel welcoming, organised, and rewarding.</h2>
-          </div>
-          <div class="impact-metrics">
-            <article>
-              <strong>120+</strong>
-              <span>junior players actively participating</span>
-            </article>
-            <article>
-              <strong>Growth</strong>
-              <span>strong programme growth and player retention</span>
-            </article>
-            <article>
-              <strong>Pathways</strong>
-              <span>structured progression from beginner to competition</span>
-            </article>
-            <article>
-              <strong>Trust</strong>
-              <span>positive reputation within the local community</span>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section class="section contact-section" id="contact">
-        <div class="container contact-panel">
-          <div>
-            <p class="eyebrow">Book Coaching</p>
-            <h2>Ready to help your player take the next step?</h2>
-            <p>
-              Contact Kim to discuss junior coaching, private lessons, holiday programmes, or the right pathway for your child.
-            </p>
-          </div>
-          <div class="contact-actions">
-            <a class="btn btn-primary" href="mailto:kimjonescoaching@outlook.com?subject=Coaching%20booking%20enquiry">Book Coaching</a>
-            <a class="btn btn-secondary" href="tel:0211737655">Call Kim</a>
-            <div class="contact-details" aria-label="Contact information">
-              <p><strong>Kimberley Jones</strong></p>
-              <p><a href="tel:0211737655">021 173 7655</a></p>
-              <p><a href="mailto:kimjonescoaching@outlook.com">kimjonescoaching@outlook.com</a></p>
-              <p>Maraetai Tennis Club</p>
-            </div>
-          </div>
-        </div>
-      </section>
+      <section class="section contact-section"><div class="container contact-panel"><div><p class="eyebrow">Ready</p><h2>Start with a private lesson.</h2><p>Choose a time Kim has opened and send through player details before you arrive.</p></div><div class="contact-actions"><a class="btn btn-primary" href="booking.html">Book Private Lesson</a><a class="btn btn-secondary" href="account.html">Create Account</a></div></div></section>
     </main>
-
-    <footer class="site-footer">
-      <div class="container footer-inner">
-        <p class="footer-copy">Kim Jones Coaching - Proudly sponsored by HEAD.</p>
-        <a class="head-link" href="https://www.head.com/en_NZ/" target="_blank" rel="noopener noreferrer" aria-label="Visit HEAD New Zealand website">
-          <span class="head-logo" aria-hidden="true">HEAD</span>
-        </a>
-      </div>
-    </footer>
-
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
     <script src="app.js"></script>
+    <script src="product-categories.js"></script>
   </body>
 </html>

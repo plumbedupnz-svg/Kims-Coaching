@@ -1,11 +1,8 @@
 const CART_KEY = "kims_cart";
 const STRIPE_KEY = "kims_stripe_link";
 const PRODUCTS_KEY = "kims_products";
-const ACCOUNTS_KEY = "kims_accounts";
-const SESSION_KEY = "kims_session";
 const PROMO_SETTINGS_KEY = "kims_promo_settings";
 const APPLIED_PROMO_CODE_KEY = "kims_applied_promo_code";
-const ADMIN_EMAILS = ["kim@kimjonescoaching.co.nz"];
 
 const defaultProducts = [
   { id: "agility-kit", name: "Speed Agility Kit", price: 59.99, discount: 0, category: "Training", description: "Cones, ladder, and bands for movement sessions.", image: "" },
@@ -50,13 +47,22 @@ const authMessageEl = document.querySelector("[data-auth-message]");
 const authTitleEl = document.querySelector("[data-auth-title]");
 const authCopyEl = document.querySelector("[data-auth-copy]");
 const authSubmitEl = document.querySelector("[data-submit-auth]");
+const modeSwitchEl = document.querySelector(".mode-switch");
+const emailFieldEl = document.querySelector("[data-email-field]");
 const nameFieldEl = document.querySelector("[data-name-field]");
+const lastNameFieldEl = document.querySelector("[data-last-name-field]");
 const phoneFieldEl = document.querySelector("[data-phone-field]");
+const loginActionsEl = document.querySelector("[data-login-actions]");
+const forgotPasswordEl = document.querySelector("[data-forgot-password]");
 const authSectionEl = document.querySelector("[data-auth-section]");
 const customerAreaEl = document.querySelector("[data-customer-area]");
 const customerGreetingEl = document.querySelector("[data-customer-greeting]");
 const customerDetailsEl = document.querySelector("[data-customer-details]");
 const customerCartEl = document.querySelector("[data-customer-cart]");
+const profileFormEl = document.querySelector("[data-profile-form]");
+const profileMessageEl = document.querySelector("[data-profile-message]");
+const playerCountEl = document.querySelector("[data-player-count]");
+const playersListEl = document.querySelector("[data-players-list]");
 const publicAuthEls = document.querySelectorAll("[data-auth-public]");
 const privateAuthEls = document.querySelectorAll("[data-auth-private]");
 const signOutEls = document.querySelectorAll("[data-sign-out]");
@@ -66,7 +72,20 @@ const navLinksEl = document.querySelector("[data-nav-links]");
 const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 let selectedCategory = "all";
-let authMode = new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "login";
+const urlParams = new URLSearchParams(window.location.search);
+const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.get("type") === "recovery" || urlParams.get("mode") === "reset";
+let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
+let currentUser = null;
+let currentProfile = null;
+
+const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
+
+const supabaseSettings = window.KIMS_SUPABASE || {};
+const hasSupabaseConfig = Boolean(supabaseSettings.url && supabaseSettings.anonKey && window.supabase);
+const supabaseClient = hasSupabaseConfig
+  ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
+  : null;
 
 function getDiscountedPrice(product) {
   const base = Number(product.price);
@@ -98,52 +117,70 @@ const saveProducts = (products) => localStorage.setItem(PRODUCTS_KEY, JSON.strin
 const loadCart = () => JSON.parse(localStorage.getItem(CART_KEY) || "[]");
 const saveCart = (cart) => localStorage.setItem(CART_KEY, JSON.stringify(cart));
 
-function loadAccounts() {
-  return JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || "[]");
-}
-
-function saveAccounts(accounts) {
-  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
-}
-
-function findAccountByEmail(email) {
-  return loadAccounts().find((account) => account.email.toLowerCase() === email.toLowerCase());
-}
-
-function saveSession(account) {
-  localStorage.setItem(
-    SESSION_KEY,
-    JSON.stringify({
-      id: account.id,
-      email: account.email,
-      role: account.role,
-    })
-  );
-}
-
-function loadSession() {
-  return JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+function isAdminProfile(profile = currentProfile) {
+  return profile?.role === "admin";
 }
 
 function activeAccount() {
-  const session = loadSession();
-  if (!session) return null;
-  return loadAccounts().find((account) => account.id === session.id) || null;
+  if (!currentUser) return null;
+  return {
+    id: currentUser.id,
+    email: currentUser.email,
+    role: currentProfile?.role || "customer",
+    ...currentProfile
+  };
 }
 
-function isAdminAccount(account) {
-  return account?.role === "admin";
+function getAccountDestination(profile = currentProfile) {
+  return isAdminProfile(profile) ? "/admin" : "/account#customer-account";
 }
 
-function getAccountDestination(account) {
-  return isAdminAccount(account) ? "owner.html" : "account.html#customer-account";
+function getRouteName() {
+  const path = window.location.pathname;
+  const file = path.split("/").pop() || "index.html";
+  if (file === "account" || file === "account.html") return "account";
+  if (file === "admin" || file === "admin.html" || file === "owner.html") return "admin";
+  return file.replace(".html", "") || "index";
 }
 
-function redirectAfterAuth(account) {
-  const destination = getAccountDestination(account);
-  const isAccountPage = window.location.pathname.endsWith("/account.html");
+async function loadProfile(user) {
+  if (!supabaseClient || !user) return null;
+  let data = null;
+  let error = null;
 
-  if (!isAdminAccount(account) && isAccountPage) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const result = await supabaseClient
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single();
+    data = result.data;
+    error = result.error;
+    if (data || error?.code !== "PGRST116") break;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+
+  if (error) {
+    console.error("Could not load profile", error);
+    return null;
+  }
+
+  return data;
+}
+
+async function refreshSessionProfile() {
+  if (!supabaseClient) return;
+  const { data, error } = await supabaseClient.auth.getSession();
+  if (error) console.error("Could not load auth session", error);
+  currentUser = data?.session?.user || null;
+  currentProfile = currentUser ? await loadProfile(currentUser) : null;
+}
+
+function redirectAfterAuth(profile = currentProfile) {
+  const destination = getAccountDestination(profile);
+  const route = getRouteName();
+
+  if (!isAdminProfile(profile) && route === "account") {
     history.replaceState(null, "", destination);
     renderAccountNavigation();
     renderCustomerAccount();
@@ -154,8 +191,9 @@ function redirectAfterAuth(account) {
 }
 
 function setAuthMode(mode) {
-  authMode = mode === "signup" ? "signup" : "login";
+  authMode = mode === "signup" || mode === "reset" ? mode : "login";
   const isSignup = authMode === "signup";
+  const isReset = authMode === "reset";
 
   document.querySelectorAll("[data-mode-button]").forEach((button) => {
     const isActive = button.dataset.modeButton === authMode;
@@ -163,16 +201,26 @@ function setAuthMode(mode) {
     button.setAttribute("aria-selected", String(isActive));
   });
 
+  if (modeSwitchEl) modeSwitchEl.hidden = isReset;
+  if (emailFieldEl) emailFieldEl.hidden = isReset;
+  if (authFormEl?.email) authFormEl.email.required = !isReset;
   if (nameFieldEl) nameFieldEl.hidden = !isSignup;
+  if (lastNameFieldEl) lastNameFieldEl.hidden = !isSignup;
   if (phoneFieldEl) phoneFieldEl.hidden = !isSignup;
-  if (authTitleEl) authTitleEl.textContent = isSignup ? "Create your account" : "Welcome back";
+  if (loginActionsEl) loginActionsEl.hidden = isSignup || isReset;
+  if (authTitleEl) authTitleEl.textContent = isReset ? "Set a new password" : isSignup ? "Create your account" : "Welcome back";
   if (authCopyEl) {
-    authCopyEl.textContent = isSignup
-      ? "Set up your customer account before booking or buying SportsCo gear."
+    authCopyEl.textContent = isReset
+      ? "Enter a new password for your Kim Jones Coaching account."
+      : isSignup
+      ? "Set up your customer profile before booking or buying SportsCo gear."
       : "Access your coaching account and continue where you left off.";
   }
-  if (authSubmitEl) authSubmitEl.textContent = isSignup ? "Create Account" : "Login";
-  if (authFormEl?.password) authFormEl.password.autocomplete = isSignup ? "new-password" : "current-password";
+  if (authSubmitEl) authSubmitEl.textContent = isReset ? "Update Password" : isSignup ? "Create Account" : "Login";
+  if (authFormEl?.password) {
+    authFormEl.password.autocomplete = isSignup || isReset ? "new-password" : "current-password";
+    authFormEl.password.placeholder = isReset ? "Enter a new password" : "Enter your password";
+  }
   if (authMessageEl) {
     authMessageEl.textContent = "";
     authMessageEl.removeAttribute("data-tone");
@@ -185,52 +233,135 @@ function showAuthMessage(message, tone = "neutral") {
   authMessageEl.dataset.tone = tone;
 }
 
-function createAccount(formData) {
+async function createAccount(formData) {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    return;
+  }
+
   const email = formData.get("email").trim();
   const password = formData.get("password");
-  const name = formData.get("name").trim();
+  const firstName = formData.get("first_name").trim();
+  const lastName = formData.get("last_name").trim();
   const phone = formData.get("phone").trim();
 
-  if (!name) {
-    showAuthMessage("Please add your name to create an account.", "error");
+  if (!firstName || !lastName) {
+    showAuthMessage("Please add your first and last name to create an account.", "error");
     return;
   }
 
-  if (findAccountByEmail(email)) {
-    showAuthMessage("An account already exists for that email. Try logging in.", "error");
-    setAuthMode("login");
-    authFormEl.email.value = email;
-    return;
-  }
+  authSubmitEl.disabled = true;
+  showAuthMessage("Creating your account...", "neutral");
 
-  const account = {
-    id: `account-${Date.now()}`,
-    name,
+  const { data, error } = await supabaseClient.auth.signUp({
     email,
-    phone,
     password,
-    role: ADMIN_EMAILS.includes(email.toLowerCase()) ? "admin" : "customer",
-  };
+    options: {
+      data: {
+        first_name: firstName,
+        last_name: lastName,
+        phone
+      }
+    }
+  });
 
-  const accounts = loadAccounts();
-  accounts.push(account);
-  saveAccounts(accounts);
-  saveSession(account);
-  redirectAfterAuth(account);
+  authSubmitEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  currentUser = data.user;
+  currentProfile = currentUser ? await loadProfile(currentUser) : null;
+
+  if (!data.session) {
+    showAuthMessage("Check your email to confirm your account, then log in.", "success");
+    setAuthMode("login");
+    return;
+  }
+
+  redirectAfterAuth(currentProfile);
 }
 
-function login(formData) {
-  const email = formData.get("email").trim();
-  const password = formData.get("password");
-  const account = findAccountByEmail(email);
-
-  if (!account || account.password !== password) {
-    showAuthMessage("Email or password did not match an account.", "error");
+async function login(formData) {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
     return;
   }
 
-  saveSession(account);
-  redirectAfterAuth(account);
+  const email = formData.get("email").trim();
+  const password = formData.get("password");
+
+  authSubmitEl.disabled = true;
+  showAuthMessage("Signing you in...", "neutral");
+
+  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+
+  authSubmitEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  currentUser = data.user;
+  currentProfile = currentUser ? await loadProfile(currentUser) : null;
+  redirectAfterAuth(currentProfile);
+}
+
+async function sendPasswordReset() {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    return;
+  }
+
+  const email = authFormEl?.email?.value.trim();
+  if (!email) {
+    showAuthMessage("Enter your email address first, then use Forgot password.", "error");
+    authFormEl?.email?.focus();
+    return;
+  }
+
+  forgotPasswordEl.disabled = true;
+  showAuthMessage("Sending password reset email...", "neutral");
+
+  const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+    redirectTo: `${window.location.origin}/account`
+  });
+
+  forgotPasswordEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  showAuthMessage("Check your email for the password reset link.", "success");
+}
+
+async function updatePassword(formData) {
+  if (!supabaseClient) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    return;
+  }
+
+  const password = formData.get("password");
+  authSubmitEl.disabled = true;
+  showAuthMessage("Updating password...", "neutral");
+
+  const { error } = await supabaseClient.auth.updateUser({ password });
+
+  authSubmitEl.disabled = false;
+
+  if (error) {
+    showAuthMessage(error.message, "error");
+    return;
+  }
+
+  showAuthMessage("Password updated. You can now log in.", "success");
+  setAuthMode("login");
+  if (authFormEl?.password) authFormEl.password.value = "";
 }
 
 function renderAccountNavigation() {
@@ -240,7 +371,7 @@ function renderAccountNavigation() {
   });
   privateAuthEls.forEach((item) => {
     item.hidden = !account;
-    if (account) item.href = getAccountDestination(account);
+    if (account) item.href = getAccountDestination(currentProfile);
   });
   signOutEls.forEach((button) => {
     button.hidden = !account;
@@ -250,30 +381,184 @@ function renderAccountNavigation() {
 function renderCustomerAccount() {
   if (!customerAreaEl) return;
   const account = activeAccount();
-  const showCustomerArea = account?.role === "customer";
+  const showCustomerArea = Boolean(account) && !isAdminProfile(currentProfile);
   customerAreaEl.hidden = !showCustomerArea;
   if (authSectionEl) authSectionEl.hidden = Boolean(account);
 
   if (!account) return;
-  if (isAdminAccount(account)) {
-    window.location.replace("owner.html");
+  if (isAdminProfile(currentProfile)) {
+    window.location.replace("admin.html");
     return;
   }
 
-  const firstName = account.name.split(" ")[0] || "there";
+  const firstName = currentProfile?.first_name || "there";
   const cart = loadCart();
   const itemCount = cart.reduce((total, item) => total + Number(item.quantity || 0), 0);
   const cartTotal = cart.reduce((total, item) => total + Number(item.price) * Number(item.quantity || 0), 0);
 
   if (customerGreetingEl) customerGreetingEl.textContent = `Welcome back, ${firstName}`;
   if (customerDetailsEl) {
-    customerDetailsEl.textContent = `${account.email}${account.phone ? ` · ${account.phone}` : ""}`;
+    customerDetailsEl.textContent = `${account.email}${currentProfile?.phone ? ` · ${currentProfile.phone}` : ""}`;
   }
   if (customerCartEl) {
     customerCartEl.textContent = itemCount
       ? `${itemCount} item${itemCount === 1 ? "" : "s"} saved, currently ${money(cartTotal)} before tax.`
       : "Your cart is empty.";
   }
+
+  populateProfileForm();
+}
+
+function setProfileMessage(message, tone = "neutral") {
+  if (!profileMessageEl) return;
+  profileMessageEl.textContent = message;
+  profileMessageEl.dataset.tone = tone;
+}
+
+function populateProfileForm() {
+  if (!profileFormEl || !currentProfile) return;
+  const fields = ["first_name", "last_name", "phone", "parent_name", "notes"];
+  fields.forEach((field) => {
+    if (!profileFormEl.elements[field]) return;
+    profileFormEl.elements[field].value = currentProfile[field] ?? "";
+  });
+
+  const players = getProfilePlayers(currentProfile);
+  if (playerCountEl) playerCountEl.value = String(players.length || 1);
+  renderPlayerFields(players);
+}
+
+function getProfilePlayers(profile) {
+  if (Array.isArray(profile?.players) && profile.players.length) {
+    return profile.players.map(normalizePlayer);
+  }
+
+  if (profile?.player_name || profile?.player_age || profile?.tennis_level) {
+    return [
+      normalizePlayer({
+        name: profile.player_name || "",
+        age: profile.player_age || "",
+        level: profile.tennis_level || ""
+      })
+    ];
+  }
+
+  return [normalizePlayer({})];
+}
+
+function normalizePlayer(player) {
+  return {
+    name: player?.name || "",
+    dob: player?.dob || "",
+    age: player?.age ?? "",
+    level: player?.level || player?.tennis_level || "",
+    notes: player?.notes || ""
+  };
+}
+
+function getSelectedPlayerCount() {
+  const count = Number(playerCountEl?.value || 1);
+  if (Number.isNaN(count)) return 1;
+  return Math.min(6, Math.max(1, count));
+}
+
+function renderPlayerFields(players = []) {
+  if (!playersListEl) return;
+  const count = getSelectedPlayerCount();
+  const nextPlayers = [...players];
+  while (nextPlayers.length < count) nextPlayers.push(normalizePlayer({}));
+
+  playersListEl.innerHTML = nextPlayers
+    .slice(0, count)
+    .map((player, index) => {
+      const levelOptions = [
+        '<option value="">Select skill level</option>',
+        ...tennisLevelOptions.map((level) => `<option value="${level}" ${player.level === level ? "selected" : ""}>${level}</option>`)
+      ].join("");
+
+      return `
+        <article class="player-card">
+          <h4>Player ${index + 1}</h4>
+          <div class="player-grid">
+            <label>
+              Player name
+              <input type="text" name="player_name_${index}" value="${escapeAttribute(player.name)}" />
+            </label>
+            <label>
+              Date of birth
+              <input type="date" name="player_dob_${index}" value="${escapeAttribute(player.dob)}" />
+            </label>
+            <label>
+              Age
+              <input type="number" name="player_age_${index}" min="0" max="120" inputmode="numeric" value="${escapeAttribute(String(player.age ?? ""))}" />
+            </label>
+            <label>
+              Skill level
+              <select name="player_level_${index}">${levelOptions}</select>
+            </label>
+          </div>
+        </article>`;
+    })
+    .join("");
+}
+
+function escapeAttribute(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function getPlayersFromForm(formData) {
+  return Array.from({ length: getSelectedPlayerCount() }, (_item, index) =>
+    normalizePlayer({
+      name: formData.get(`player_name_${index}`)?.trim() || "",
+      dob: formData.get(`player_dob_${index}`) || "",
+      age: formData.get(`player_age_${index}`) ? Number(formData.get(`player_age_${index}`)) : null,
+      level: formData.get(`player_level_${index}`) || ""
+    })
+  );
+}
+
+async function saveProfile(formData) {
+  if (!supabaseClient || !currentUser) return;
+  const players = getPlayersFromForm(formData);
+  const primaryPlayer = players[0] || normalizePlayer({});
+
+  const payload = {
+    first_name: formData.get("first_name").trim(),
+    last_name: formData.get("last_name").trim(),
+    phone: formData.get("phone").trim(),
+    parent_name: formData.get("parent_name").trim(),
+    player_name: primaryPlayer.name,
+    player_age: primaryPlayer.age === "" ? null : primaryPlayer.age,
+    tennis_level: primaryPlayer.level,
+    players,
+    notes: formData.get("notes").trim()
+  };
+
+  setProfileMessage("Saving profile...", "neutral");
+  const submitButton = profileFormEl.querySelector("button[type='submit']");
+  if (submitButton) submitButton.disabled = true;
+
+  const { data, error } = await supabaseClient
+    .from("profiles")
+    .update(payload)
+    .eq("id", currentUser.id)
+    .select()
+    .single();
+
+  if (submitButton) submitButton.disabled = false;
+
+  if (error) {
+    setProfileMessage(error.message, "error");
+    return;
+  }
+
+  currentProfile = data;
+  renderCustomerAccount();
+  setProfileMessage("Profile saved.", "success");
 }
 
 function loadPromoSettings() {
@@ -429,8 +714,13 @@ function renderOwnerProducts() {
 function setOwnerUI() {
   if (!ownerPanelEl || !ownerStatusEl) return;
   const account = activeAccount();
-  const authed = isAdminAccount(account);
+  const authed = isAdminProfile(currentProfile);
   ownerPanelEl.hidden = !authed;
+
+  if (!supabaseClient) {
+    ownerStatusEl.textContent = "Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.";
+    return;
+  }
 
   if (!account) {
     ownerStatusEl.innerHTML = 'Please <a href="account.html">log in</a> to continue.';
@@ -629,7 +919,14 @@ document.querySelectorAll("[data-mode-button]").forEach((button) => {
   button.addEventListener("click", () => setAuthMode(button.dataset.modeButton));
 });
 
-if (authFormEl) authFormEl.addEventListener("submit", (event) => {
+if (forgotPasswordEl) forgotPasswordEl.addEventListener("click", sendPasswordReset);
+
+if (playerCountEl) playerCountEl.addEventListener("change", () => {
+  const formData = profileFormEl ? new FormData(profileFormEl) : null;
+  renderPlayerFields(formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile));
+});
+
+if (authFormEl) authFormEl.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   if (!authFormEl.checkValidity()) {
@@ -639,16 +936,30 @@ if (authFormEl) authFormEl.addEventListener("submit", (event) => {
   }
 
   const formData = new FormData(authFormEl);
-  if (authMode === "signup") createAccount(formData);
-  else login(formData);
+  if (authMode === "reset") await updatePassword(formData);
+  else if (authMode === "signup") await createAccount(formData);
+  else await login(formData);
 });
 
 signOutEls.forEach((button) => {
-  button.addEventListener("click", () => {
-    localStorage.removeItem(SESSION_KEY);
+  button.addEventListener("click", async () => {
+    if (supabaseClient) await supabaseClient.auth.signOut();
+    currentUser = null;
+    currentProfile = null;
     renderAccountNavigation();
     window.location.href = "account.html";
   });
+});
+
+if (profileFormEl) profileFormEl.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!profileFormEl.checkValidity()) {
+    setProfileMessage("Please check the profile fields.", "error");
+    profileFormEl.reportValidity();
+    return;
+  }
+
+  await saveProfile(new FormData(profileFormEl));
 });
 
 if (menuToggleEl && navLinksEl) {
@@ -666,20 +977,41 @@ if (menuToggleEl && navLinksEl) {
   });
 }
 
-if (stripeInputEl) loadStripeLink();
-renderAccountNavigation();
-if (authFormEl) setAuthMode(authMode);
-if (productListEl) renderProducts();
-if (cartItemsEl) renderCart();
-if (ownerStatusEl) setOwnerUI();
-renderCustomerAccount();
+async function init() {
+  if (stripeInputEl) loadStripeLink();
+  if (authFormEl) setAuthMode(authMode);
+  if (productListEl) renderProducts();
+  if (cartItemsEl) renderCart();
 
-if (promoCodeEl) {
-  const applied = localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "";
-  promoCodeEl.value = applied;
+  if (!supabaseClient && authMessageEl) {
+    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+  }
+
+  await refreshSessionProfile();
+  renderAccountNavigation();
+  renderCustomerAccount();
+  if (ownerStatusEl) setOwnerUI();
+
+  if (promoCodeEl) {
+    const applied = localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "";
+    promoCodeEl.value = applied;
+  }
+  if (ownerPromoCodeEl || ownerPromoPercentEl) {
+    const promo = loadPromoSettings();
+    if (ownerPromoCodeEl) ownerPromoCodeEl.value = promo.code || "";
+    if (ownerPromoPercentEl) ownerPromoPercentEl.value = promo.percent || 0;
+  }
+
+  if (supabaseClient) {
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      currentUser = session?.user || null;
+      currentProfile = currentUser ? await loadProfile(currentUser) : null;
+      if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
+      renderAccountNavigation();
+      renderCustomerAccount();
+      if (ownerStatusEl) setOwnerUI();
+    });
+  }
 }
-if (ownerPromoCodeEl || ownerPromoPercentEl) {
-  const promo = loadPromoSettings();
-  if (ownerPromoCodeEl) ownerPromoCodeEl.value = promo.code || "";
-  if (ownerPromoPercentEl) ownerPromoPercentEl.value = promo.percent || 0;
-}
+
+init();

@@ -1,0 +1,7 @@
+.nav-links a[aria-current="page"] { color: var(--text); }
+.home-hero h1 { max-width: 12ch; }
+.route-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.route-card { min-height: 260px; display: flex; flex-direction: column; }
+.route-card .btn { margin-top: auto; }
+@media (max-width: 980px) { .route-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .route-card-grid { grid-template-columns: 1fr; } .nav-links a[aria-current="page"] { color: var(--primary-dark); } }
