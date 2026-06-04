@@ -19,9 +19,6 @@
     formEl.elements.from_name.value = data.from_name || "Kim Jones Coaching";
     formEl.elements.from_email.value = data.from_email || "kimjonescoaching@outlook.com";
     formEl.elements.reply_to_email.value = data.reply_to_email || "kimjonescoaching@outlook.com";
-    formEl.elements.smtp_host.value = data.smtp_host || "smtp.office365.com";
-    formEl.elements.smtp_port.value = data.smtp_port || 587;
-    formEl.elements.smtp_username.value = data.smtp_username || "kimjonescoaching@outlook.com";
     formEl.elements.enabled.checked = Boolean(data.enabled);
   }
 
@@ -73,9 +70,6 @@
       from_name: formData.get("from_name")?.trim() || "Kim Jones Coaching",
       from_email: formData.get("from_email")?.trim() || "kimjonescoaching@outlook.com",
       reply_to_email: formData.get("reply_to_email")?.trim() || "kimjonescoaching@outlook.com",
-      smtp_host: formData.get("smtp_host")?.trim() || "smtp.office365.com",
-      smtp_port: Number(formData.get("smtp_port") || 587),
-      smtp_username: formData.get("smtp_username")?.trim() || "",
       encrypted_secret_placeholder: "Secrets are stored in Vercel environment variables.",
       enabled: formData.get("enabled") === "on"
     };
