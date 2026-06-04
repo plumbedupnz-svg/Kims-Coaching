@@ -129,6 +129,25 @@
             <section class="admin-section" data-admin-section="settings" hidden>
               <div class="settings-grid">
                 <div class="admin-list-panel"><h3>Settings</h3><p class="helper-text">Manage shop and admin settings from here.</p></div>
+                <form id="email-settings-form" class="owner-add-form" data-email-settings-form>
+                  <h3>Email Settings</h3>
+                  <p class="helper-text">Email provider secrets must be set in Vercel environment variables. Do not paste passwords or API keys here.</p>
+                  <label for="email-provider">Provider</label>
+                  <select id="email-provider" name="provider">
+                    <option value="disabled">Disabled/Test Mode</option>
+                    <option value="outlook_smtp">Outlook SMTP</option>
+                    <option value="resend">Resend</option>
+                    <option value="sendgrid">SendGrid placeholder</option>
+                    <option value="mailgun">Mailgun placeholder</option>
+                  </select>
+                  <input name="from_name" type="text" placeholder="From name" value="Kim Jones Coaching" />
+                  <input name="from_email" type="email" placeholder="From email" value="kimjonescoaching@outlook.com" />
+                  <input name="reply_to_email" type="email" placeholder="Reply-to email" value="kimjonescoaching@outlook.com" />
+                  <label class="availability-repeat"><span>Provider enabled</span><input name="enabled" type="checkbox" /></label>
+                  <button type="submit" class="btn btn-primary">Save Email Settings</button>
+                  <p class="helper-text">Set real secrets in Vercel: EMAIL_PROVIDER, SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, EMAIL_REPLY_TO, RESEND_API_KEY.</p>
+                  <p class="form-message" data-email-settings-message></p>
+                </form>
                 <form id="owner-promo-form" class="owner-add-form">
                   <h3>Promo Code Settings</h3>
                   <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
@@ -147,6 +166,7 @@
     <script src="supabase-config.js"></script>
     <script src="product-categories.js"></script>
     <script src="app.js"></script>
+    <script src="email-settings.js"></script>
     <script src="admin-dashboard.js"></script>
     <script src="admin-availability-state.js"></script>
     <script src="admin-availability.js"></script>
