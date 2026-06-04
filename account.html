@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Account | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="booking-calendar.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html#about">About</a>
+          <a href="index.html#philosophy">Philosophy</a>
+          <a href="index.html#programmes">Programmes</a>
+          <a href="index.html#contact">Contact</a>
+          <a href="shop.html">Shop</a>
+          <a href="account.html" data-auth-public>Login</a>
+          <a href="account.html?mode=signup" data-auth-public>Create Account</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section account-section" id="account-access" data-auth-section>
+        <div class="container account-grid">
+          <div class="account-copy">
+            <p class="eyebrow">Client Access</p>
+            <h1>Login or create your coaching profile.</h1>
+            <p>
+              Save parent and player details, keep contact information current,
+              and return to your coaching account when you need it.
+            </p>
+          </div>
+
+          <section class="auth-card" aria-label="Account access">
+            <div class="mode-switch" role="tablist" aria-label="Form mode">
+              <button type="button" class="active" data-mode-button="login" role="tab" aria-selected="true">Login</button>
+              <button type="button" data-mode-button="signup" role="tab" aria-selected="false">Sign Up</button>
+            </div>
+
+            <h2 data-auth-title>Welcome back</h2>
+            <p class="muted" data-auth-copy>Access your coaching account and continue where you left off.</p>
+
+            <form class="auth-form" data-auth-form novalidate>
+              <label data-name-field hidden>
+                First name
+                <input type="text" name="first_name" placeholder="Alex" autocomplete="given-name" />
+              </label>
+
+              <label data-last-name-field hidden>
+                Last name
+                <input type="text" name="last_name" placeholder="Morgan" autocomplete="family-name" />
+              </label>
+
+              <label data-email-field>
+                Email
+                <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
+              </label>
+
+              <label>
+                Password
+                <input type="password" name="password" placeholder="Enter your password" autocomplete="current-password" required minlength="8" />
+              </label>
+
+              <div class="auth-form-actions" data-login-actions>
+                <button type="button" class="link-button" data-forgot-password>Forgot password?</button>
+              </div>
+
+              <label data-phone-field hidden>
+                Mobile
+                <input type="tel" name="phone" placeholder="+64 21 000 0000" autocomplete="tel" />
+              </label>
+
+              <button type="submit" class="btn btn-primary full" data-submit-auth>Login</button>
+              <p class="form-message" data-auth-message role="status" aria-live="polite"></p>
+            </form>
+          </section>
+        </div>
+      </section>
+
+      <section class="section account-area" id="customer-account" data-customer-area hidden>
+        <div class="container dashboard-grid">
+          <div class="account-summary">
+            <p class="eyebrow">Customer Account</p>
+            <h1 data-customer-greeting>Your coaching hub</h1>
+            <p data-customer-details>Review your profile, saved details, and coaching next steps from one place.</p>
+            <a class="btn btn-primary" href="booking.html">Book Private Lesson</a>
+          </div>
+
+          <form class="profile-form dashboard-card" data-profile-form>
+            <h2>Profile Details</h2>
+            <div class="profile-grid">
+              <label>
+                First name
+                <input type="text" name="first_name" autocomplete="given-name" />
+              </label>
+              <label>
+                Last name
+                <input type="text" name="last_name" autocomplete="family-name" />
+              </label>
+              <label>
+                Phone
+                <input type="tel" name="phone" autocomplete="tel" />
+              </label>
+              <label>
+                Parent name
+                <input type="text" name="parent_name" autocomplete="name" />
+              </label>
+              <section class="players-section">
+                <div class="players-heading">
+                  <div>
+                    <h3>Players</h3>
+                    <p class="helper-text">Add each child who will be part of coaching.</p>
+                  </div>
+                  <label>
+                    Number of players
+                    <select name="player_count" data-player-count>
+                      <option value="1">1 player</option>
+                      <option value="2">2 players</option>
+                      <option value="3">3 players</option>
+                      <option value="4">4 players</option>
+                      <option value="5">5 players</option>
+                      <option value="6">6 players</option>
+                    </select>
+                  </label>
+                </div>
+                <div class="players-list" data-players-list></div>
+              </section>
+              <label class="profile-notes">
+                Notes
+                <textarea name="notes" rows="4" placeholder="Anything Kim should know before coaching"></textarea>
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary full">Save Changes</button>
+            <p class="form-message" data-profile-message role="status" aria-live="polite"></p>
+          </form>
+
+          <div class="dashboard-card account-cart-card">
+            <h3>Current Cart</h3>
+            <p data-customer-cart>Your cart is empty.</p>
+            <a class="btn btn-primary full" href="shop.html#cart">Continue Shopping</a>
+          </div>
+
+          <div class="dashboard-card account-bookings-card">
+            <h3>My Bookings</h3>
+            <div class="booking-list" data-my-bookings>
+              <p class="helper-text">Loading private lesson bookings...</p>
+            </div>
+            <a class="btn btn-secondary full" href="booking.html">Book Private Lesson</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="booking-notifications.js"></script>
+    <script src="booking.js"></script>
+  </body>
+</html>

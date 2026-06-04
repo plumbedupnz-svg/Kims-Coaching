@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Book Private Lesson | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="booking-calendar.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html#shop">Shop</a>
+          <a href="index.html#about">About</a>
+          <a href="index.html#programmes">Programmes</a>
+          <a href="booking.html">Book Private Lesson</a>
+          <a href="account.html" data-auth-public>Login</a>
+          <a href="account.html?mode=signup" data-auth-public>Create Account</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section booking-hero">
+        <div class="container">
+          <p class="eyebrow">Private Lessons</p>
+          <h1>Book a one-on-one tennis lesson with Kim.</h1>
+          <p>Choose an available private lesson time opened by Kim, confirm player details, and keep your booking in My Account.</p>
+          <div class="booking-hero-actions">
+            <a class="btn btn-primary" href="#calendar">View Available Times</a>
+            <a class="btn btn-secondary" href="#waitlist">Join Waitlist</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="calendar">
+        <div class="container booking-layout">
+          <div class="booking-shell">
+            <div class="booking-toolbar">
+              <button class="btn btn-secondary" type="button" data-previous-week>Previous week</button>
+              <h2 class="booking-week-title" data-week-title>Available private lesson times</h2>
+              <button class="btn btn-secondary" type="button" data-next-week>Next week</button>
+            </div>
+            <div class="booking-empty" data-booking-empty hidden>
+              No private lesson times are currently available. Join the waitlist or request a time.
+              <br />
+              <a href="#waitlist">Can’t find a suitable time? Join the waitlist.</a>
+            </div>
+            <div class="booking-calendar" data-booking-calendar aria-live="polite"></div>
+          </div>
+
+          <aside class="booking-confirmation" aria-label="Booking confirmation">
+            <p class="eyebrow">Confirm</p>
+            <h2 data-selected-slot-title>Select a time</h2>
+            <p data-selected-slot-copy>Pick an available private lesson slot from the calendar.</p>
+            <div data-auth-required hidden>
+              <p class="helper-text">Please log in or create an account before confirming a booking.</p>
+              <a class="btn btn-primary full" href="account.html?mode=signup">Login or Create Account</a>
+            </div>
+            <form class="booking-form" data-booking-form hidden>
+              <label>
+                Lesson duration
+                <select name="duration_minutes" data-duration-select required>
+                  <option value="">Select duration</option>
+                </select>
+              </label>
+              <label>
+                Player name
+                <input type="text" name="player_name" required />
+              </label>
+              <label>
+                Parent name
+                <input type="text" name="parent_name" required />
+              </label>
+              <label>
+                Email
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                Mobile
+                <input type="tel" name="mobile" required />
+              </label>
+              <label>
+                Player level
+                <select name="player_level" required>
+                  <option value="">Select level</option>
+                  <option value="Beginner">Beginner</option>
+                  <option value="Developing">Developing</option>
+                  <option value="Interclub">Interclub</option>
+                  <option value="Tournament">Tournament</option>
+                </select>
+              </label>
+              <label>
+                Notes
+                <textarea name="notes" rows="4" placeholder="Anything Kim should know before the lesson"></textarea>
+              </label>
+              <button class="btn btn-primary full" type="submit">Confirm Private Lesson</button>
+              <p class="form-message booking-status" data-booking-status role="status" aria-live="polite"></p>
+            </form>
+            <div class="booking-success-card" data-booking-success hidden></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section alt" id="waitlist">
+        <div class="container split-section">
+          <div class="section-head">
+            <p class="eyebrow">Waitlist</p>
+            <h2>Can’t find a suitable time? Join the waitlist.</h2>
+          </div>
+          <div class="rich-copy">
+            <p>Send Kim your preferred days, times, player level, and any notes. A dedicated waitlist form can be connected here later.</p>
+            <a class="btn btn-primary" href="mailto:kimjonescoaching@outlook.com?subject=Private%20lesson%20waitlist">Request a Time</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="booking-notifications.js"></script>
+    <script src="booking.js"></script>
+  </body>
+</html>

@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="admin-availability.css" />
+  </head>
+  <body class="admin-page">
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span><span></span><span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html">Home</a>
+          <a href="booking.html">Book Private Lesson</a>
+          <a href="shop.html">Shop</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <a href="admin.html" data-admin-link aria-current="page">Admin</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section" id="admin">
+        <div class="container owner-wrap">
+          <div class="section-head">
+            <p class="eyebrow">Admin</p>
+            <h1>Kim Jones Coaching operations</h1>
+            <p id="owner-status" class="helper-text"></p>
+          </div>
+
+          <div id="owner-panel" hidden>
+            <nav class="admin-tabs" aria-label="Admin sections">
+              <a href="#dashboard" data-admin-tab="dashboard">Dashboard</a>
+              <a href="#availability" data-admin-tab="availability">Availability</a>
+              <a href="#bookings" data-admin-tab="bookings">Bookings</a>
+              <a href="#products" data-admin-tab="products">Products</a>
+              <a href="#customers" data-admin-tab="customers">Customers</a>
+              <a href="#waitlist" data-admin-tab="waitlist">Waitlist</a>
+              <a href="#settings" data-admin-tab="settings">Settings</a>
+            </nav>
+
+            <section class="admin-section" data-admin-section="dashboard">
+              <div class="admin-section-head">
+                <div><p class="eyebrow">Dashboard</p><h2>Today at a glance</h2></div>
+                <a class="btn btn-primary" href="#availability" data-admin-tab-link="availability">Add lesson time</a>
+              </div>
+              <div class="admin-stat-grid" data-admin-stats></div>
+              <div class="admin-list-panel">
+                <h3>Latest bookings</h3>
+                <div class="admin-data-list" data-admin-bookings-preview></div>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="availability" hidden>
+              <div class="admin-panel-grid">
+                <section class="admin-primary">
+                  <form class="availability-form" data-availability-form>
+                    <div class="availability-form-head">
+                      <div><h2>Lesson times</h2><p class="helper-text">Create open lesson slots or block out times Kim is unavailable.</p></div>
+                      <button class="btn btn-secondary" type="button" data-cancel-availability-edit hidden>Cancel edit</button>
+                    </div>
+                    <input type="hidden" name="availability_id" data-availability-id />
+                    <div class="availability-grid">
+                      <label>Date<input type="date" name="slot_date" required /></label>
+                      <label>Start time<select name="start_time" data-time-select required><option value="">Select start time</option></select></label>
+                      <label>End time<select name="end_time" data-time-select required><option value="">Select end time</option></select></label>
+                      <label>Slot type<select name="is_available" required><option value="true">Available for lessons</option><option value="false">Blocked out</option></select></label>
+                      <label class="availability-repeat"><span>Repeat weekly</span><input type="checkbox" name="recurring_weekly" data-recurring-weekly /></label>
+                      <label>Number of weeks<input type="number" name="repeat_weeks" min="1" max="52" value="1" data-repeat-weeks /></label>
+                      <label class="availability-wide">Internal label<input type="text" name="recurrence_label" placeholder="e.g. Tuesday after-school lessons" /></label>
+                    </div>
+                    <button class="btn btn-primary" type="submit" data-save-availability>Save lesson time</button>
+                    <p class="form-message" data-availability-message></p>
+                  </form>
+                  <div class="availability-list" data-availability-list></div>
+                </section>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="bookings" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Bookings</p><h2>Private lesson bookings</h2></div></div>
+              <div class="admin-list-panel"><div class="admin-data-list" data-admin-bookings-list></div></div>
+            </section>
+
+            <section class="admin-section" data-admin-section="products" hidden>
+              <div class="admin-panel-grid">
+                <form id="owner-add-form" class="owner-add-form">
+                  <h3>Add Product</h3>
+                  <input id="owner-product-name" type="text" placeholder="Product name" required />
+                  <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
+                  <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
+                  <label for="owner-product-category">Category</label>
+                  <select id="owner-product-category" required><option value="">Select category</option></select>
+                  <div class="category-add-row">
+                    <input id="owner-new-category" type="text" placeholder="Add new category" />
+                    <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
+                  </div>
+                  <input id="owner-product-desc" type="text" placeholder="Short description" />
+                  <label for="owner-product-image">Product image</label>
+                  <input id="owner-product-image" type="file" accept="image/*" />
+                  <button type="submit" class="btn btn-primary">Add Product</button>
+                </form>
+                <div class="owner-products" id="owner-products-list"></div>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="customers" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Customers</p><h2>Customer profiles</h2></div></div>
+              <div class="admin-list-panel"><div class="admin-data-list" data-admin-customers-list></div></div>
+            </section>
+
+            <section class="admin-section" data-admin-section="waitlist" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Waitlist</p><h2>Waitlist requests</h2></div></div>
+              <div class="admin-list-panel"><div class="admin-data-list" data-admin-waitlist-list></div></div>
+            </section>
+
+            <section class="admin-section" data-admin-section="settings" hidden>
+              <div class="settings-grid">
+                <div class="admin-list-panel"><h3>Settings</h3><p class="helper-text">Manage shop and admin settings from here.</p></div>
+                <form id="owner-promo-form" class="owner-add-form">
+                  <h3>Promo Code Settings</h3>
+                  <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
+                  <input id="owner-promo-percent" type="number" step="0.01" min="0" max="100" placeholder="Promo discount %" />
+                  <button type="submit" class="btn btn-primary">Save Promo Settings</button>
+                  <p class="helper-text" id="owner-promo-status"></p>
+                </form>
+              </div>
+            </section>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="product-categories.js"></script>
+    <script src="app.js"></script>
+    <script src="admin-dashboard.js"></script>
+    <script src="admin-availability-state.js"></script>
+    <script src="admin-availability.js"></script>
+  </body>
+</html>

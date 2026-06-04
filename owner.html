@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html#about">About</a>
+          <a href="index.html#programmes">Programmes</a>
+          <a href="index.html#contact">Contact</a>
+          <a href="shop.html">Shop</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section" id="owner">
+        <div class="container owner-wrap">
+          <div class="section-head">
+            <p class="eyebrow">Admin Dashboard</p>
+            <h2>Manage products, categories, and prices</h2>
+            <p id="owner-status" class="helper-text"></p>
+          </div>
+
+          <div id="owner-panel" hidden>
+            <form id="owner-promo-form" class="owner-add-form">
+              <h3>Promo Code Settings</h3>
+              <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
+              <input id="owner-promo-percent" type="number" step="0.01" min="0" max="100" placeholder="Promo discount %" />
+              <button type="submit" class="btn btn-primary">Save Promo Settings</button>
+              <p class="helper-text" id="owner-promo-status"></p>
+            </form>
+
+            <form id="owner-add-form" class="owner-add-form">
+              <h3>Add Product</h3>
+              <input id="owner-product-name" type="text" placeholder="Product name" required />
+              <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
+              <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
+              <label for="owner-product-category">Category</label>
+              <select id="owner-product-category" required>
+                <option value="">Select category</option>
+              </select>
+              <div class="category-add-row">
+                <input id="owner-new-category" type="text" placeholder="Add new category" />
+                <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
+              </div>
+              <input id="owner-product-desc" type="text" placeholder="Short description" />
+              <label for="owner-product-image">Product image</label>
+              <input id="owner-product-image" type="file" accept="image/*" />
+              <button type="submit" class="btn btn-primary">Add Product</button>
+            </form>
+
+            <div class="owner-products" id="owner-products-list"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="product-categories.js"></script>
+  </body>
+</html>
