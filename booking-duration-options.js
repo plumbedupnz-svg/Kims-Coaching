@@ -23,8 +23,7 @@
     const button = getSelectedSlotButton();
     const slotId = button?.dataset.slotId || "";
     const [availabilityId, startTime] = slotId.split("|");
-    const maxDuration = Number(button?.textContent.match(/up to\s+(\d+)\s+min/i)?.[1] || 0);
-    return { availabilityId, startTime, maxDuration };
+    return { availabilityId, startTime };
   }
 
   function ensureDurationOption(duration) {
@@ -37,8 +36,9 @@
   }
 
   function syncDurationOptions() {
-    const { maxDuration } = getSelectedSlotDetails();
-    if (maxDuration >= 45) ensureDurationOption(45);
+    const { availabilityId, startTime } = getSelectedSlotDetails();
+    if (!availabilityId || !startTime) return;
+    [30, 45, 60].forEach(ensureDurationOption);
   }
 
   async function getPrivateLessonTypeId() {
@@ -71,8 +71,9 @@
     ].filter(Boolean).join("\n");
   }
 
-  async function handleFortyFiveMinuteBooking(event) {
-    if (durationSelectEl.value !== "45") return;
+  async function handleExpandedDurationBooking(event) {
+    const selectedDuration = Number(durationSelectEl.value);
+    if (![45, 60].includes(selectedDuration)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
 
@@ -87,24 +88,24 @@
       return;
     }
 
-    const { availabilityId, startTime, maxDuration } = getSelectedSlotDetails();
-    if (!availabilityId || !startTime || maxDuration < 45) {
-      setStatus("Choose an available time that can fit a 45 minute lesson.", "error");
+    const { availabilityId, startTime } = getSelectedSlotDetails();
+    if (!availabilityId || !startTime) {
+      setStatus("Choose an available time before confirming your booking.", "error");
       return;
     }
 
     const formData = new FormData(formEl);
     const lessonTypeId = await getPrivateLessonTypeId();
-    const endTime = getBookingEndTime(startTime, 45);
+    const endTime = getBookingEndTime(startTime, selectedDuration);
     const submitButton = formEl.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
-    setStatus("Saving your 45 minute private lesson booking...", "neutral");
+    setStatus(`Saving your ${selectedDuration} minute private lesson booking...`, "neutral");
 
     const result = await client.rpc("create_private_lesson_booking", {
       p_availability_id: availabilityId,
       p_start_time: startTime,
       p_lesson_type_id: lessonTypeId,
-      p_duration_minutes: 45,
+      p_duration_minutes: selectedDuration,
       p_customer_name: formData.get("parent_name")?.trim(),
       p_parent_name: formData.get("parent_name")?.trim(),
       p_player_name: formData.get("player_name")?.trim(),
@@ -128,14 +129,14 @@
       dateTime: startTime,
       startTime,
       endTime,
-      durationMinutes: 45,
+      durationMinutes: selectedDuration,
       notes: formData.get("notes")?.trim() || ""
     };
     await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
     sessionStorage.setItem("kims_last_booking_confirmation", JSON.stringify({
       startTime,
       endTime,
-      duration: 45,
+      duration: selectedDuration,
       playerName: formData.get("player_name")?.trim()
     }));
     window.location.href = "booking-confirmation";
@@ -144,5 +145,6 @@
   new MutationObserver(syncDurationOptions).observe(durationSelectEl, { childList: true });
   new MutationObserver(syncDurationOptions).observe(calendarEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
   durationSelectEl.addEventListener("focus", syncDurationOptions);
-  formEl.addEventListener("submit", handleFortyFiveMinuteBooking, true);
+  durationSelectEl.addEventListener("click", syncDurationOptions);
+  formEl.addEventListener("submit", handleExpandedDurationBooking, true);
 })();
