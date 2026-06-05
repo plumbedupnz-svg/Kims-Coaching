@@ -35,6 +35,23 @@
       return;
     }
     const startTime = booking.startTime ? new Date(booking.startTime) : null;
+    const storedStatus = booking.emailStatus || JSON.parse(sessionStorage.getItem("kims_last_email_status") || "null");
+    const customerStatus = storedStatus?.customer?.status || "";
+    const calendarStatus = storedStatus?.calendarInvite || "";
+    const emailCopy = customerStatus === "sent"
+      ? "Confirmation email sent."
+      : customerStatus === "test_mode"
+        ? "Email pending/test mode."
+        : customerStatus === "failed"
+          ? "Email failed but booking saved."
+          : "Email status pending.";
+    const calendarCopy = calendarStatus === "generated"
+      ? customerStatus === "sent"
+        ? "Calendar invite sent."
+        : customerStatus === "test_mode"
+          ? "Calendar invite pending/test mode."
+          : "Calendar invite generated."
+      : "Calendar invite pending.";
     confirmationEl.innerHTML = `
       <strong>Your private lesson request has been booked.</strong>
       <p>Date: ${startTime ? formatter.format(startTime) : "Private lesson"}</p>
@@ -42,6 +59,8 @@
       <p>Duration: ${escapeHtml(booking.duration || "")} minutes</p>
       <p>Player: ${escapeHtml(booking.playerName || "")}</p>
       <p>Coach: Kim Jones</p>
+      <p>${escapeHtml(emailCopy)}</p>
+      <p>${escapeHtml(calendarCopy)}</p>
     `;
   }
 
