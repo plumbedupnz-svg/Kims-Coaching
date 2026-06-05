@@ -13,13 +13,15 @@
       window.KimsEmailService?.sendBookingConfirmation(emailPayload)
     ]).then((results) => {
       const [adminResult, customerResult] = results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", error: result.reason?.message || "Email failed" });
-      return {
+      const emailStatus = {
         queued: true,
         payload,
         admin: adminResult || { status: "skipped" },
         customer: customerResult || { status: "skipped" },
         calendarInvite: emailPayload.ics || window.KimsEmailService?.generateICSInvite?.(emailPayload) ? "generated" : "not_available"
       };
+      sessionStorage.setItem("kims_last_email_status", JSON.stringify(emailStatus));
+      return emailStatus;
     });
   }
 
