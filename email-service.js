@@ -2,7 +2,7 @@
   const endpoint = "/api/send-email";
 
   function logEmailFailure(type, error) {
-    console.warn("Email send failed", {
+    console.warn("Email send failed safely", {
       type,
       message: error?.message || String(error || "Unknown email error")
     });
@@ -17,15 +17,19 @@
         keepalive: true
       });
 
+      const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Email endpoint returned ${response.status}`);
+        throw new Error(result.error || `Email endpoint returned ${response.status}`);
       }
-
-      return await response.json();
+      return {
+        sent: Boolean(result.sent),
+        status: result.status || (result.sent ? "sent" : result.testMode ? "test_mode" : "failed"),
+        provider: result.provider || "unknown",
+        error: result.error || result.reason || ""
+      };
     } catch (error) {
       logEmailFailure(type, error);
-      return { sent: false, error: error?.message || "Email failed" };
+      return { sent: false, status: "failed", provider: "unknown", error: error?.message || "Email failed" };
     }
   }
 
@@ -41,11 +45,12 @@
     return new Date(value).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
   }
 
-  function generateBookingICS({ title, description, startTime, endTime, location = "Kim Jones Coaching" }) {
+  function generateICSInvite({ title, description, startTime, endTime, location = "Kim Jones Coaching" }) {
     return [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Kim Jones Coaching//Bookings//EN",
+      "METHOD:REQUEST",
+      "PRODID:-//Kim Jones Coaching//Notifications//EN",
       "BEGIN:VEVENT",
       `UID:${window.crypto?.randomUUID?.() || Date.now()}@kimjonescoaching`,
       `DTSTAMP:${formatIcsDate(new Date())}`,
@@ -59,33 +64,85 @@
     ].join("\r\n");
   }
 
+  function withBookingIcs(payload = {}) {
+    if (payload.ics || !payload.startTime || !payload.endTime) return payload;
+    return {
+      ...payload,
+      ics: generateICSInvite({
+        ...payload,
+        title: payload.title || `Private lesson with ${payload.playerName || "player"}`,
+        description: payload.description || payload.notes || ""
+      })
+    };
+  }
+
+  function sendAdminNotification(payload) {
+    return sendEmail("admin_notification", payload);
+  }
+
+  function sendCustomerConfirmation(payload) {
+    return sendEmail("customer_confirmation", payload);
+  }
+
+  function sendBookingConfirmation(payload) {
+    return sendEmail("booking_customer_confirmation", withBookingIcs(payload));
+  }
+
   function sendBookingAdminNotification(payload) {
-    return sendEmail("booking_admin_notification", {
-      ...payload,
-      ics: payload.ics || (payload.startTime && payload.endTime ? generateBookingICS(payload) : "")
-    });
+    return sendEmail("booking_admin_notification", withBookingIcs(payload));
   }
 
-  function sendBookingCustomerConfirmation(payload) {
-    return sendEmail("booking_customer_confirmation", {
-      ...payload,
-      ics: payload.ics || (payload.startTime && payload.endTime ? generateBookingICS(payload) : "")
-    });
+  function sendBookingChangedEmail(payload) {
+    return sendEmail("booking_changed", withBookingIcs(payload));
   }
 
-  function sendProductAdminNotification(payload) {
-    return sendEmail("product_admin_notification", payload);
+  function sendBookingCancelledEmail(payload) {
+    return sendEmail("booking_cancelled", withBookingIcs(payload));
   }
 
-  function sendProductCustomerConfirmation(payload) {
-    return sendEmail("product_customer_confirmation", payload);
+  function sendShopOrderCustomerConfirmation(payload) {
+    return sendEmail("shop_order_customer_confirmation", payload);
+  }
+
+  function sendShopOrderAdminNotification(payload) {
+    return sendEmail("shop_order_admin_notification", payload);
+  }
+
+  function sendProductEnquiryNotification(payload) {
+    return sendEmail("product_enquiry_notification", payload);
+  }
+
+  function sendPurchaseOrderEmail(payload) {
+    // TODO: Wire this to an admin purchase-order UI when supplier ordering is built.
+    return sendEmail("purchase_order_email", payload);
+  }
+
+  function sendWaitlistNotification(payload) {
+    return sendEmail("waitlist_notification", payload);
+  }
+
+  function sendWaitlistCustomerConfirmation(payload) {
+    return sendEmail("waitlist_customer_confirmation", payload);
   }
 
   window.KimsEmailService = {
+    sendEmail,
+    sendAdminNotification,
+    sendCustomerConfirmation,
+    sendBookingConfirmation,
     sendBookingAdminNotification,
-    sendBookingCustomerConfirmation,
-    sendProductAdminNotification,
-    sendProductCustomerConfirmation,
-    generateBookingICS
+    sendBookingCustomerConfirmation: sendBookingConfirmation,
+    sendBookingChangedEmail,
+    sendBookingCancelledEmail,
+    sendShopOrderCustomerConfirmation,
+    sendShopOrderAdminNotification,
+    sendProductAdminNotification: sendShopOrderAdminNotification,
+    sendProductCustomerConfirmation: sendShopOrderCustomerConfirmation,
+    sendProductEnquiryNotification,
+    sendPurchaseOrderEmail,
+    sendWaitlistNotification,
+    sendWaitlistCustomerConfirmation,
+    generateICSInvite,
+    generateBookingICS: generateICSInvite
   };
 })();
