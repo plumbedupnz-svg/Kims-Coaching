@@ -1,0 +1,100 @@
+.booking-calendar.compact-booking-calendar {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+}
+
+.compact-date-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.compact-date-button {
+  min-height: 76px;
+  display: grid;
+  align-content: center;
+  gap: 0.15rem;
+  padding: 0.65rem 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  text-align: center;
+}
+
+.compact-date-button:hover,
+.compact-date-button.selected {
+  border-color: var(--primary);
+  background: rgba(39, 173, 255, 0.1);
+  box-shadow: 0 10px 24px rgba(39, 173, 255, 0.12);
+}
+
+.compact-date-button span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.compact-date-button strong {
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.compact-date-button small {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.compact-time-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.compact-time-panel h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.compact-time-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.compact-time-grid .slot-button {
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.7rem 0.5rem;
+  text-align: center;
+}
+
+.compact-time-grid .slot-button span {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  .compact-date-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .compact-time-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 420px) {
+  .compact-date-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
