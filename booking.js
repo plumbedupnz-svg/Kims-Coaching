@@ -379,15 +379,12 @@
       email: payload.customer_email,
       mobile: payload.mobile,
       dateTime: payload.start_time,
+      startTime: payload.start_time,
+      endTime: payload.end_time,
+      durationMinutes: payload.duration_minutes,
       notes: formData.get("notes")?.trim() || ""
     };
     await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
-    window.KimsBookingServices?.generateCalendarInviteData({
-      title: `Private lesson with ${payload.player_name}`,
-      description: payload.notes,
-      startTime: payload.start_time,
-      endTime: payload.end_time
-    });
 
     setStatus("", "success");
     bookingFormEl.hidden = true;
@@ -398,9 +395,16 @@
       <p>${formatTime(payload.start_time)} · ${payload.duration_minutes} minutes</p>
       <p>Player: ${escapeHtml(payload.player_name)}</p>
     `;
+    sessionStorage.setItem("kims_last_booking_confirmation", JSON.stringify({
+      startTime: payload.start_time,
+      endTime: payload.end_time,
+      duration: payload.duration_minutes,
+      playerName: payload.player_name
+    }));
     state.selectedSlot = null;
     await loadAvailableSlots();
     await renderMyBookings();
+    window.location.href = "booking-confirmation";
   }
 
   async function renderMyBookings() {
