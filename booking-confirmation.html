@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Booking Confirmed | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="booking-calendar.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html#shop">Shop</a>
+          <a href="index.html#about">About</a>
+          <a href="index.html#programmes">Programmes</a>
+          <a href="booking.html">Book Private Lesson</a>
+          <a href="account.html" data-auth-public>Login</a>
+          <a href="account.html?mode=signup" data-auth-public>Create Account</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container booking-confirmation">
+          <p class="eyebrow">Booking Confirmed</p>
+          <h1>Your private lesson request has been booked.</h1>
+          <div class="booking-success-card" data-booking-confirmation>
+            <p>Loading booking details...</p>
+          </div>
+          <div class="booking-hero-actions">
+            <a class="btn btn-primary" href="account.html#customer-account">View My Bookings</a>
+            <a class="btn btn-secondary" href="booking.html">Book Another Lesson</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+    <script src="booking-confirmation.js"></script>
+  </body>
+</html>

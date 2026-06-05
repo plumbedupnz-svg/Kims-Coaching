@@ -1,15 +1,46 @@
 const nodemailer = require("nodemailer");
 
-const provider = (process.env.EMAIL_PROVIDER || "disabled").toLowerCase();
-const fromName = process.env.EMAIL_FROM_NAME || "Kim Jones Coaching";
-const fromAddress = process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || "kimjonescoaching@outlook.com";
-const replyTo = process.env.EMAIL_REPLY_TO || fromAddress;
+const defaultEmailSettings = {
+  provider: "disabled",
+  from_name: "Kim Jones Coaching",
+  from_email: "kimjonescoaching@outlook.com",
+  reply_to_email: "kimjonescoaching@outlook.com",
+  enabled: false
+};
 
-function fromHeader() {
-  return `${fromName} <${fromAddress}>`;
+async function loadEmailSettings() {
+  const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return {
+      ...defaultEmailSettings,
+      provider: (process.env.EMAIL_PROVIDER || "disabled").toLowerCase(),
+      from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
+      from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
+      reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
+      enabled: (process.env.EMAIL_PROVIDER || "disabled").toLowerCase() !== "disabled"
+    };
+  }
+
+  const url = `${supabaseUrl.replace(/\/$/, "")}/rest/v1/email_settings?select=*&limit=1`;
+  const response = await fetch(url, {
+    headers: {
+      apikey: serviceRoleKey,
+      Authorization: `Bearer ${serviceRoleKey}`
+    }
+  });
+
+  if (!response.ok) throw new Error(`Could not load email_settings: ${response.status}`);
+  const rows = await response.json();
+  return { ...defaultEmailSettings, ...(rows?.[0] || {}) };
 }
 
-function safeLogEmailFailure(type, error) {
+function fromHeader(settings) {
+  return `${settings.from_name} <${settings.from_email}>`;
+}
+
+function safeLogEmailFailure(type, provider, error) {
   console.error("Email failed safely", {
     type,
     provider,
@@ -17,8 +48,8 @@ function safeLogEmailFailure(type, error) {
   });
 }
 
-function getRecipients(type, payload = {}) {
-  const adminEmail = process.env.EMAIL_ADMIN_TO || replyTo || fromAddress;
+function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
+  const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
   const customerEmail = payload.email || payload.customerEmail;
 
   if (type.includes("admin")) return [adminEmail].filter(Boolean);
@@ -71,7 +102,7 @@ function renderText(type, payload = {}) {
   ].join("\n");
 }
 
-async function sendWithResend(message) {
+async function sendWithResend(message, settings) {
   if (!process.env.RESEND_API_KEY) throw new Error("RESEND_API_KEY is not configured.");
 
   const response = await fetch("https://api.resend.com/emails", {
@@ -81,9 +112,9 @@ async function sendWithResend(message) {
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      from: fromHeader(),
+      from: fromHeader(settings),
       to: message.to,
-      reply_to: replyTo,
+      reply_to: settings.reply_to_email,
       subject: message.subject,
       text: message.text,
       attachments: message.ics
@@ -113,9 +144,9 @@ async function sendWithSmtp(message) {
   });
 
   return transporter.sendMail({
-    from: fromHeader(),
+    from: fromHeader(message.settings),
     to: message.to,
-    replyTo,
+    replyTo: message.settings.reply_to_email,
     subject: message.subject,
     text: message.text,
     attachments: message.ics
@@ -131,28 +162,32 @@ module.exports = async function handler(req, res) {
   }
 
   const { type, payload = {} } = req.body || {};
-  const to = getRecipients(type || "", payload);
-  const message = {
-    to,
-    subject: getSubject(type, payload),
-    text: renderText(type, payload),
-    ics: payload.ics || ""
-  };
-
-  if (!to.length) {
-    res.status(200).json({ sent: false, reason: "No recipient configured" });
-    return;
-  }
-
+  let settings = defaultEmailSettings;
   try {
-    if (provider === "disabled" || provider === "test") {
+    settings = await loadEmailSettings();
+    const provider = (settings.provider || "disabled").toLowerCase();
+    const to = getRecipients(type || "", payload, settings);
+    const message = {
+      to,
+      settings,
+      subject: getSubject(type, payload),
+      text: renderText(type, payload),
+      ics: payload.ics || ""
+    };
+
+    if (!to.length) {
+      res.status(200).json({ sent: false, reason: "No recipient configured" });
+      return;
+    }
+
+    if (!settings.enabled || provider === "disabled" || provider === "test") {
       console.info("Email test mode", { type, to, subject: message.subject });
       res.status(200).json({ sent: false, testMode: true });
       return;
     }
 
     if (provider === "resend") {
-      await sendWithResend(message);
+      await sendWithResend(message, settings);
       res.status(200).json({ sent: true, provider });
       return;
     }
@@ -170,7 +205,7 @@ module.exports = async function handler(req, res) {
 
     res.status(400).json({ sent: false, error: "Unknown email provider" });
   } catch (error) {
-    safeLogEmailFailure(type, error);
+    safeLogEmailFailure(type, settings.provider, error);
     res.status(200).json({ sent: false, error: "Email failed safely" });
   }
 };
