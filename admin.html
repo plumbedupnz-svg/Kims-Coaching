@@ -147,6 +147,15 @@
                   <button type="submit" class="btn btn-primary">Save Email Settings</button>
                   <p class="helper-text">Set real secrets in Vercel: EMAIL_PROVIDER, SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, EMAIL_REPLY_TO, RESEND_API_KEY.</p>
                   <p class="form-message" data-email-settings-message></p>
+                  <div class="admin-list-panel" data-email-diagnostics>
+                    <h3>Email Diagnostics</h3>
+                    <p class="helper-text">Server-side status for live email sending. Secrets are never shown here.</p>
+                    <div class="admin-data-list" data-email-diagnostics-list>
+                      <p class="helper-text">Loading email diagnostics...</p>
+                    </div>
+                    <button type="button" class="btn btn-secondary" data-email-test-smtp>Test SMTP Connection</button>
+                    <p class="form-message" data-email-diagnostics-message></p>
+                  </div>
                 </form>
                 <form id="owner-promo-form" class="owner-add-form">
                   <h3>Promo Code Settings</h3>
