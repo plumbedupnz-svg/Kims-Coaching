@@ -10,6 +10,12 @@
 
   async function sendEmail(type, payload = {}) {
     try {
+      console.info("[Kim's Coaching email] API request starting", {
+        traceId: payload.traceId,
+        type,
+        endpoint,
+        recipient: payload.email || payload.customerEmail || payload.customer_email || ""
+      });
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -18,6 +24,13 @@
       });
 
       const result = await response.json().catch(() => ({}));
+      console.info("[Kim's Coaching email] API response returned", {
+        traceId: payload.traceId,
+        type,
+        httpStatus: response.status,
+        ok: response.ok,
+        result
+      });
       if (!response.ok) {
         throw new Error(result.error || `Email endpoint returned ${response.status}`);
       }
@@ -25,11 +38,19 @@
         sent: Boolean(result.sent),
         status: result.status || (result.sent ? "sent" : result.testMode ? "test_mode" : "failed"),
         provider: result.provider || "unknown",
-        error: result.error || result.reason || ""
+        error: result.error || result.reason || "",
+        traceId: result.traceId || payload.traceId || "",
+        logIds: result.logIds || []
       };
     } catch (error) {
       logEmailFailure(type, error);
-      return { sent: false, status: "failed", provider: "unknown", error: error?.message || "Email failed" };
+      return {
+        sent: false,
+        status: "failed",
+        provider: "unknown",
+        error: error?.message || "Email failed",
+        traceId: payload.traceId || ""
+      };
     }
   }
 
