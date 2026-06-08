@@ -17,6 +17,8 @@ const adminTypes = new Set([
   "admin_alert"
 ]);
 
+const publicSupabaseAnonKey = "sb_publishable_34HW1F0Asg7kEk8vEYCiLQ_9jO1jl4m";
+
 function safeError(error) {
   return error?.message || String(error || "Unknown error");
 }
@@ -38,7 +40,8 @@ function getSupabaseConfig() {
   return {
     url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
     restUrl: normalizeSupabaseRestUrl(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
-    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
+    serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+    anonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || publicSupabaseAnonKey
   };
 }
 
@@ -46,14 +49,7 @@ async function loadEmailSettings() {
   const { restUrl, serviceRoleKey } = getSupabaseConfig();
 
   if (!restUrl || !serviceRoleKey) {
-    const fallbackSettings = {
-      ...defaultEmailSettings,
-      provider: normalizeProvider(process.env.EMAIL_PROVIDER),
-      from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
-      from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
-      reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
-      enabled: normalizeProvider(process.env.EMAIL_PROVIDER) !== "disabled"
-    };
+    const fallbackSettings = getFallbackSettings();
     console.info("Email settings loaded from Vercel environment fallback", {
       provider: fallbackSettings.provider,
       enabled: fallbackSettings.enabled,
@@ -99,6 +95,18 @@ function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
   const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
   if (adminTypes.has(type)) return [adminEmail].filter(Boolean);
   return [getCustomerEmail(payload)].filter(Boolean);
+}
+
+function getFallbackSettings() {
+  const provider = normalizeProvider(process.env.EMAIL_PROVIDER);
+  return {
+    ...defaultEmailSettings,
+    provider,
+    from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
+    from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
+    reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
+    enabled: provider !== "disabled"
+  };
 }
 
 function getSubject(type, payload = {}) {
@@ -218,11 +226,12 @@ function buildLogPayload({ type, recipient, relatedType, relatedId, status, prov
 }
 
 async function createNotificationLog({ type, recipient, relatedType, relatedId, status, provider, errorMessage }) {
-  const { restUrl, serviceRoleKey } = getSupabaseConfig();
-  if (!restUrl || !serviceRoleKey) {
-    console.warn("Notification log skipped because Supabase service configuration is missing", {
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
+  if (!restUrl) {
+    console.warn("Notification log skipped because Supabase URL is missing", {
       hasSupabaseUrl: Boolean(restUrl),
       hasServiceRoleKey: Boolean(serviceRoleKey),
+      hasAnonKey: Boolean(anonKey),
       type,
       recipient,
       status,
@@ -231,16 +240,19 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
     return null;
   }
 
+  const body = buildLogPayload({ type, recipient, relatedType, relatedId, status, provider, errorMessage });
+
   try {
-    const body = buildLogPayload({ type, recipient, relatedType, relatedId, status, provider, errorMessage });
     console.info("Creating notification log", {
       type,
       recipient,
       status,
       provider,
       relatedType,
-      hasRelatedId: Boolean(body.related_id)
+      hasRelatedId: Boolean(body.related_id),
+      method: "direct"
     });
+    if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured for direct notification log insert");
     const response = await fetch(`${restUrl}/notification_logs?select=id`, {
       method: "POST",
       headers: {
@@ -256,20 +268,62 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
       throw new Error(`notification_logs insert returned ${response.status}: ${text}`);
     }
     const rows = await response.json().catch(() => []);
-    return rows?.[0]?.id || null;
+    const id = rows?.[0]?.id || null;
+    console.info("Notification log insert result", { id: id || "none", status, method: "direct" });
+    return id;
   } catch (error) {
-    console.error("Notification log insert failed safely", { message: safeError(error), type, recipient, status, provider });
+    console.error("Notification log direct insert failed safely", { message: safeError(error), type, recipient, status, provider });
+  }
+
+  try {
+    console.info("Creating notification log", {
+      type,
+      recipient,
+      status,
+      provider,
+      relatedType,
+      hasRelatedId: Boolean(body.related_id),
+      method: "rpc"
+    });
+    const response = await fetch(`${restUrl}/rpc/log_notification_attempt`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey || anonKey,
+        Authorization: `Bearer ${serviceRoleKey || anonKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_log_id: null,
+        p_notification_type: body.notification_type,
+        p_recipient_email: body.recipient_email,
+        p_related_type: body.related_type,
+        p_related_id: body.related_id,
+        p_status: body.status,
+        p_provider: body.provider,
+        p_error_message: body.error_message
+      })
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`log_notification_attempt insert returned ${response.status}: ${text}`);
+    }
+    const id = await response.json().catch(() => null);
+    console.info("Notification log insert result", { id: id || "none", status, method: "rpc" });
+    return id;
+  } catch (error) {
+    console.error("Notification log RPC insert failed safely", { message: safeError(error), type, recipient, status, provider });
     return null;
   }
 }
 
 async function updateNotificationLog(id, { status, errorMessage }) {
   if (!id) return;
-  const { restUrl, serviceRoleKey } = getSupabaseConfig();
-  if (!restUrl || !serviceRoleKey) return;
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
+  if (!restUrl) return;
 
   try {
-    console.info("Updating notification log", { id, status, hasError: Boolean(errorMessage) });
+    console.info("Updating notification log", { id, status, hasError: Boolean(errorMessage), method: "direct" });
+    if (!serviceRoleKey) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not configured for direct notification log update");
     const response = await fetch(`${restUrl}/notification_logs?id=eq.${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: {
@@ -287,8 +341,39 @@ async function updateNotificationLog(id, { status, errorMessage }) {
       const text = await response.text().catch(() => "");
       throw new Error(`notification_logs update returned ${response.status}: ${text}`);
     }
+    console.info("Notification log update result", { id, status, method: "direct" });
+    return;
   } catch (error) {
-    console.error("Notification log update failed safely", { id, status, message: safeError(error) });
+    console.error("Notification log direct update failed safely", { id, status, message: safeError(error) });
+  }
+
+  try {
+    console.info("Updating notification log", { id, status, hasError: Boolean(errorMessage), method: "rpc" });
+    const response = await fetch(`${restUrl}/rpc/log_notification_attempt`, {
+      method: "POST",
+      headers: {
+        apikey: serviceRoleKey || anonKey,
+        Authorization: `Bearer ${serviceRoleKey || anonKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        p_log_id: id,
+        p_notification_type: null,
+        p_recipient_email: null,
+        p_related_type: null,
+        p_related_id: null,
+        p_status: status,
+        p_provider: null,
+        p_error_message: errorMessage || null
+      })
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`log_notification_attempt update returned ${response.status}: ${text}`);
+    }
+    console.info("Notification log update result", { id, status, method: "rpc" });
+  } catch (error) {
+    console.error("Notification log RPC update failed safely", { id, status, message: safeError(error) });
   }
 }
 
@@ -423,14 +508,16 @@ function getSmtpStatus(provider) {
   };
 }
 
-async function getLastNotificationLog() {
-  const { restUrl, serviceRoleKey } = getSupabaseConfig();
-  if (!restUrl || !serviceRoleKey) return null;
+async function getLastNotificationLog(authToken = "") {
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
+  const apiKey = serviceRoleKey || anonKey;
+  const bearer = serviceRoleKey || authToken;
+  if (!restUrl || !apiKey || !bearer) return null;
   try {
     const response = await fetch(`${restUrl}/notification_logs?select=*&order=created_at.desc&limit=1`, {
       headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`
+        apikey: apiKey,
+        Authorization: `Bearer ${bearer}`
       }
     });
     if (!response.ok) {
@@ -448,8 +535,9 @@ async function getLastNotificationLog() {
 async function requireAdminForDiagnostics(req) {
   const authHeader = req.headers.authorization || req.headers.Authorization || "";
   const token = String(authHeader).replace(/^Bearer\s+/i, "");
-  const { restUrl, serviceRoleKey } = getSupabaseConfig();
-  if (!token || !restUrl || !serviceRoleKey) {
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
+  const apiKey = serviceRoleKey || anonKey;
+  if (!token || !restUrl || !apiKey) {
     return { ok: false, status: 401, error: "Admin diagnostics require an authenticated admin session." };
   }
 
@@ -457,7 +545,7 @@ async function requireAdminForDiagnostics(req) {
     const projectUrl = restUrl.replace(/\/rest\/v1$/, "");
     const userResponse = await fetch(`${projectUrl}/auth/v1/user`, {
       headers: {
-        apikey: serviceRoleKey,
+        apikey: apiKey,
         Authorization: `Bearer ${token}`
       }
     });
@@ -467,8 +555,8 @@ async function requireAdminForDiagnostics(req) {
     const user = await userResponse.json();
     const profileResponse = await fetch(`${restUrl}/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`, {
       headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`
+        apikey: apiKey,
+        Authorization: `Bearer ${serviceRoleKey || token}`
       }
     });
     if (!profileResponse.ok) {
@@ -478,14 +566,14 @@ async function requireAdminForDiagnostics(req) {
     if (profiles?.[0]?.role !== "admin") {
       return { ok: false, status: 403, error: "Email diagnostics are available to admin users only." };
     }
-    return { ok: true };
+    return { ok: true, token };
   } catch (error) {
     console.error("Admin diagnostics auth failed", { message: safeError(error) });
     return { ok: false, status: 500, error: "Could not verify admin diagnostics access." };
   }
 }
 
-async function buildDiagnostics({ includeConnectionTest = false } = {}) {
+async function buildDiagnostics({ includeConnectionTest = false, authToken = "" } = {}) {
   let settings = defaultEmailSettings;
   let settingsError = "";
   try {
@@ -493,36 +581,30 @@ async function buildDiagnostics({ includeConnectionTest = false } = {}) {
   } catch (error) {
     settingsError = safeError(error);
     console.error("Email diagnostics settings load failed", { message: settingsError });
-    settings = {
-      ...defaultEmailSettings,
-      provider: normalizeProvider(process.env.EMAIL_PROVIDER),
-      enabled: normalizeProvider(process.env.EMAIL_PROVIDER) !== "disabled",
-      from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
-      from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
-      reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email
-    };
+    settings = getFallbackSettings();
   }
 
   const provider = normalizeProvider(settings.provider);
   const missingEnv = getMissingEnv(provider);
   const mode = settings.enabled && provider !== "disabled" ? "LIVE" : "TEST";
-  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
   const diagnostics = {
     mode,
     provider,
     settingsEnabled: Boolean(settings.enabled),
     settingsError,
     supabaseLogging: {
-      configured: Boolean(restUrl && serviceRoleKey),
+      configured: Boolean(restUrl && (serviceRoleKey || anonKey)),
       hasSupabaseUrl: Boolean(restUrl),
-      hasServiceRoleKey: Boolean(serviceRoleKey)
+      hasServiceRoleKey: Boolean(serviceRoleKey),
+      hasAnonKey: Boolean(anonKey)
     },
     smtp: getSmtpStatus(provider),
     resend: {
       configured: provider !== "resend" || missingEnv.length === 0,
       hasApiKey: Boolean(process.env.RESEND_API_KEY)
     },
-    lastLog: await getLastNotificationLog(),
+    lastLog: await getLastNotificationLog(authToken),
     connectionTest: null
   };
 
@@ -558,7 +640,7 @@ module.exports = async function handler(req, res) {
       res.status(adminCheck.status).json({ error: adminCheck.error });
       return;
     }
-    const diagnostics = await buildDiagnostics();
+    const diagnostics = await buildDiagnostics({ authToken: adminCheck.token });
     res.status(200).json(diagnostics);
     return;
   }
@@ -575,30 +657,52 @@ module.exports = async function handler(req, res) {
       res.status(adminCheck.status).json({ error: adminCheck.error });
       return;
     }
-    const diagnostics = await buildDiagnostics({ includeConnectionTest: true });
+    const diagnostics = await buildDiagnostics({ includeConnectionTest: true, authToken: adminCheck.token });
     res.status(200).json(diagnostics);
     return;
   }
 
   const { type = "admin_notification", payload = {} } = body;
-  let settings = defaultEmailSettings;
-  let provider = "disabled";
-  const to = [];
+  let settings = getFallbackSettings();
+  let provider = normalizeProvider(settings.provider);
+  const to = getRecipients(type, payload, settings);
   let logs = [];
 
   try {
+    console.info("Email request received before settings load", {
+      type,
+      provider,
+      recipients: to,
+      hasSmtpUsername: Boolean(process.env.SMTP_USERNAME),
+      hasSmtpPassword: Boolean(process.env.SMTP_PASSWORD),
+      hasSupabaseUrl: Boolean(getSupabaseConfig().restUrl),
+      hasServiceRoleKey: Boolean(getSupabaseConfig().serviceRoleKey),
+      hasAnonKey: Boolean(getSupabaseConfig().anonKey)
+    });
+    logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
+
     settings = await loadEmailSettings();
     provider = normalizeProvider(settings.provider);
-    to.push(...getRecipients(type, payload, settings));
+    const settingsRecipients = getRecipients(type, payload, settings);
+    if (settingsRecipients.length && settingsRecipients.join(",") !== to.join(",")) {
+      console.info("Email recipients updated from Admin email settings", {
+        type,
+        previousRecipients: to,
+        settingsRecipients
+      });
+      to.splice(0, to.length, ...settingsRecipients);
+    }
     console.info("Email request received", {
       type,
       provider,
       enabled: Boolean(settings.enabled),
       recipients: to,
       relatedType: payload.relatedType || null,
-      relatedId: payload.relatedId || null
+      relatedId: payload.relatedId || null,
+      hasSmtpUsername: Boolean(process.env.SMTP_USERNAME),
+      hasSmtpPassword: Boolean(process.env.SMTP_PASSWORD)
     });
-    logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
+    logs = attachLogContext(logs, type, payload, provider);
 
     if (!to.length) {
       await finalizeLogs(logs, "skipped", "No recipient configured");
@@ -648,6 +752,7 @@ module.exports = async function handler(req, res) {
     }
 
     await finalizeLogs(logs, "sent");
+    console.info("Email send succeeded", { type, provider, recipients: to });
     res.status(200).json({ sent: true, status: "sent", provider });
   } catch (error) {
     const safeMessage = safeError(error) || "Email failed safely";
