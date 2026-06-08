@@ -392,6 +392,10 @@ async function createPendingLogs(type, recipients, payload, provider) {
   })));
 }
 
+function getLogIds(logs = []) {
+  return logs.map((log) => log.id).filter(Boolean);
+}
+
 async function finalizeLogs(logs, status, errorMessage = "") {
   await Promise.all((logs || []).map((log) => {
     if (log.id) return updateNotificationLog(log.id, { status, errorMessage });
@@ -444,7 +448,8 @@ async function sendWithSmtp(message) {
   const nodemailer = require("nodemailer");
   const host = process.env.SMTP_HOST || "smtp.office365.com";
   const port = Number(process.env.SMTP_PORT || 587);
-  console.info("Preparing SMTP transport", {
+  console.info("[Kim's Coaching email] SMTP transport create starting", {
+    traceId: message.traceId,
     host,
     port,
     secure: false,
@@ -463,13 +468,20 @@ async function sendWithSmtp(message) {
       pass: process.env.SMTP_PASSWORD
     }
   });
+  console.info("[Kim's Coaching email] SMTP transport created", {
+    traceId: message.traceId,
+    host,
+    port,
+    recipients: message.to
+  });
 
-  console.info("Sending SMTP email", {
+  console.info("[Kim's Coaching email] SMTP send attempted", {
+    traceId: message.traceId,
     subject: message.subject,
     recipients: message.to,
     hasIcs: Boolean(message.ics)
   });
-  return transporter.sendMail({
+  const smtpResponse = await transporter.sendMail({
     from: fromHeader(message.settings),
     to: message.to,
     replyTo: message.settings.reply_to_email,
@@ -479,6 +491,14 @@ async function sendWithSmtp(message) {
       ? [{ filename: "private-lesson.ics", content: message.ics, contentType: "text/calendar; method=REQUEST" }]
       : []
   });
+  console.info("[Kim's Coaching email] SMTP response returned", {
+    traceId: message.traceId,
+    accepted: smtpResponse.accepted || [],
+    rejected: smtpResponse.rejected || [],
+    response: smtpResponse.response || "",
+    messageId: smtpResponse.messageId || ""
+  });
+  return smtpResponse;
 }
 
 async function verifySmtpConnection() {
@@ -663,13 +683,15 @@ module.exports = async function handler(req, res) {
   }
 
   const { type = "admin_notification", payload = {} } = body;
+  const traceId = payload.traceId || `email-api-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let settings = getFallbackSettings();
   let provider = normalizeProvider(settings.provider);
   const to = getRecipients(type, payload, settings);
   let logs = [];
 
   try {
-    console.info("Email request received before settings load", {
+    console.info("[Kim's Coaching email] API handler entered before settings load", {
+      traceId,
       type,
       provider,
       recipients: to,
@@ -680,19 +702,35 @@ module.exports = async function handler(req, res) {
       hasAnonKey: Boolean(getSupabaseConfig().anonKey)
     });
     logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
+    console.info("[Kim's Coaching email] notification log created", {
+      traceId,
+      type,
+      provider,
+      logIds: getLogIds(logs),
+      recipients: to
+    });
 
     settings = await loadEmailSettings();
     provider = normalizeProvider(settings.provider);
+    console.info("[Kim's Coaching email] email settings loaded", {
+      traceId,
+      provider,
+      enabled: Boolean(settings.enabled),
+      fromEmail: settings.from_email || "",
+      replyToEmail: settings.reply_to_email || ""
+    });
     const settingsRecipients = getRecipients(type, payload, settings);
     if (settingsRecipients.length && settingsRecipients.join(",") !== to.join(",")) {
-      console.info("Email recipients updated from Admin email settings", {
+      console.info("[Kim's Coaching email] recipients updated from Admin email settings", {
+        traceId,
         type,
         previousRecipients: to,
         settingsRecipients
       });
       to.splice(0, to.length, ...settingsRecipients);
     }
-    console.info("Email request received", {
+    console.info("[Kim's Coaching email] email send stage ready", {
+      traceId,
       type,
       provider,
       enabled: Boolean(settings.enabled),
@@ -706,27 +744,28 @@ module.exports = async function handler(req, res) {
 
     if (!to.length) {
       await finalizeLogs(logs, "skipped", "No recipient configured");
-      res.status(200).json({ sent: false, status: "skipped", reason: "No recipient configured" });
+      res.status(200).json({ sent: false, status: "skipped", reason: "No recipient configured", traceId, logIds: getLogIds(logs) });
       return;
     }
 
     if (!settings.enabled || provider === "disabled") {
-      console.info("Email disabled/test mode", { type, to });
+      console.info("[Kim's Coaching email] email disabled/test mode", { traceId, type, to });
       await finalizeLogs(logs, "test_mode");
-      res.status(200).json({ sent: false, status: "test_mode", provider });
+      res.status(200).json({ sent: false, status: "test_mode", provider, traceId, logIds: getLogIds(logs) });
       return;
     }
 
     const missingEnv = getMissingEnv(provider);
     if (missingEnv.length) {
       const message = `Missing Vercel email environment variables: ${missingEnv.join(", ")}`;
-      console.error("Email environment validation failed", { type, provider, missingEnv });
+      console.error("[Kim's Coaching email] email environment validation failed", { traceId, type, provider, missingEnv });
       await finalizeLogs(logs, "failed", message);
-      res.status(200).json({ sent: false, status: "failed", provider, error: message });
+      res.status(200).json({ sent: false, status: "failed", provider, error: message, traceId, logIds: getLogIds(logs) });
       return;
     }
 
     const message = {
+      traceId,
       to,
       settings,
       subject: getSubject(type, payload),
@@ -735,32 +774,39 @@ module.exports = async function handler(req, res) {
     };
 
     if (provider === "resend") {
-      console.info("Sending email through Resend", { type, recipients: to });
+      console.info("[Kim's Coaching email] sending email through Resend", { traceId, type, recipients: to });
       await sendWithResend(message, settings);
     } else if (provider === "outlook_smtp") {
       await sendWithSmtp(message);
     } else if (provider === "sendgrid" || provider === "mailgun") {
       const placeholderMessage = `${provider} is a placeholder provider. Configure Outlook SMTP or Resend to send live emails.`;
       await finalizeLogs(logs, "failed", placeholderMessage);
-      res.status(200).json({ sent: false, status: "failed", provider, error: placeholderMessage });
+      res.status(200).json({ sent: false, status: "failed", provider, error: placeholderMessage, traceId, logIds: getLogIds(logs) });
       return;
     } else {
       const unknownMessage = `Unknown email provider: ${provider}`;
       await finalizeLogs(logs, "failed", unknownMessage);
-      res.status(200).json({ sent: false, status: "failed", provider, error: unknownMessage });
+      res.status(200).json({ sent: false, status: "failed", provider, error: unknownMessage, traceId, logIds: getLogIds(logs) });
       return;
     }
 
     await finalizeLogs(logs, "sent");
-    console.info("Email send succeeded", { type, provider, recipients: to });
-    res.status(200).json({ sent: true, status: "sent", provider });
+    console.info("[Kim's Coaching email] email send succeeded", { traceId, type, provider, recipients: to, logIds: getLogIds(logs) });
+    res.status(200).json({ sent: true, status: "sent", provider, traceId, logIds: getLogIds(logs) });
   } catch (error) {
     const safeMessage = safeError(error) || "Email failed safely";
-    console.error("Email failed safely", { type, provider, recipients: to, message: safeMessage });
+    console.error("[Kim's Coaching email] email failed safely", { traceId, type, provider, recipients: to, message: safeMessage });
     if (!logs.length) {
       logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
+      console.info("[Kim's Coaching email] notification log created in catch", {
+        traceId,
+        type,
+        provider,
+        logIds: getLogIds(logs),
+        recipients: to
+      });
     }
     await finalizeLogs(logs, "failed", safeMessage);
-    res.status(200).json({ sent: false, status: "failed", provider, error: safeMessage });
+    res.status(200).json({ sent: false, status: "failed", provider, error: safeMessage, traceId, logIds: getLogIds(logs) });
   }
 };
