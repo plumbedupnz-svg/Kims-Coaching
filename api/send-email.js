@@ -17,6 +17,10 @@ const adminTypes = new Set([
   "admin_alert"
 ]);
 
+function safeError(error) {
+  return error?.message || String(error || "Unknown error");
+}
+
 function normalizeProvider(value = "") {
   const provider = String(value || "disabled").toLowerCase();
   if (provider === "outlook") return "outlook_smtp";
@@ -24,18 +28,25 @@ function normalizeProvider(value = "") {
   return provider;
 }
 
+function normalizeSupabaseRestUrl(url = "") {
+  const trimmed = String(url || "").trim().replace(/\/+$/, "");
+  if (!trimmed) return "";
+  return trimmed.endsWith("/rest/v1") ? trimmed : `${trimmed}/rest/v1`;
+}
+
 function getSupabaseConfig() {
   return {
     url: process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL,
+    restUrl: normalizeSupabaseRestUrl(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
   };
 }
 
 async function loadEmailSettings() {
-  const { url: supabaseUrl, serviceRoleKey } = getSupabaseConfig();
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
 
-  if (!supabaseUrl || !serviceRoleKey) {
-    return {
+  if (!restUrl || !serviceRoleKey) {
+    const fallbackSettings = {
       ...defaultEmailSettings,
       provider: normalizeProvider(process.env.EMAIL_PROVIDER),
       from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
@@ -43,9 +54,21 @@ async function loadEmailSettings() {
       reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
       enabled: normalizeProvider(process.env.EMAIL_PROVIDER) !== "disabled"
     };
+    console.info("Email settings loaded from Vercel environment fallback", {
+      provider: fallbackSettings.provider,
+      enabled: fallbackSettings.enabled,
+      hasSupabaseUrl: Boolean(restUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey)
+    });
+    return fallbackSettings;
   }
 
-  const response = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/email_settings?select=*&limit=1`, {
+  console.info("Loading email settings from Supabase", {
+    restUrlHost: restUrl.replace(/^https?:\/\//, "").split("/")[0],
+    hasServiceRoleKey: Boolean(serviceRoleKey)
+  });
+
+  const response = await fetch(`${restUrl}/email_settings?select=*&limit=1`, {
     headers: {
       apikey: serviceRoleKey,
       Authorization: `Bearer ${serviceRoleKey}`
@@ -54,7 +77,14 @@ async function loadEmailSettings() {
 
   if (!response.ok) throw new Error(`Could not load email_settings: ${response.status}`);
   const rows = await response.json();
-  return { ...defaultEmailSettings, ...(rows?.[0] || {}) };
+  const loadedSettings = { ...defaultEmailSettings, ...(rows?.[0] || {}) };
+  console.info("Email settings loaded", {
+    provider: loadedSettings.provider,
+    enabled: loadedSettings.enabled,
+    hasFromEmail: Boolean(loadedSettings.from_email),
+    hasReplyToEmail: Boolean(loadedSettings.reply_to_email)
+  });
+  return loadedSettings;
 }
 
 function fromHeader(settings) {
@@ -175,13 +205,73 @@ function getMissingEnv(provider) {
   return [];
 }
 
-async function logNotification({ type, recipient, relatedType, relatedId, status, provider, errorMessage }) {
-  const { url: supabaseUrl, serviceRoleKey } = getSupabaseConfig();
-  if (!supabaseUrl || !serviceRoleKey) return;
+function buildLogPayload({ type, recipient, relatedType, relatedId, status, provider, errorMessage }) {
+  return {
+    notification_type: type || "unknown",
+    recipient_email: recipient || null,
+    related_type: relatedType || null,
+    related_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(relatedId || "") ? relatedId : null,
+    status,
+    provider,
+    error_message: errorMessage || null
+  };
+}
+
+async function createNotificationLog({ type, recipient, relatedType, relatedId, status, provider, errorMessage }) {
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  if (!restUrl || !serviceRoleKey) {
+    console.warn("Notification log skipped because Supabase service configuration is missing", {
+      hasSupabaseUrl: Boolean(restUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey),
+      type,
+      recipient,
+      status,
+      provider
+    });
+    return null;
+  }
 
   try {
-    await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/notification_logs`, {
+    const body = buildLogPayload({ type, recipient, relatedType, relatedId, status, provider, errorMessage });
+    console.info("Creating notification log", {
+      type,
+      recipient,
+      status,
+      provider,
+      relatedType,
+      hasRelatedId: Boolean(body.related_id)
+    });
+    const response = await fetch(`${restUrl}/notification_logs?select=id`, {
       method: "POST",
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation"
+      },
+      body: JSON.stringify(body)
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`notification_logs insert returned ${response.status}: ${text}`);
+    }
+    const rows = await response.json().catch(() => []);
+    return rows?.[0]?.id || null;
+  } catch (error) {
+    console.error("Notification log insert failed safely", { message: safeError(error), type, recipient, status, provider });
+    return null;
+  }
+}
+
+async function updateNotificationLog(id, { status, errorMessage }) {
+  if (!id) return;
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  if (!restUrl || !serviceRoleKey) return;
+
+  try {
+    console.info("Updating notification log", { id, status, hasError: Boolean(errorMessage) });
+    const response = await fetch(`${restUrl}/notification_logs?id=eq.${encodeURIComponent(id)}`, {
+      method: "PATCH",
       headers: {
         apikey: serviceRoleKey,
         Authorization: `Bearer ${serviceRoleKey}`,
@@ -189,30 +279,57 @@ async function logNotification({ type, recipient, relatedType, relatedId, status
         Prefer: "return=minimal"
       },
       body: JSON.stringify({
-        notification_type: type || "unknown",
-        recipient_email: recipient || null,
-        related_type: relatedType || null,
-        related_id: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(relatedId || "") ? relatedId : null,
         status,
-        provider,
         error_message: errorMessage || null
       })
     });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`notification_logs update returned ${response.status}: ${text}`);
+    }
   } catch (error) {
-    console.error("Notification log failed safely", { message: error?.message || String(error) });
+    console.error("Notification log update failed safely", { id, status, message: safeError(error) });
   }
 }
 
-async function logForRecipients(type, recipients, payload, status, provider, errorMessage = "") {
-  await Promise.all((recipients.length ? recipients : [""]).map((recipient) => logNotification({
-    type,
+async function createPendingLogs(type, recipients, payload, provider) {
+  const list = recipients.length ? recipients : [""];
+  return Promise.all(list.map(async (recipient) => ({
     recipient,
-    relatedType: payload.relatedType,
-    relatedId: payload.relatedId,
-    status,
-    provider,
-    errorMessage
+    id: await createNotificationLog({
+      type,
+      recipient,
+      relatedType: payload.relatedType,
+      relatedId: payload.relatedId,
+      status: "pending",
+      provider
+    })
   })));
+}
+
+async function finalizeLogs(logs, status, errorMessage = "") {
+  await Promise.all((logs || []).map((log) => {
+    if (log.id) return updateNotificationLog(log.id, { status, errorMessage });
+    return createNotificationLog({
+      type: log.type,
+      recipient: log.recipient,
+      relatedType: log.relatedType,
+      relatedId: log.relatedId,
+      status,
+      provider: log.provider,
+      errorMessage
+    });
+  }));
+}
+
+function attachLogContext(logs, type, payload, provider) {
+  return (logs || []).map((log) => ({
+    ...log,
+    type,
+    provider,
+    relatedType: payload.relatedType,
+    relatedId: payload.relatedId
+  }));
 }
 
 async function sendWithResend(message, settings) {
@@ -240,9 +357,20 @@ async function sendWithResend(message, settings) {
 
 async function sendWithSmtp(message) {
   const nodemailer = require("nodemailer");
+  const host = process.env.SMTP_HOST || "smtp.office365.com";
+  const port = Number(process.env.SMTP_PORT || 587);
+  console.info("Preparing SMTP transport", {
+    host,
+    port,
+    secure: false,
+    requireTLS: true,
+    hasUsername: Boolean(process.env.SMTP_USERNAME),
+    hasPassword: Boolean(process.env.SMTP_PASSWORD),
+    recipients: message.to.length
+  });
   const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.office365.com",
-    port: Number(process.env.SMTP_PORT || 587),
+    host,
+    port,
     secure: false,
     requireTLS: true,
     auth: {
@@ -251,6 +379,11 @@ async function sendWithSmtp(message) {
     }
   });
 
+  console.info("Sending SMTP email", {
+    subject: message.subject,
+    recipients: message.to,
+    hasIcs: Boolean(message.ics)
+  });
   return transporter.sendMail({
     from: fromHeader(message.settings),
     to: message.to,
@@ -263,31 +396,219 @@ async function sendWithSmtp(message) {
   });
 }
 
+async function verifySmtpConnection() {
+  const nodemailer = require("nodemailer");
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || "smtp.office365.com",
+    port: Number(process.env.SMTP_PORT || 587),
+    secure: false,
+    requireTLS: true,
+    auth: {
+      user: process.env.SMTP_USERNAME,
+      pass: process.env.SMTP_PASSWORD
+    }
+  });
+  await transporter.verify();
+}
+
+function getSmtpStatus(provider) {
+  const missing = getMissingEnv(provider);
+  return {
+    configured: missing.length === 0,
+    missing,
+    host: process.env.SMTP_HOST || "smtp.office365.com",
+    port: Number(process.env.SMTP_PORT || 587),
+    hasUsername: Boolean(process.env.SMTP_USERNAME),
+    hasPassword: Boolean(process.env.SMTP_PASSWORD)
+  };
+}
+
+async function getLastNotificationLog() {
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  if (!restUrl || !serviceRoleKey) return null;
+  try {
+    const response = await fetch(`${restUrl}/notification_logs?select=*&order=created_at.desc&limit=1`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`
+      }
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(`notification_logs diagnostics returned ${response.status}: ${text}`);
+    }
+    const rows = await response.json();
+    return rows?.[0] || null;
+  } catch (error) {
+    console.error("Could not load last notification log", { message: safeError(error) });
+    return null;
+  }
+}
+
+async function requireAdminForDiagnostics(req) {
+  const authHeader = req.headers.authorization || req.headers.Authorization || "";
+  const token = String(authHeader).replace(/^Bearer\s+/i, "");
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  if (!token || !restUrl || !serviceRoleKey) {
+    return { ok: false, status: 401, error: "Admin diagnostics require an authenticated admin session." };
+  }
+
+  try {
+    const projectUrl = restUrl.replace(/\/rest\/v1$/, "");
+    const userResponse = await fetch(`${projectUrl}/auth/v1/user`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${token}`
+      }
+    });
+    if (!userResponse.ok) {
+      return { ok: false, status: 401, error: "Could not verify admin session." };
+    }
+    const user = await userResponse.json();
+    const profileResponse = await fetch(`${restUrl}/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`, {
+      headers: {
+        apikey: serviceRoleKey,
+        Authorization: `Bearer ${serviceRoleKey}`
+      }
+    });
+    if (!profileResponse.ok) {
+      return { ok: false, status: 403, error: "Could not verify admin profile." };
+    }
+    const profiles = await profileResponse.json();
+    if (profiles?.[0]?.role !== "admin") {
+      return { ok: false, status: 403, error: "Email diagnostics are available to admin users only." };
+    }
+    return { ok: true };
+  } catch (error) {
+    console.error("Admin diagnostics auth failed", { message: safeError(error) });
+    return { ok: false, status: 500, error: "Could not verify admin diagnostics access." };
+  }
+}
+
+async function buildDiagnostics({ includeConnectionTest = false } = {}) {
+  let settings = defaultEmailSettings;
+  let settingsError = "";
+  try {
+    settings = await loadEmailSettings();
+  } catch (error) {
+    settingsError = safeError(error);
+    console.error("Email diagnostics settings load failed", { message: settingsError });
+    settings = {
+      ...defaultEmailSettings,
+      provider: normalizeProvider(process.env.EMAIL_PROVIDER),
+      enabled: normalizeProvider(process.env.EMAIL_PROVIDER) !== "disabled",
+      from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
+      from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
+      reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email
+    };
+  }
+
+  const provider = normalizeProvider(settings.provider);
+  const missingEnv = getMissingEnv(provider);
+  const mode = settings.enabled && provider !== "disabled" ? "LIVE" : "TEST";
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  const diagnostics = {
+    mode,
+    provider,
+    settingsEnabled: Boolean(settings.enabled),
+    settingsError,
+    supabaseLogging: {
+      configured: Boolean(restUrl && serviceRoleKey),
+      hasSupabaseUrl: Boolean(restUrl),
+      hasServiceRoleKey: Boolean(serviceRoleKey)
+    },
+    smtp: getSmtpStatus(provider),
+    resend: {
+      configured: provider !== "resend" || missingEnv.length === 0,
+      hasApiKey: Boolean(process.env.RESEND_API_KEY)
+    },
+    lastLog: await getLastNotificationLog(),
+    connectionTest: null
+  };
+
+  if (includeConnectionTest) {
+    if (provider !== "outlook_smtp") {
+      diagnostics.connectionTest = {
+        status: "skipped",
+        error: "SMTP connection test is only available for Outlook SMTP."
+      };
+    } else if (missingEnv.length) {
+      diagnostics.connectionTest = {
+        status: "failed",
+        error: `Missing Vercel email environment variables: ${missingEnv.join(", ")}`
+      };
+    } else {
+      try {
+        await verifySmtpConnection();
+        diagnostics.connectionTest = { status: "success", error: "" };
+      } catch (error) {
+        diagnostics.connectionTest = { status: "failed", error: safeError(error) };
+        console.error("SMTP connection test failed", { message: safeError(error) });
+      }
+    }
+  }
+
+  return diagnostics;
+}
+
 module.exports = async function handler(req, res) {
+  if (req.method === "GET") {
+    const adminCheck = await requireAdminForDiagnostics(req);
+    if (!adminCheck.ok) {
+      res.status(adminCheck.status).json({ error: adminCheck.error });
+      return;
+    }
+    const diagnostics = await buildDiagnostics();
+    res.status(200).json(diagnostics);
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ error: "Method not allowed" });
     return;
   }
 
-  const { type = "admin_notification", payload = {} } = req.body || {};
+  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  if (body.action === "test_smtp") {
+    const adminCheck = await requireAdminForDiagnostics(req);
+    if (!adminCheck.ok) {
+      res.status(adminCheck.status).json({ error: adminCheck.error });
+      return;
+    }
+    const diagnostics = await buildDiagnostics({ includeConnectionTest: true });
+    res.status(200).json(diagnostics);
+    return;
+  }
+
+  const { type = "admin_notification", payload = {} } = body;
   let settings = defaultEmailSettings;
   let provider = "disabled";
   const to = [];
+  let logs = [];
 
   try {
     settings = await loadEmailSettings();
     provider = normalizeProvider(settings.provider);
     to.push(...getRecipients(type, payload, settings));
+    console.info("Email request received", {
+      type,
+      provider,
+      enabled: Boolean(settings.enabled),
+      recipients: to,
+      relatedType: payload.relatedType || null,
+      relatedId: payload.relatedId || null
+    });
+    logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
 
     if (!to.length) {
-      await logForRecipients(type, to, payload, "skipped", provider, "No recipient configured");
+      await finalizeLogs(logs, "skipped", "No recipient configured");
       res.status(200).json({ sent: false, status: "skipped", reason: "No recipient configured" });
       return;
     }
 
     if (!settings.enabled || provider === "disabled") {
       console.info("Email disabled/test mode", { type, to });
-      await logForRecipients(type, to, payload, "test_mode", provider);
+      await finalizeLogs(logs, "test_mode");
       res.status(200).json({ sent: false, status: "test_mode", provider });
       return;
     }
@@ -295,7 +616,8 @@ module.exports = async function handler(req, res) {
     const missingEnv = getMissingEnv(provider);
     if (missingEnv.length) {
       const message = `Missing Vercel email environment variables: ${missingEnv.join(", ")}`;
-      await logForRecipients(type, to, payload, "failed", provider, message);
+      console.error("Email environment validation failed", { type, provider, missingEnv });
+      await finalizeLogs(logs, "failed", message);
       res.status(200).json({ sent: false, status: "failed", provider, error: message });
       return;
     }
@@ -309,27 +631,31 @@ module.exports = async function handler(req, res) {
     };
 
     if (provider === "resend") {
+      console.info("Sending email through Resend", { type, recipients: to });
       await sendWithResend(message, settings);
     } else if (provider === "outlook_smtp") {
       await sendWithSmtp(message);
     } else if (provider === "sendgrid" || provider === "mailgun") {
       const placeholderMessage = `${provider} is a placeholder provider. Configure Outlook SMTP or Resend to send live emails.`;
-      await logForRecipients(type, to, payload, "failed", provider, placeholderMessage);
+      await finalizeLogs(logs, "failed", placeholderMessage);
       res.status(200).json({ sent: false, status: "failed", provider, error: placeholderMessage });
       return;
     } else {
       const unknownMessage = `Unknown email provider: ${provider}`;
-      await logForRecipients(type, to, payload, "failed", provider, unknownMessage);
+      await finalizeLogs(logs, "failed", unknownMessage);
       res.status(200).json({ sent: false, status: "failed", provider, error: unknownMessage });
       return;
     }
 
-    await logForRecipients(type, to, payload, "sent", provider);
+    await finalizeLogs(logs, "sent");
     res.status(200).json({ sent: true, status: "sent", provider });
   } catch (error) {
-    const safeMessage = error?.message || "Email failed safely";
-    console.error("Email failed safely", { type, provider, message: safeMessage });
-    await logForRecipients(type, to, payload, "failed", provider, safeMessage);
+    const safeMessage = safeError(error) || "Email failed safely";
+    console.error("Email failed safely", { type, provider, recipients: to, message: safeMessage });
+    if (!logs.length) {
+      logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
+    }
+    await finalizeLogs(logs, "failed", safeMessage);
     res.status(200).json({ sent: false, status: "failed", provider, error: safeMessage });
   }
 };

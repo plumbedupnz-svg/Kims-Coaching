@@ -374,6 +374,8 @@
     }
 
     const notificationPayload = {
+      relatedType: "booking",
+      relatedId: result.data?.id || "",
       customerName: payload.parent_name,
       playerName: payload.player_name,
       email: payload.customer_email,
@@ -384,7 +386,7 @@
       durationMinutes: payload.duration_minutes,
       notes: formData.get("notes")?.trim() || ""
     };
-    await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
+    const emailStatus = await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
 
     setStatus("", "success");
     bookingFormEl.hidden = true;
@@ -399,7 +401,8 @@
       startTime: payload.start_time,
       endTime: payload.end_time,
       duration: payload.duration_minutes,
-      playerName: payload.player_name
+      playerName: payload.player_name,
+      emailStatus
     }));
     state.selectedSlot = null;
     await loadAvailableSlots();
