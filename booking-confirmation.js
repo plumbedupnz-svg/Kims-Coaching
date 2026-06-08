@@ -37,14 +37,29 @@
     const startTime = booking.startTime ? new Date(booking.startTime) : null;
     const storedStatus = booking.emailStatus || JSON.parse(sessionStorage.getItem("kims_last_email_status") || "null");
     const customerStatus = storedStatus?.customer?.status || "";
+    const adminStatus = storedStatus?.admin?.status || "";
+    const customerError = storedStatus?.customer?.error || "";
+    const adminError = storedStatus?.admin?.error || "";
+    const traceId = storedStatus?.customer?.traceId || storedStatus?.admin?.traceId || storedStatus?.payload?.traceId || "";
+    const logIds = [
+      ...(storedStatus?.customer?.logIds || []),
+      ...(storedStatus?.admin?.logIds || [])
+    ].filter(Boolean);
+    const rootError = customerError || adminError;
     const calendarStatus = storedStatus?.calendarInvite || "";
     const emailCopy = customerStatus === "sent"
       ? "Confirmation email sent."
       : customerStatus === "test_mode"
         ? "Email pending/test mode."
         : customerStatus === "failed"
-          ? "Email failed but booking saved."
+          ? `Email failed but booking saved.${rootError ? ` Error: ${rootError}` : ""}`
           : "Email status pending.";
+    const adminCopy = adminStatus === "failed" && adminError
+      ? `<p>Admin email error: ${escapeHtml(adminError)}</p>`
+      : "";
+    const traceCopy = traceId
+      ? `<p>Email trace: ${escapeHtml(traceId)}${logIds.length ? ` · Log: ${escapeHtml(logIds.join(", "))}` : ""}</p>`
+      : "";
     const calendarCopy = calendarStatus === "generated"
       ? customerStatus === "sent"
         ? "Calendar invite sent."
@@ -60,6 +75,8 @@
       <p>Player: ${escapeHtml(booking.playerName || "")}</p>
       <p>Coach: Kim Jones</p>
       <p>${escapeHtml(emailCopy)}</p>
+      ${adminCopy}
+      ${traceCopy}
       <p>${escapeHtml(calendarCopy)}</p>
     `;
   }
