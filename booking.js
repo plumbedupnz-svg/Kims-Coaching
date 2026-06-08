@@ -101,6 +101,10 @@
     bookingStatusEl.dataset.tone = tone;
   }
 
+  function createEmailTraceId() {
+    return `booking-email-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  }
+
   async function refreshSession() {
     if (!client) return;
     const { data } = await client.auth.getSession();
@@ -344,6 +348,15 @@
       duration_minutes: selectedDuration
     };
 
+    const emailTraceId = createEmailTraceId();
+    console.info("[Kim's Coaching booking email] booking save starting", {
+      traceId: emailTraceId,
+      availabilityId: payload.availability_id,
+      lessonTypeId: payload.lesson_type_id,
+      customerEmail: payload.customer_email,
+      startTime: payload.start_time,
+      endTime: payload.end_time
+    });
     setStatus("Saving your private lesson booking...", "neutral");
     const submitButton = bookingFormEl.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
@@ -365,6 +378,11 @@
     if (submitButton) submitButton.disabled = false;
 
     if (result.error) {
+      console.error("[Kim's Coaching booking email] booking save failed", {
+        traceId: emailTraceId,
+        error: result.error.message,
+        code: result.error.code
+      });
       const message = result.error.code === "23505"
         ? "That time has just been booked. Please choose another private lesson time."
         : result.error.message;
@@ -372,8 +390,14 @@
       await loadAvailableSlots();
       return;
     }
+    console.info("[Kim's Coaching booking email] booking saved", {
+      traceId: emailTraceId,
+      bookingId: result.data?.id || "",
+      customerEmail: payload.customer_email
+    });
 
     const notificationPayload = {
+      traceId: emailTraceId,
       relatedType: "booking",
       relatedId: result.data?.id || "",
       customerName: payload.parent_name,
@@ -386,7 +410,16 @@
       durationMinutes: payload.duration_minutes,
       notes: formData.get("notes")?.trim() || ""
     };
+    console.info("[Kim's Coaching booking email] notification dispatch starting", {
+      traceId: emailTraceId,
+      bookingId: notificationPayload.relatedId,
+      customerEmail: notificationPayload.email
+    });
     const emailStatus = await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
+    console.info("[Kim's Coaching booking email] notification dispatch finished", {
+      traceId: emailTraceId,
+      emailStatus
+    });
 
     setStatus("", "success");
     bookingFormEl.hidden = true;
