@@ -1,5 +1,10 @@
 (function () {
   function notifyAdminOfNewBooking(payload) {
+    console.info("[Kim's Coaching booking email] notifyAdminOfNewBooking called", {
+      traceId: payload.traceId,
+      relatedId: payload.relatedId,
+      customerEmail: payload.email
+    });
     const emailPayload = {
       ...payload,
       title: `Private lesson with ${payload.playerName || "player"}`,
@@ -8,11 +13,21 @@
       description: payload.notes || ""
     };
 
+    console.info("[Kim's Coaching booking email] booking email calls starting", {
+      traceId: payload.traceId,
+      hasEmailService: Boolean(window.KimsEmailService),
+      customerEmail: emailPayload.email
+    });
     return Promise.allSettled([
       window.KimsEmailService?.sendBookingAdminNotification(emailPayload),
       window.KimsEmailService?.sendBookingConfirmation(emailPayload)
     ]).then((results) => {
       const [adminResult, customerResult] = results.map((result) => result.status === "fulfilled" ? result.value : { status: "failed", error: result.reason?.message || "Email failed" });
+      console.info("[Kim's Coaching booking email] booking email calls finished", {
+        traceId: payload.traceId,
+        adminResult,
+        customerResult
+      });
       const emailStatus = {
         queued: true,
         payload,
