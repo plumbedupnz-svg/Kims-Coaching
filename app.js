@@ -90,13 +90,15 @@ const supabaseClient = hasSupabaseConfig
 
 function normalizeShopProduct(row) {
   const inventory = row.inventory_items || {};
+  const category = row.product_categories?.name || inventory.product_categories?.name || row.category || inventory.category || "Uncategorized";
   return {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
     name: row.name || inventory.product_name,
     price: Number(row.price || 0),
     discount: Number(row.discount || 0),
-    category: row.category || inventory.category || "Uncategorized",
+    category,
+    category_id: row.category_id || inventory.category_id || row.product_categories?.id || inventory.product_categories?.id || "",
     description: row.description || inventory.description || "",
     image: row.image || inventory.image || "",
     is_active: row.is_active !== false && inventory.is_active !== false,
@@ -122,9 +124,8 @@ async function syncShopProductsFromSupabase() {
 
   const { data, error } = await supabaseClient
     .from("shop_products")
-    .select("*, inventory_items:inventory_item_id(id, product_name, category, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at)")
+    .select("*, product_categories:category_id(id,name), inventory_items:inventory_item_id(id, product_name, category, category_id, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name))")
     .eq("is_active", true)
-    .order("category", { ascending: true })
     .order("name", { ascending: true });
 
   if (error) {
@@ -143,44 +144,39 @@ async function syncShopProductsFromSupabase() {
 
 async function saveAdminProductToSupabase(product) {
   if (!supabaseClient || !isAdminProfile()) return null;
+  const category = await window.KimsProductCategories?.save(product.category);
+  const { data: inventoryItem, error } = await supabaseClient.rpc("admin_save_inventory_item", {
+    p_inventory_item_id: null,
+    p_product_name: product.name,
+    p_sku: null,
+    p_supplier: "Manual",
+    p_category_id: category?.id || null,
+    p_category: category?.name || product.category,
+    p_description: product.description,
+    p_cost_price: 0,
+    p_sell_price: product.price,
+    p_quantity_on_hand: 0,
+    p_low_stock_threshold: 2,
+    p_need_order_threshold: 0,
+    p_image: product.image,
+    p_visible_in_shop: true,
+    p_is_active: true
+  });
 
-  const inventoryPayload = {
-    product_name: product.name,
-    supplier: "Manual",
-    sell_price: product.price,
-    quantity_on_hand: Number(product.quantity_on_hand || 0),
-    low_stock_threshold: 2,
-    status: "out_of_stock",
-    visible_in_shop: true,
-    review_status: "reviewed"
-  };
-
-  const { data: inventoryItem, error: inventoryError } = await supabaseClient
-    .from("inventory_items")
-    .insert(inventoryPayload)
-    .select()
-    .single();
-
-  if (inventoryError) throw inventoryError;
-
-  const { data: shopProduct, error: productError } = await supabaseClient
-    .from("shop_products")
-    .insert({
-      id: product.id,
-      inventory_item_id: inventoryItem.id,
-      name: product.name,
-      category: product.category,
-      description: product.description,
-      price: product.price,
-      discount: product.discount,
-      image: product.image,
-      is_active: true
-    })
-    .select()
-    .single();
-
-  if (productError) throw productError;
-  return normalizeShopProduct({ ...shopProduct, inventory_items: inventoryItem });
+  if (error) throw error;
+  return normalizeShopProduct({
+    id: inventoryItem.shop_product_id,
+    inventory_item_id: inventoryItem.id,
+    name: inventoryItem.product_name,
+    price: inventoryItem.sell_price,
+    discount: product.discount,
+    category_id: inventoryItem.category_id,
+    product_categories: category || { id: inventoryItem.category_id, name: product.category },
+    description: inventoryItem.description,
+    image: inventoryItem.image,
+    is_active: inventoryItem.is_active,
+    inventory_items: inventoryItem
+  });
 }
 
 function getDiscountedPrice(product) {
@@ -673,7 +669,10 @@ function getAppliedPromoPercent() {
   return appliedCode === promo.code.toLowerCase() ? Number(promo.percent || 0) : 0;
 }
 function getCategoryList(products) {
-  return [...new Set(products.map((p) => (p.category?.trim() || "Uncategorized")))].sort((a,b)=>a.localeCompare(b));
+  const sourceCategories = window.KimsProductCategories?.getAll?.().map((category) => category.name) || [];
+  if (sourceCategories.length) return [...new Set(sourceCategories)].sort((a,b)=>a.localeCompare(b));
+  const productCategories = products.map((p) => (p.category?.trim() || "Uncategorized"));
+  return [...new Set(productCategories)].sort((a,b)=>a.localeCompare(b));
 }
 
 
@@ -896,23 +895,6 @@ if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
   selectedCategory = categoryFilterEl.value;
   renderProducts();
 });
-if (addCategoryBtnEl) addCategoryBtnEl.addEventListener("click", () => {
-  const raw = ownerNewCategoryEl?.value || "";
-  const newCategory = getNormalizedCategoryName(raw);
-  if (!newCategory) return;
-
-  const products = loadProducts();
-  const existsInProducts = products.some((p) => (p.category || "").trim().toLowerCase() === newCategory.toLowerCase());
-  if (!existsInProducts) {
-    // Persist category by adding/removing a placeholder product category source is avoided; category list is derived from products,
-    // so we just keep it in dropdown until it is used in a product.
-  }
-
-  upsertCategoryOption(newCategory);
-  ownerProductCategorySelectEl.value = newCategory;
-  if (ownerNewCategoryEl) ownerNewCategoryEl.value = "";
-});
-
 if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
   const entered = (promoCodeEl?.value || "").trim();
   const promo = loadPromoSettings();

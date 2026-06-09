@@ -1,57 +1,19 @@
 (function () {
-  const productsKey = "kims_products";
-  const categoriesKey = "kims_categories";
-  const defaultCategories = ["Recovery", "Strength", "Training"];
+  const defaultCategories = ["Recovery", "Strength", "Training", "Tennis Gear", "Accessories", "Other"];
   const categorySelectEl = document.getElementById("owner-product-category");
   const categoryFilterEl = document.getElementById("category-filter");
   const newCategoryEl = document.getElementById("owner-new-category");
   const addCategoryBtnEl = document.getElementById("add-category-btn");
-  const addProductFormEl = document.getElementById("owner-add-form");
   const supabaseSettings = window.KIMS_SUPABASE || {};
   const supabaseClient = supabaseSettings.url && supabaseSettings.anonKey && window.supabase
     ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
     : null;
+
+  let categories = [];
   let lastSelectedFilterCategory = categoryFilterEl?.value || "all";
 
   function normalizeCategory(value) {
     return String(value || "").trim().replace(/\s+/g, " ");
-  }
-
-  function getUniqueCategories(categories) {
-    const categoriesByLowercase = new Map();
-
-    categories
-      .map(normalizeCategory)
-      .filter(Boolean)
-      .forEach((category) => {
-        const key = category.toLowerCase();
-        if (!categoriesByLowercase.has(key)) categoriesByLowercase.set(key, category);
-      });
-
-    return [...categoriesByLowercase.values()].sort((a, b) => a.localeCompare(b));
-  }
-
-  function loadJsonArray(key) {
-    try {
-      const parsed = JSON.parse(localStorage.getItem(key) || "[]");
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (error) {
-      return [];
-    }
-  }
-
-  function saveCategories(categories) {
-    localStorage.setItem(categoriesKey, JSON.stringify(getUniqueCategories(categories)));
-  }
-
-  function loadCategories() {
-    const products = loadJsonArray(productsKey);
-    const storedCategories = loadJsonArray(categoriesKey);
-    const productCategories = products.map((product) => product.category);
-    const categories = getUniqueCategories([...defaultCategories, ...storedCategories, ...productCategories]);
-
-    saveCategories(categories);
-    return categories;
   }
 
   function escapeAttribute(value) {
@@ -62,111 +24,96 @@
       .replace(/>/g, "&gt;");
   }
 
-  async function loadSupabaseCategories() {
-    if (!supabaseClient) return [];
+  function getUniqueCategories(rows) {
+    const byName = new Map();
+    rows
+      .filter((row) => row?.name)
+      .forEach((row) => {
+        const key = normalizeCategory(row.name).toLowerCase();
+        if (!byName.has(key)) byName.set(key, { id: row.id || "", name: normalizeCategory(row.name) });
+      });
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async function saveCategory(categoryName) {
+    const name = normalizeCategory(categoryName);
+    if (!name || !supabaseClient) return null;
+
+    const isDefault = defaultCategories.some((defaultCategory) => defaultCategory.toLowerCase() === name.toLowerCase());
+    const { data, error } = await supabaseClient
+      .from("product_categories")
+      .upsert({ name, is_default: isDefault }, { onConflict: "normalized_name" })
+      .select("id,name")
+      .single();
+
+    if (error) {
+      console.warn("Could not save product category in Supabase.", error.message);
+      return null;
+    }
+
+    return data;
+  }
+
+  async function loadCategories() {
+    if (!supabaseClient) {
+      categories = defaultCategories.map((name) => ({ id: "", name }));
+      return categories;
+    }
 
     const { data, error } = await supabaseClient
       .from("product_categories")
-      .select("name")
+      .select("id,name")
       .order("name", { ascending: true });
 
     if (error) {
       console.warn("Could not load product categories from Supabase.", error.message);
-      return [];
+      categories = defaultCategories.map((name) => ({ id: "", name }));
+      return categories;
     }
 
-    if (Array.isArray(data) && data.length) return data.map((category) => category.name);
-
-    const { data: seededCategories, error: seedError } = await supabaseClient
-      .from("product_categories")
-      .upsert(
-        defaultCategories.map((name) => ({ name, is_default: true })),
-        { onConflict: "normalized_name" }
-      )
-      .select("name");
-
-    if (seedError) return [];
-    return Array.isArray(seededCategories) ? seededCategories.map((category) => category.name) : [];
-  }
-
-  async function saveCategoryToSupabase(category) {
-    if (!supabaseClient) return "";
-    const normalized = normalizeCategory(category);
-    if (!normalized) return "";
-
-    const { data: existingCategory, error: selectError } = await supabaseClient
-      .from("product_categories")
-      .select("name")
-      .eq("normalized_name", normalized.toLowerCase())
-      .maybeSingle();
-
-    if (existingCategory?.name) return existingCategory.name;
-    if (selectError) console.warn("Could not check product category in Supabase.", selectError.message);
-
-    const isDefault = defaultCategories.some((defaultCategory) => defaultCategory.toLowerCase() === normalized.toLowerCase());
-    const { data: createdCategory, error: insertError } = await supabaseClient
-      .from("product_categories")
-      .insert({ name: normalized, is_default: isDefault })
-      .select("name")
-      .single();
-
-    if (insertError) {
-      console.warn("Could not save product category in Supabase.", insertError.message);
-      return "";
+    if (!Array.isArray(data) || !data.length) {
+      const seeded = await Promise.all(defaultCategories.map(saveCategory));
+      categories = getUniqueCategories(seeded.filter(Boolean));
+      return categories;
     }
 
-    return createdCategory?.name || normalized;
-  }
-
-  async function syncCategoriesFromSupabase() {
-    const supabaseCategories = await loadSupabaseCategories();
-    if (!supabaseCategories.length) return loadCategories();
-    const categories = getUniqueCategories([...loadCategories(), ...supabaseCategories]);
-    saveCategories(categories);
+    categories = getUniqueCategories(data);
     return categories;
   }
 
-  function upsertCategoryOption(category) {
-    if (!categorySelectEl) return;
-    const normalized = normalizeCategory(category);
-    if (!normalized) return;
+  function getCategoryName(value) {
+    const normalized = normalizeCategory(value);
+    const byId = categories.find((category) => category.id === value);
+    if (byId) return byId.name;
+    const byName = categories.find((category) => category.name.toLowerCase() === normalized.toLowerCase());
+    return byName?.name || normalized;
+  }
 
-    const exists = [...categorySelectEl.options].some(
-      (option) => option.value.toLowerCase() === normalized.toLowerCase()
-    );
-
-    if (!exists) {
-      const option = document.createElement("option");
-      option.value = normalized;
-      option.textContent = normalized;
-      categorySelectEl.appendChild(option);
-    }
+  function getCategoryIdByName(value) {
+    const normalized = normalizeCategory(value).toLowerCase();
+    return categories.find((category) => category.name.toLowerCase() === normalized)?.id || "";
   }
 
   function renderCategoryOptions() {
     if (!categorySelectEl) return;
-    const current = categorySelectEl.value;
-    categorySelectEl.innerHTML = '<option value="">Select category</option>';
-    loadCategories().forEach(upsertCategoryOption);
-
-    const matchingOption = [...categorySelectEl.options].find(
-      (option) => option.value.toLowerCase() === current.toLowerCase()
-    );
-    if (matchingOption) categorySelectEl.value = matchingOption.value;
+    const currentName = getCategoryName(categorySelectEl.value);
+    categorySelectEl.innerHTML = '<option value="">Select category</option>' + categories
+      .map((category) => `<option value="${escapeAttribute(category.name)}" data-category-id="${escapeAttribute(category.id)}">${escapeAttribute(category.name)}</option>`)
+      .join("");
+    if (categories.some((category) => category.name.toLowerCase() === currentName.toLowerCase())) {
+      categorySelectEl.value = currentName;
+    }
   }
 
   function renderPublicCategoryFilter(preferredValue = lastSelectedFilterCategory) {
     if (!categoryFilterEl) return;
-    const categories = loadCategories();
-    const current = preferredValue || categoryFilterEl.value || "all";
-    const options = [
+    const currentName = preferredValue === "all" ? "all" : getCategoryName(preferredValue);
+    categoryFilterEl.innerHTML = [
       '<option value="all">All categories</option>',
-      ...categories.map((category) => `<option value="${escapeAttribute(category)}">${escapeAttribute(category)}</option>`)
+      ...categories.map((category) => `<option value="${escapeAttribute(category.name)}">${escapeAttribute(category.name)}</option>`)
     ].join("");
-
-    categoryFilterEl.innerHTML = options;
-    categoryFilterEl.value = current === "all" || categories.some((category) => category.toLowerCase() === current.toLowerCase())
-      ? current
+    categoryFilterEl.value = currentName === "all" || categories.some((category) => category.name.toLowerCase() === currentName.toLowerCase())
+      ? currentName
       : "all";
   }
 
@@ -176,41 +123,36 @@
   }
 
   async function refreshCategoryControls(preferredFilterValue) {
-    await syncCategoriesFromSupabase();
+    await loadCategories();
     renderAllCategoryControls(preferredFilterValue);
   }
 
-  if (addCategoryBtnEl) addCategoryBtnEl.addEventListener("click", () => {
+  window.KimsProductCategories = {
+    refresh: refreshCategoryControls,
+    getAll: () => [...categories],
+    getName: getCategoryName,
+    getIdByName: getCategoryIdByName,
+    save: async (categoryName) => {
+      const saved = await saveCategory(categoryName);
+      await refreshCategoryControls(lastSelectedFilterCategory);
+      return saved;
+    }
+  };
+
+  if (addCategoryBtnEl) addCategoryBtnEl.addEventListener("click", async () => {
     const newCategory = normalizeCategory(newCategoryEl?.value);
     if (!newCategory) return;
-    saveCategories([...loadCategories(), newCategory]);
-    saveCategoryToSupabase(newCategory).then((savedCategory) => {
-      if (savedCategory) saveCategories([...loadCategories(), savedCategory]);
-      renderAllCategoryControls();
-    });
-    renderAllCategoryControls();
-    categorySelectEl.value = newCategory;
-  }, true);
-
-  if (addProductFormEl) addProductFormEl.addEventListener("submit", () => {
-    const selectedCategory = normalizeCategory(categorySelectEl?.value);
-    if (selectedCategory) {
-      saveCategories([...loadCategories(), selectedCategory]);
-      saveCategoryToSupabase(selectedCategory).then((savedCategory) => {
-        if (savedCategory) saveCategories([...loadCategories(), savedCategory]);
-        renderAllCategoryControls();
-      });
-    }
+    const saved = await window.KimsProductCategories.save(newCategory);
+    if (newCategoryEl) newCategoryEl.value = "";
+    if (categorySelectEl) categorySelectEl.value = saved?.name || newCategory;
   }, true);
 
   if (categoryFilterEl) categoryFilterEl.addEventListener("change", (event) => {
     lastSelectedFilterCategory = event.target.value;
-    setTimeout(() => renderPublicCategoryFilter(lastSelectedFilterCategory), 0);
   }, true);
 
   renderAllCategoryControls();
   refreshCategoryControls();
-  categorySelectEl?.addEventListener("focus", renderCategoryOptions);
-  categoryFilterEl?.addEventListener("focus", () => renderPublicCategoryFilter());
-  setTimeout(() => refreshCategoryControls(lastSelectedFilterCategory), 500);
+  categorySelectEl?.addEventListener("focus", () => refreshCategoryControls());
+  categoryFilterEl?.addEventListener("focus", () => refreshCategoryControls(lastSelectedFilterCategory));
 })();
