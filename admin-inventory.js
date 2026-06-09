@@ -4,7 +4,6 @@
     ? window.supabase.createClient(settings.url, settings.anonKey)
     : null;
 
-  const defaultCategories = ["Recovery", "Strength", "Training", "Tennis Gear", "Accessories", "Other"];
   const inventoryListEl = document.querySelector("[data-inventory-list]");
   const reviewListEl = document.querySelector("[data-inventory-review-list]");
   const searchEl = document.querySelector("[data-inventory-search]");
@@ -27,6 +26,7 @@
   const settingsMessageEl = document.querySelector("[data-inventory-settings-message]");
 
   let inventoryItems = [];
+  let productCategories = [];
 
   function escapeHtml(value = "") {
     return String(value)
@@ -55,6 +55,10 @@
 
   function normalizeCategory(value) {
     return String(value || "Other").trim().replace(/\s+/g, " ") || "Other";
+  }
+
+  function getItemCategory(item) {
+    return item.product_categories?.name || normalizeCategory(item.category);
   }
 
   function normaliseStatus(status = "") {
@@ -86,34 +90,41 @@
     return data?.session?.user || null;
   }
 
-  function getCategories() {
-    const existing = inventoryItems.map((item) => item.category).filter(Boolean);
-    const categoryMap = new Map();
-    [...defaultCategories, ...existing].forEach((category) => {
-      const normalized = normalizeCategory(category);
-      categoryMap.set(normalized.toLowerCase(), normalized);
-    });
-    return [...categoryMap.values()].sort((a, b) => a.localeCompare(b));
-  }
-
   function renderCategoryControls() {
-    const categories = getCategories();
     const currentFilter = categoryFilterEl?.value || "all";
     const currentFormCategory = productCategoryEl?.value || "";
 
     if (categoryFilterEl) {
-      categoryFilterEl.innerHTML = '<option value="all">All categories</option>' + categories
-        .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+      categoryFilterEl.innerHTML = '<option value="all">All categories</option>' + productCategories
+        .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
         .join("");
-      categoryFilterEl.value = categories.includes(currentFilter) ? currentFilter : "all";
+      categoryFilterEl.value = productCategories.some((category) => category.id === currentFilter) ? currentFilter : "all";
     }
 
     if (productCategoryEl) {
-      productCategoryEl.innerHTML = '<option value="">Select category</option>' + categories
-        .map((category) => `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`)
+      productCategoryEl.innerHTML = '<option value="">Select category</option>' + productCategories
+        .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
         .join("");
-      productCategoryEl.value = categories.includes(currentFormCategory) ? currentFormCategory : "";
+      productCategoryEl.value = productCategories.some((category) => category.id === currentFormCategory) ? currentFormCategory : "";
     }
+  }
+
+  async function loadProductCategories() {
+    if (!client) return;
+    const { data, error } = await client
+      .from("product_categories")
+      .select("id,name")
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load product categories.", error.message);
+      productCategories = [];
+      renderCategoryControls();
+      return;
+    }
+
+    productCategories = data || [];
+    renderCategoryControls();
   }
 
   async function loadInventory() {
@@ -125,7 +136,7 @@
 
     const { data, error } = await client
       .from("inventory_items")
-      .select("*")
+      .select("*, product_categories:category_id(id,name)")
       .order("product_name", { ascending: true });
 
     if (error) {
@@ -154,12 +165,12 @@
 
   function getFilteredInventoryItems() {
     const search = String(searchEl?.value || "").trim().toLowerCase();
-    const category = categoryFilterEl?.value || "all";
+    const categoryId = categoryFilterEl?.value || "all";
     const showArchived = Boolean(showArchivedEl?.checked);
 
     return inventoryItems.filter((item) => {
       if (!showArchived && item.archived_at) return false;
-      if (category !== "all" && normalizeCategory(item.category) !== category) return false;
+      if (categoryId !== "all" && item.category_id !== categoryId) return false;
       if (!search) return true;
       return `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search);
     });
@@ -193,7 +204,7 @@
           <div class="inventory-table-row ${item.archived_at ? "archived" : ""}" role="row" data-inventory-item="${item.id}">
             <span><strong>${escapeHtml(item.product_name)}</strong></span>
             <span>${escapeHtml(item.sku || "Not set")}</span>
-            <span>${escapeHtml(normalizeCategory(item.category))}</span>
+            <span>${escapeHtml(getItemCategory(item))}</span>
             <span>${escapeHtml(item.supplier || "Sportco")}</span>
             <span>${Number(item.quantity_on_hand || 0)}</span>
             <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
@@ -233,7 +244,9 @@
           <strong>${escapeHtml(item.product_name)}</strong>
           <p>SKU: ${escapeHtml(item.sku || "Not found")} - Qty: ${Number(item.quantity_on_hand || 0)} - Cost: ${money(item.cost_price)}</p>
           <div class="inventory-review-controls">
-            <input data-review-category type="text" value="${escapeHtml(normalizeCategory(item.category))}" placeholder="Shop category" />
+            <select data-review-category-id>
+              ${productCategories.map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === item.category_id ? "selected" : ""}>${escapeHtml(category.name)}</option>`).join("")}
+            </select>
             <input data-review-sell-price type="number" step="0.01" min="0" value="${Number(item.sell_price || item.cost_price || 0).toFixed(2)}" placeholder="Sell price" />
             <input data-review-description type="text" value="${escapeHtml(item.description || "")}" placeholder="Shop description" />
           </div>
@@ -263,15 +276,8 @@
     if (inventoryItems.some((item) => item.id === current)) adjustItemEl.value = current;
   }
 
-  async function ensureCategory(category) {
-    const name = normalizeCategory(category);
-    if (!client || !name) return;
-    await client
-      .from("product_categories")
-      .upsert(
-        { name, is_default: defaultCategories.some((defaultCategory) => defaultCategory.toLowerCase() === name.toLowerCase()) },
-        { onConflict: "normalized_name" }
-      );
+  function getCategoryById(categoryId) {
+    return productCategories.find((category) => category.id === categoryId) || null;
   }
 
   function fileToDataUrl(file) {
@@ -351,7 +357,7 @@
     fields.product_name.value = item?.product_name || "";
     fields.sku.value = item?.sku || "";
     fields.supplier.value = item?.supplier || "Sportco";
-    fields.category.value = normalizeCategory(item?.category || "Other");
+    fields.category.value = item?.category_id || "";
     fields.description.value = item?.description || "";
     fields.cost_price.value = Number(item?.cost_price || 0).toFixed(2);
     fields.sell_price.value = Number(item?.sell_price || 0).toFixed(2);
@@ -392,15 +398,15 @@
       image = await fileToDataUrl(imageFile);
     }
 
-    const category = normalizeCategory(formData.get("category"));
-    await ensureCategory(category);
+    const category = getCategoryById(formData.get("category"));
 
     const payload = {
       p_inventory_item_id: formData.get("inventory_item_id") || null,
       p_product_name: formData.get("product_name"),
       p_sku: formData.get("sku"),
       p_supplier: formData.get("supplier") || "Sportco",
-      p_category: category,
+      p_category_id: category?.id || null,
+      p_category: category?.name || "Other",
       p_description: formData.get("description"),
       p_cost_price: Number(formData.get("cost_price") || 0),
       p_sell_price: Number(formData.get("sell_price") || 0),
@@ -522,11 +528,11 @@
     let result;
 
     if (action === "add") {
-      const category = row.querySelector("[data-review-category]")?.value || "Training";
-      await ensureCategory(category);
+      const category = getCategoryById(row.querySelector("[data-review-category-id]")?.value);
       result = await client.rpc("publish_inventory_item_to_shop", {
         p_inventory_item_id: itemId,
-        p_category: category,
+        p_category_id: category?.id || null,
+        p_category: category?.name || "Other",
         p_description: row.querySelector("[data-review-description]")?.value || null,
         p_sell_price: Number(row.querySelector("[data-review-sell-price]")?.value || 0),
         p_discount: 0,
@@ -660,8 +666,7 @@
   settingsFormEl?.addEventListener("submit", saveInventorySettings);
 
   document.addEventListener("DOMContentLoaded", () => {
-    renderCategoryControls();
-    loadInventory();
+    loadProductCategories().then(loadInventory);
     loadInventorySettings();
   });
 })();
