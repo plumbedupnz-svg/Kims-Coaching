@@ -18,6 +18,11 @@
   const invoiceFormEl = document.querySelector("[data-invoice-upload-form]");
   const invoiceFileEl = document.querySelector("[data-invoice-file]");
   const invoiceMessageEl = document.querySelector("[data-invoice-message]");
+  const invoiceReviewPanelEl = document.querySelector("[data-invoice-review-panel]");
+  const invoiceReviewTableEl = document.querySelector("[data-invoice-review-table]");
+  const invoiceReviewMessageEl = document.querySelector("[data-invoice-review-message]");
+  const invoiceReviewClearEl = document.querySelector("[data-invoice-review-clear]");
+  const invoiceImportConfirmEl = document.querySelector("[data-invoice-import-confirm]");
   const adjustFormEl = document.querySelector("[data-stock-adjust-form]");
   const adjustItemEl = document.querySelector("[data-stock-adjust-item]");
   const adjustMessageEl = document.querySelector("[data-stock-adjust-message]");
@@ -27,6 +32,8 @@
 
   let inventoryItems = [];
   let productCategories = [];
+  let pendingInvoice = null;
+  let invoiceReviewItems = [];
 
   function escapeHtml(value = "") {
     return String(value)
@@ -55,6 +62,10 @@
 
   function normalizeCategory(value) {
     return String(value || "Other").trim().replace(/\s+/g, " ") || "Other";
+  }
+
+  function normalizeText(value) {
+    return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
   }
 
   function getItemCategory(item) {
@@ -280,6 +291,52 @@
     return productCategories.find((category) => category.id === categoryId) || null;
   }
 
+  function getCategoryByName(categoryName) {
+    const normalized = normalizeText(categoryName);
+    return productCategories.find((category) => normalizeText(category.name) === normalized) || null;
+  }
+
+  function getFallbackCategory() {
+    return getCategoryByName("Other") || productCategories[0] || null;
+  }
+
+  function suggestCategory(productName) {
+    const name = normalizeText(productName);
+    const rules = [
+      { category: "Recovery", keywords: ["recovery", "massage", "roller", "trigger", "band", "support", "brace", "ice", "heat"] },
+      { category: "Strength", keywords: ["weight", "dumbbell", "kettle", "strength", "resistance", "medicine ball", "core"] },
+      { category: "Training", keywords: ["cone", "agility", "ladder", "marker", "training", "coach", "speed"] },
+      { category: "Tennis Gear", keywords: ["tennis", "racquet", "racket", "ball", "grip", "string", "vibration", "dampener"] },
+      { category: "Accessories", keywords: ["bag", "bottle", "cap", "hat", "towel", "socks", "accessory"] }
+    ];
+    const match = rules.find((rule) => rule.keywords.some((keyword) => name.includes(keyword)));
+    return getCategoryByName(match?.category || "Other") || getFallbackCategory();
+  }
+
+  function findInventoryMatch(invoiceItem) {
+    const sku = normalizeText(invoiceItem.sku);
+    if (sku) {
+      const skuMatch = inventoryItems.find((item) => normalizeText(item.sku) === sku);
+      if (skuMatch) return skuMatch;
+    }
+
+    const productName = normalizeText(invoiceItem.productName);
+    return inventoryItems.find((item) => normalizeText(item.product_name) === productName || normalizeText(item.normalized_name) === productName) || null;
+  }
+
+  function getInventoryOptions(selectedId = "") {
+    return '<option value="">No match - create new item</option>' + inventoryItems
+      .filter((item) => !item.archived_at)
+      .map((item) => `<option value="${escapeHtml(item.id)}" ${item.id === selectedId ? "selected" : ""}>${escapeHtml(item.product_name)} (${escapeHtml(item.sku || "no SKU")})</option>`)
+      .join("");
+  }
+
+  function getCategoryOptions(selectedId = "") {
+    return '<option value="">Select category</option>' + productCategories
+      .map((category) => `<option value="${escapeHtml(category.id)}" ${category.id === selectedId ? "selected" : ""}>${escapeHtml(category.name)}</option>`)
+      .join("");
+  }
+
   function fileToDataUrl(file) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -376,6 +433,131 @@
     setMessage(productMessageEl, "");
   }
 
+  function buildInvoiceReviewItems(parsedItems) {
+    return parsedItems.map((item, index) => {
+      const matchedItem = findInventoryMatch(item);
+      const suggestedCategory = matchedItem?.category_id
+        ? getCategoryById(matchedItem.category_id)
+        : suggestCategory(item.productName);
+      const sellPrice = Number(matchedItem?.sell_price || item.unitCost || 0);
+
+      return {
+        rowId: `invoice-line-${Date.now()}-${index}`,
+        productName: item.productName,
+        sku: item.sku || "",
+        quantity: Number(item.quantity || 0),
+        unitCost: Number(item.unitCost || 0),
+        totalCost: Number(item.totalCost || (Number(item.quantity || 0) * Number(item.unitCost || 0))),
+        matchedInventoryItemId: matchedItem?.id || "",
+        matchedInventoryItemName: matchedItem?.product_name || "",
+        suggestedCategoryId: suggestedCategory?.id || "",
+        finalCategoryId: suggestedCategory?.id || "",
+        sellPrice,
+        visibleInShop: Boolean(matchedItem?.visible_in_shop),
+        reviewStatus: matchedItem ? "matched" : "new_supplier_item"
+      };
+    });
+  }
+
+  function renderInvoiceReviewTable() {
+    if (!invoiceReviewPanelEl || !invoiceReviewTableEl) return;
+
+    if (!invoiceReviewItems.length) {
+      invoiceReviewPanelEl.hidden = true;
+      invoiceReviewTableEl.innerHTML = "";
+      return;
+    }
+
+    invoiceReviewPanelEl.hidden = false;
+    invoiceReviewTableEl.innerHTML = `
+      <div class="inventory-table invoice-review-table" role="table" aria-label="Supplier invoice review">
+        <div class="inventory-table-row invoice-review-table-row inventory-table-head" role="row">
+          <span>Product name</span>
+          <span>SKU</span>
+          <span>Qty</span>
+          <span>Unit cost</span>
+          <span>Total cost</span>
+          <span>Matched inventory item</span>
+          <span>Suggested category</span>
+          <span>Final category</span>
+          <span>Sell price</span>
+          <span>Visible in shop</span>
+          <span>Review status</span>
+        </div>
+        ${invoiceReviewItems.map((item, index) => {
+          const suggestedCategory = getCategoryById(item.suggestedCategoryId);
+          return `
+            <div class="inventory-table-row invoice-review-table-row" role="row" data-invoice-review-index="${index}">
+              <span><input data-invoice-field="productName" type="text" value="${escapeHtml(item.productName)}" required /></span>
+              <span><input data-invoice-field="sku" type="text" value="${escapeHtml(item.sku)}" /></span>
+              <span><input data-invoice-field="quantity" type="number" min="1" step="1" value="${Number(item.quantity || 0)}" required /></span>
+              <span><input data-invoice-field="unitCost" type="number" min="0" step="0.01" value="${Number(item.unitCost || 0).toFixed(2)}" required /></span>
+              <span><input data-invoice-field="totalCost" type="number" min="0" step="0.01" value="${Number(item.totalCost || 0).toFixed(2)}" required /></span>
+              <span><select data-invoice-field="matchedInventoryItemId">${getInventoryOptions(item.matchedInventoryItemId)}</select></span>
+              <span>${escapeHtml(suggestedCategory?.name || "Other")}</span>
+              <span><select data-invoice-field="finalCategoryId" required>${getCategoryOptions(item.finalCategoryId)}</select></span>
+              <span><input data-invoice-field="sellPrice" type="number" min="0" step="0.01" value="${Number(item.sellPrice || 0).toFixed(2)}" /></span>
+              <span><input data-invoice-field="visibleInShop" type="checkbox" ${item.visibleInShop ? "checked" : ""} /></span>
+              <span>
+                <select data-invoice-field="reviewStatus" required>
+                  <option value="matched" ${item.reviewStatus === "matched" ? "selected" : ""}>Matched</option>
+                  <option value="new_supplier_item" ${item.reviewStatus === "new_supplier_item" ? "selected" : ""}>New supplier item</option>
+                  <option value="needs_review" ${item.reviewStatus === "needs_review" ? "selected" : ""}>Needs review</option>
+                </select>
+              </span>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    `;
+  }
+
+  function syncInvoiceReviewFromDom() {
+    if (!invoiceReviewTableEl) return;
+    invoiceReviewTableEl.querySelectorAll("[data-invoice-review-index]").forEach((row) => {
+      const index = Number(row.dataset.invoiceReviewIndex);
+      const item = invoiceReviewItems[index];
+      if (!item) return;
+
+      row.querySelectorAll("[data-invoice-field]").forEach((field) => {
+        const key = field.dataset.invoiceField;
+        if (field.type === "checkbox") {
+          item[key] = field.checked;
+          return;
+        }
+        if (["quantity", "unitCost", "totalCost", "sellPrice"].includes(key)) {
+          item[key] = Number(field.value || 0);
+          return;
+        }
+        item[key] = field.value;
+      });
+
+      const matchedItem = inventoryItems.find((entry) => entry.id === item.matchedInventoryItemId);
+      item.matchedInventoryItemName = matchedItem?.product_name || "";
+    });
+  }
+
+  function clearInvoiceReview() {
+    pendingInvoice = null;
+    invoiceReviewItems = [];
+    renderInvoiceReviewTable();
+    setMessage(invoiceReviewMessageEl, "");
+  }
+
+  function validateInvoiceReview() {
+    syncInvoiceReviewFromDom();
+    if (!pendingInvoice?.id) return "Upload and save an invoice before importing.";
+    if (!invoiceReviewItems.length) return "There are no invoice items to import.";
+
+    const needsReview = invoiceReviewItems.find((item) => item.reviewStatus === "needs_review");
+    if (needsReview) return "Resolve every item marked needs review before importing.";
+
+    const invalid = invoiceReviewItems.find((item) => !item.productName || item.quantity <= 0 || item.unitCost < 0 || item.totalCost < 0 || !item.finalCategoryId);
+    if (invalid) return "Each row needs a product name, positive quantity, costs, and a final category.";
+
+    return "";
+  }
+
   async function saveProduct(event) {
     event.preventDefault();
     if (!client) {
@@ -449,7 +631,8 @@
 
     const user = await getSessionUser();
     const storagePath = `sportco/${Date.now()}-${file.name.replace(/[^a-z0-9._-]/gi, "-")}`;
-    setMessage(invoiceMessageEl, "Uploading invoice and reading line items...");
+    setMessage(invoiceMessageEl, "Uploading invoice and preparing review...");
+    clearInvoiceReview();
 
     const { error: uploadError } = await client.storage
       .from("supplier-invoices")
@@ -491,28 +674,87 @@
       return;
     }
 
-    for (const item of parsed.items) {
-      const { error } = await client.rpc("process_supplier_invoice_item", {
-        p_invoice_id: invoice.id,
+    pendingInvoice = {
+      id: invoice.id,
+      invoiceNumber: parsed.invoiceNumber || "",
+      invoiceDate: parsed.invoiceDate,
+      fileName: file.name
+    };
+    invoiceReviewItems = buildInvoiceReviewItems(parsed.items);
+    renderInvoiceReviewTable();
+    invoiceFormEl.reset();
+    setMessage(invoiceMessageEl, `Found ${parsed.items.length} item${parsed.items.length === 1 ? "" : "s"}. Review and confirm before stock is updated.`, "success");
+    setMessage(invoiceReviewMessageEl, "");
+  }
+
+  async function confirmInvoiceImport() {
+    if (!client) {
+      setMessage(invoiceReviewMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const validationError = validateInvoiceReview();
+    if (validationError) {
+      setMessage(invoiceReviewMessageEl, validationError, "error");
+      return;
+    }
+
+    invoiceImportConfirmEl.disabled = true;
+    setMessage(invoiceReviewMessageEl, "Importing reviewed invoice items...");
+
+    for (const item of invoiceReviewItems) {
+      const category = getCategoryById(item.finalCategoryId);
+      const { error } = await client.rpc("import_reviewed_supplier_invoice_item", {
+        p_invoice_id: pendingInvoice.id,
+        p_inventory_item_id: item.matchedInventoryItemId || null,
         p_product_name: item.productName,
         p_sku: item.sku || null,
         p_quantity: item.quantity,
         p_unit_cost: item.unitCost,
         p_total_cost: item.totalCost,
-        p_invoice_number: parsed.invoiceNumber || null,
-        p_invoice_date: parsed.invoiceDate
+        p_category_id: category?.id || null,
+        p_category: category?.name || "Other",
+        p_sell_price: item.sellPrice,
+        p_visible_in_shop: Boolean(item.visibleInShop),
+        p_review_status: item.reviewStatus,
+        p_invoice_number: pendingInvoice.invoiceNumber || null,
+        p_invoice_date: pendingInvoice.invoiceDate || null
       });
 
       if (error) {
-        setMessage(invoiceMessageEl, `Invoice saved, but stock update failed: ${error.message}`, "error");
+        setMessage(invoiceReviewMessageEl, `Import stopped on ${item.productName}: ${error.message}`, "error");
+        invoiceImportConfirmEl.disabled = false;
         await loadInventory();
         return;
       }
     }
 
-    invoiceFormEl.reset();
-    setMessage(invoiceMessageEl, `Updated inventory from ${parsed.items.length} Sportco invoice item${parsed.items.length === 1 ? "" : "s"}.`, "success");
+    const importedCount = invoiceReviewItems.length;
+    clearInvoiceReview();
+    setMessage(invoiceMessageEl, `Imported ${importedCount} reviewed Sportco invoice item${importedCount === 1 ? "" : "s"}.`, "success");
     await loadInventory();
+    if (invoiceImportConfirmEl) invoiceImportConfirmEl.disabled = false;
+  }
+
+  function handleInvoiceReviewChange(event) {
+    const field = event.target.closest("[data-invoice-field]");
+    if (!field) return;
+
+    syncInvoiceReviewFromDom();
+    if (field.dataset.invoiceField === "matchedInventoryItemId") {
+      const row = field.closest("[data-invoice-review-index]");
+      const index = Number(row?.dataset.invoiceReviewIndex);
+      const item = invoiceReviewItems[index];
+      const matchedItem = inventoryItems.find((entry) => entry.id === item?.matchedInventoryItemId);
+      if (item && matchedItem) {
+        item.finalCategoryId = matchedItem.category_id || item.finalCategoryId || getFallbackCategory()?.id || "";
+        item.suggestedCategoryId = item.finalCategoryId;
+        item.sellPrice = Number(matchedItem.sell_price || item.sellPrice || 0);
+        item.visibleInShop = Boolean(matchedItem.visible_in_shop);
+        item.reviewStatus = "matched";
+        renderInvoiceReviewTable();
+      }
+    }
   }
 
   async function handleReviewAction(event) {
@@ -661,6 +903,10 @@
   productFormEl?.addEventListener("submit", saveProduct);
   inventoryListEl?.addEventListener("click", handleInventoryAction);
   invoiceFormEl?.addEventListener("submit", uploadInvoice);
+  invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);
+  invoiceReviewTableEl?.addEventListener("input", syncInvoiceReviewFromDom);
+  invoiceReviewClearEl?.addEventListener("click", clearInvoiceReview);
+  invoiceImportConfirmEl?.addEventListener("click", confirmInvoiceImport);
   reviewListEl?.addEventListener("click", handleReviewAction);
   adjustFormEl?.addEventListener("submit", saveStockAdjustment);
   settingsFormEl?.addEventListener("submit", saveInventorySettings);

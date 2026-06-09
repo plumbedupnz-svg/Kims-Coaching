@@ -194,11 +194,25 @@
 
                   <form class="owner-add-form" data-invoice-upload-form>
                     <h3>Upload Sportco PDF invoice</h3>
-                    <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted and added to inventory.</p>
+                    <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted into a review table before stock is updated.</p>
                     <input type="file" accept="application/pdf" data-invoice-file required />
-                    <button class="btn btn-primary" type="submit">Upload and update stock</button>
+                    <button class="btn btn-primary" type="submit">Upload and review items</button>
                     <p class="form-message" data-invoice-message></p>
                   </form>
+                  <section class="owner-add-form" data-invoice-review-panel hidden>
+                    <div class="availability-form-head">
+                      <div>
+                        <h3>Review invoice items</h3>
+                        <p class="helper-text">Confirm matches, categories, prices, and shop visibility before importing stock.</p>
+                      </div>
+                      <button class="btn btn-secondary" type="button" data-invoice-review-clear>Clear review</button>
+                    </div>
+                    <div data-invoice-review-table></div>
+                    <div class="availability-actions">
+                      <button class="btn btn-primary" type="button" data-invoice-import-confirm>Confirm import</button>
+                    </div>
+                    <p class="form-message" data-invoice-review-message></p>
+                  </section>
 
                   <form class="owner-add-form" data-stock-adjust-form>
                     <h3>Manual stock adjustment</h3>
