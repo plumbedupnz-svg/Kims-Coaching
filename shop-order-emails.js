@@ -37,20 +37,19 @@
   async function saveShopOrder({ user, profile, cart, totals }) {
     if (!client) return null;
     const payload = {
-      user_id: user?.id || null,
-      customer_name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || user?.email || "Shop customer",
-      customer_email: user?.email || profile?.email || "",
-      mobile: profile?.mobile || profile?.phone || "",
-      items: cart,
-      subtotal: totals.subtotal,
-      total: totals.total,
-      order_status: "pending_payment"
+      p_user_id: user?.id || null,
+      p_customer_name: `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || user?.email || "Shop customer",
+      p_customer_email: user?.email || profile?.email || "",
+      p_mobile: profile?.mobile || profile?.phone || "",
+      p_items: cart,
+      p_subtotal: totals.subtotal,
+      p_total: totals.total
     };
 
-    const { data, error } = await client.from("shop_orders").insert(payload).select().single();
+    const { data, error } = await client.rpc("create_shop_order_with_stock", payload);
     if (error) {
-      console.warn("Could not save shop order before email", { message: error.message });
-      return null;
+      console.warn("Could not save stock-aware shop order", { message: error.message });
+      throw error;
     }
     return data;
   }
@@ -99,9 +98,14 @@
 
     const profile = await getCurrentProfile(user);
     const totals = getCartTotals(cart);
-    const order = await saveShopOrder({ user, profile, cart, totals });
-    await notifyProductOrder({ order, user, profile, cart, totals });
-    window.location.href = link;
+    try {
+      const order = await saveShopOrder({ user, profile, cart, totals });
+      await notifyProductOrder({ order, user, profile, cart, totals });
+      window.location.href = link;
+    } catch (error) {
+      event.currentTarget.dataset.emailCheckoutHandled = "false";
+      alert(error.message || "Could not create the shop order. Please try again.");
+    }
   }
 
   document.addEventListener("DOMContentLoaded", () => {

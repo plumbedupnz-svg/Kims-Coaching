@@ -78,6 +78,7 @@ const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.ge
 let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
 let currentUser = null;
 let currentProfile = null;
+let shopInventorySettings = { hide_out_of_stock: false };
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -86,6 +87,100 @@ const hasSupabaseConfig = Boolean(supabaseSettings.url && supabaseSettings.anonK
 const supabaseClient = hasSupabaseConfig
   ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
   : null;
+
+function normalizeShopProduct(row) {
+  const inventory = row.inventory_items || {};
+  return {
+    id: row.id,
+    inventory_item_id: row.inventory_item_id || inventory.id || "",
+    name: row.name,
+    price: Number(row.price || 0),
+    discount: Number(row.discount || 0),
+    category: row.category || "Uncategorized",
+    description: row.description || "",
+    image: row.image || "",
+    is_active: row.is_active !== false,
+    quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
+    stock_status: inventory.status || row.stock_status || "out_of_stock",
+    visible_in_shop: inventory.visible_in_shop !== false
+  };
+}
+
+async function syncShopProductsFromSupabase() {
+  if (!supabaseClient) return loadProducts();
+
+  const settingsResult = await supabaseClient
+    .from("shop_inventory_settings")
+    .select("hide_out_of_stock")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (!settingsResult.error && settingsResult.data) {
+    shopInventorySettings = settingsResult.data;
+  }
+
+  const { data, error } = await supabaseClient
+    .from("shop_products")
+    .select("*, inventory_items:inventory_item_id(id, quantity_on_hand, status, visible_in_shop)")
+    .eq("is_active", true)
+    .order("category", { ascending: true })
+    .order("name", { ascending: true });
+
+  if (error) {
+    console.warn("Could not load shop products from Supabase.", error.message);
+    return loadProducts();
+  }
+
+  if (Array.isArray(data) && data.length) {
+    const products = data.map(normalizeShopProduct);
+    saveProducts(products);
+    return products;
+  }
+
+  return loadProducts();
+}
+
+async function saveAdminProductToSupabase(product) {
+  if (!supabaseClient || !isAdminProfile()) return null;
+
+  const inventoryPayload = {
+    product_name: product.name,
+    supplier: "Manual",
+    sell_price: product.price,
+    quantity_on_hand: Number(product.quantity_on_hand || 0),
+    low_stock_threshold: 2,
+    status: "out_of_stock",
+    visible_in_shop: true,
+    review_status: "reviewed"
+  };
+
+  const { data: inventoryItem, error: inventoryError } = await supabaseClient
+    .from("inventory_items")
+    .insert(inventoryPayload)
+    .select()
+    .single();
+
+  if (inventoryError) throw inventoryError;
+
+  const { data: shopProduct, error: productError } = await supabaseClient
+    .from("shop_products")
+    .insert({
+      id: product.id,
+      inventory_item_id: inventoryItem.id,
+      name: product.name,
+      category: product.category,
+      description: product.description,
+      price: product.price,
+      discount: product.discount,
+      image: product.image,
+      is_active: true
+    })
+    .select()
+    .single();
+
+  if (productError) throw productError;
+  return normalizeShopProduct({ ...shopProduct, inventory_items: inventoryItem });
+}
 
 function getDiscountedPrice(product) {
   const base = Number(product.price);
@@ -627,15 +722,23 @@ function renderProducts() {
   renderOwnerCategorySelect(products);
   if (!productListEl) return;
 
+  const publicProducts = products.filter((product) => {
+    const outOfStock = isProductOutOfStock(product);
+    if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
+    return product.is_active !== false && product.visible_in_shop !== false;
+  });
+
   const filteredProducts = selectedCategory === "all"
-    ? products
-    : products.filter((p) => (p.category?.trim() || "Uncategorized") === selectedCategory);
+    ? publicProducts
+    : publicProducts.filter((p) => (p.category?.trim() || "Uncategorized") === selectedCategory);
 
   const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
     .map((p) => {
       const discounted = getDiscountedPrice(p);
       const hasDiscount = Number(p.discount || 0) > 0;
+      const outOfStock = isProductOutOfStock(p);
+      const stockText = getProductStockText(p);
       return `
         <article class="product-card" data-id="${p.id}" data-name="${p.name}" data-price="${discounted}">
           <div class="product-image-wrap">
@@ -644,16 +747,33 @@ function renderProducts() {
           <p class="owner-meta">${p.category || "Uncategorized"}</p>
           <h3>${p.name}</h3>
           <p>${p.description || "Product description"}</p>
+          <p class="owner-meta">${stockText}</p>
           <div class="price-wrap">
             ${hasDiscount ? `<p class="old-price">${money(Number(p.price))}</p>` : ""}
             <p class="price">${money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(p.discount)}%</span>` : ""}</p>
           </div>
-          <button class="btn btn-primary add-to-cart">Add to Cart</button>
+          <button class="btn btn-primary add-to-cart" ${outOfStock ? "disabled" : ""}>${outOfStock ? "Out of stock" : "Add to Cart"}</button>
         </article>`;
     })
     .join("");
 
   productListEl.innerHTML = cards ? `<div class="cards three-col">${cards}</div>` : `<p class="empty-cart">No products found in this category.</p>`;
+}
+
+function isProductOutOfStock(product) {
+  if (product.inventory_item_id || product.stock_status) {
+    return Number(product.quantity_on_hand || 0) <= 0 || product.stock_status === "out_of_stock";
+  }
+  return false;
+}
+
+function getProductStockText(product) {
+  if (!(product.inventory_item_id || product.stock_status)) return "Available";
+  const quantity = Number(product.quantity_on_hand || 0);
+  if (quantity <= 0 || product.stock_status === "out_of_stock") return "Out of stock";
+  if (product.stock_status === "low_stock") return `Low stock - ${quantity} left`;
+  if (product.stock_status === "need_to_order") return `Need to order - ${quantity} left`;
+  return `${quantity} in stock`;
 }
 
 function renderCart() {
@@ -683,6 +803,12 @@ function renderCart() {
 function addToCart(product) {
   const cart = loadCart();
   const existing = cart.find((item) => item.id === product.id);
+  const availableQuantity = Number(product.quantity_on_hand ?? Infinity);
+  const nextQuantity = existing ? existing.quantity + 1 : 1;
+  if (Number.isFinite(availableQuantity) && nextQuantity > availableQuantity) {
+    alert("Not enough stock is available for that product.");
+    return;
+  }
   if (existing) existing.quantity += 1;
   else cart.push({ ...product, quantity: 1 });
   saveCart(cart);
@@ -693,6 +819,13 @@ function updateQuantity(productId, action) {
   const cart = loadCart();
   const item = cart.find((entry) => entry.id === productId);
   if (!item) return;
+  const products = loadProducts();
+  const product = products.find((entry) => entry.id === productId);
+  const availableQuantity = Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
+  if (action === "increase" && Number.isFinite(availableQuantity) && item.quantity + 1 > availableQuantity) {
+    alert("Not enough stock is available for that product.");
+    return;
+  }
   item.quantity += action === "increase" ? 1 : -1;
   saveCart(cart.filter((entry) => entry.quantity > 0));
   renderCart();
@@ -742,7 +875,8 @@ if (productListEl) productListEl.addEventListener("click", (event) => {
   const button = event.target.closest(".add-to-cart");
   if (!button) return;
   const card = button.closest(".product-card");
-  addToCart({ id: card.dataset.id, name: card.dataset.name, price: Number(card.dataset.price) });
+  const product = loadProducts().find((item) => item.id === card.dataset.id);
+  addToCart(product || { id: card.dataset.id, name: card.dataset.name, price: Number(card.dataset.price) });
 });
 
 if (cartItemsEl) cartItemsEl.addEventListener("click", (event) => {
@@ -872,12 +1006,21 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
 
   products.push(newProduct);
   saveProducts(products);
+  try {
+    const savedProduct = await saveAdminProductToSupabase(newProduct);
+    if (savedProduct) {
+      const nextProducts = loadProducts().filter((product) => product.id !== newProduct.id);
+      saveProducts([...nextProducts, savedProduct]);
+    }
+  } catch (error) {
+    alert(`Product saved locally, but Supabase save failed: ${error.message}`);
+  }
   ownerAddFormEl.reset();
   renderProducts();
   renderOwnerProducts();
 });
 
-if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", (event) => {
+if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", async (event) => {
   const priceInput = event.target.closest(".owner-price-input");
   const discountInput = event.target.closest(".owner-discount-input");
   if (!priceInput && !discountInput) return;
@@ -900,14 +1043,34 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", (event) 
   }
 
   saveProducts(products);
+  if (supabaseClient && isAdminProfile()) {
+    const updates = {};
+    if (priceInput) updates.price = target.price;
+    if (discountInput) updates.discount = target.discount;
+    const { error } = await supabaseClient
+      .from("shop_products")
+      .update(updates)
+      .eq("id", target.id);
+    if (error) alert(`Could not update Supabase product: ${error.message}`);
+  }
   renderProducts();
   renderCart();
 });
 
-if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", (event) => {
+if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (event) => {
   const button = event.target.closest(".owner-remove-btn");
   if (!button) return;
   const id = button.dataset.id;
+  if (supabaseClient && isAdminProfile()) {
+    const { error } = await supabaseClient
+      .from("shop_products")
+      .update({ is_active: false })
+      .eq("id", id);
+    if (error) {
+      alert(`Could not remove Supabase product: ${error.message}`);
+      return;
+    }
+  }
   saveProducts(loadProducts().filter((p) => p.id !== id));
   saveCart(loadCart().filter((item) => item.id !== id));
   renderProducts();
@@ -980,6 +1143,7 @@ if (menuToggleEl && navLinksEl) {
 async function init() {
   if (stripeInputEl) loadStripeLink();
   if (authFormEl) setAuthMode(authMode);
+  if (productListEl || ownerProductsListEl) await syncShopProductsFromSupabase();
   if (productListEl) renderProducts();
   if (cartItemsEl) renderCart();
 
