@@ -128,7 +128,20 @@
               <div class="admin-panel-grid">
                 <section class="admin-primary">
                   <div class="admin-list-panel">
-                    <h3>All stock items</h3>
+                    <div class="inventory-toolbar-head">
+                      <h3>All stock items</h3>
+                      <button class="btn btn-primary" type="button" data-inventory-add-product>Add product</button>
+                    </div>
+                    <div class="inventory-filters">
+                      <input type="search" placeholder="Search product name or SKU" data-inventory-search />
+                      <select data-inventory-category-filter>
+                        <option value="all">All categories</option>
+                      </select>
+                      <label class="availability-repeat">
+                        <span>Show archived</span>
+                        <input type="checkbox" data-inventory-show-archived />
+                      </label>
+                    </div>
                     <div class="admin-data-list" data-inventory-list>
                       <p class="helper-text">Loading inventory...</p>
                     </div>
@@ -144,6 +157,41 @@
                 </section>
 
                 <aside class="admin-secondary">
+                  <form class="owner-add-form" data-inventory-product-form hidden>
+                    <div class="availability-form-head">
+                      <h3 data-inventory-form-title>Add inventory product</h3>
+                      <button class="btn btn-secondary" type="button" data-inventory-cancel-edit>Cancel</button>
+                    </div>
+                    <input type="hidden" name="inventory_item_id" />
+                    <input name="product_name" type="text" placeholder="Product name" required />
+                    <input name="sku" type="text" placeholder="SKU/code" />
+                    <input name="supplier" type="text" placeholder="Supplier" value="Sportco" />
+                    <label>Category
+                      <select name="category" data-inventory-form-category required>
+                        <option value="">Select category</option>
+                      </select>
+                    </label>
+                    <textarea name="description" placeholder="Description"></textarea>
+                    <input name="cost_price" type="number" step="0.01" min="0" placeholder="Cost price" />
+                    <input name="sell_price" type="number" step="0.01" min="0" placeholder="Sell price" />
+                    <input name="quantity_on_hand" type="number" step="1" min="0" placeholder="Quantity on hand" />
+                    <input name="low_stock_threshold" type="number" step="1" min="0" placeholder="Low stock threshold" value="2" />
+                    <input name="need_order_threshold" type="number" step="1" min="0" placeholder="Need-to-order threshold" value="0" />
+                    <label>Product image
+                      <input name="image" type="file" accept="image/*" />
+                    </label>
+                    <label class="availability-repeat">
+                      <span>Visible in public shop</span>
+                      <input name="visible_in_shop" type="checkbox" />
+                    </label>
+                    <label class="availability-repeat">
+                      <span>Active</span>
+                      <input name="is_active" type="checkbox" checked />
+                    </label>
+                    <button class="btn btn-primary" type="submit">Save product</button>
+                    <p class="form-message" data-inventory-product-message></p>
+                  </form>
+
                   <form class="owner-add-form" data-invoice-upload-form>
                     <h3>Upload Sportco PDF invoice</h3>
                     <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted and added to inventory.</p>

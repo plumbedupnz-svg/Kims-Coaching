@@ -5,6 +5,9 @@ create table if not exists public.inventory_items (
   normalized_name text generated always as (lower(regexp_replace(trim(product_name), '\s+', ' ', 'g'))) stored,
   sku text,
   supplier text not null default 'Sportco',
+  category text not null default 'Other',
+  description text,
+  image text,
   cost_price numeric(10, 2) not null default 0,
   sell_price numeric(10, 2) not null default 0,
   quantity_on_hand integer not null default 0,
@@ -12,7 +15,10 @@ create table if not exists public.inventory_items (
   need_order_threshold integer not null default 0,
   status text not null default 'out_of_stock',
   visible_in_shop boolean not null default false,
+  is_active boolean not null default true,
   review_status text not null default 'reviewed',
+  archived_at timestamptz,
+  archived_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint inventory_items_status_valid check (status in ('in_stock', 'low_stock', 'out_of_stock', 'need_to_order', 'new_supplier_item')),
@@ -29,6 +35,20 @@ on public.inventory_items (normalized_name);
 
 create index if not exists inventory_items_review_status_idx
 on public.inventory_items (review_status);
+
+create index if not exists inventory_items_category_idx
+on public.inventory_items (category);
+
+create index if not exists inventory_items_archived_at_idx
+on public.inventory_items (archived_at);
+
+alter table public.inventory_items
+add column if not exists category text not null default 'Other',
+add column if not exists description text,
+add column if not exists image text,
+add column if not exists is_active boolean not null default true,
+add column if not exists archived_at timestamptz,
+add column if not exists archived_by uuid references auth.users(id) on delete set null;
 
 create table if not exists public.shop_products (
   id text primary key,
@@ -50,6 +70,39 @@ on public.shop_products (inventory_item_id);
 
 create index if not exists shop_products_category_idx
 on public.shop_products (category);
+
+alter table public.shop_products
+add column if not exists inventory_item_id uuid references public.inventory_items(id) on delete set null,
+add column if not exists category text not null default 'Training',
+add column if not exists description text,
+add column if not exists price numeric(10, 2) not null default 0,
+add column if not exists discount numeric(5, 2) not null default 0,
+add column if not exists image text,
+add column if not exists is_active boolean not null default true,
+add column if not exists created_at timestamptz not null default now(),
+add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.product_categories (
+  id uuid primary key default gen_random_uuid(),
+  name text not null,
+  normalized_name text generated always as (lower(trim(name))) stored,
+  is_default boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique (normalized_name)
+);
+
+insert into public.product_categories (name, is_default)
+values
+  ('Recovery', true),
+  ('Strength', true),
+  ('Training', true),
+  ('Tennis Gear', true),
+  ('Accessories', true),
+  ('Other', true)
+on conflict (normalized_name) do update
+set
+  name = excluded.name,
+  is_default = public.product_categories.is_default or excluded.is_default;
 
 create table if not exists public.supplier_invoices (
   id uuid primary key default gen_random_uuid(),
@@ -308,6 +361,7 @@ begin
       product_name,
       sku,
       supplier,
+      category,
       cost_price,
       sell_price,
       quantity_on_hand,
@@ -319,6 +373,7 @@ begin
       trim(p_product_name),
       nullif(trim(coalesce(p_sku, '')), ''),
       'Sportco',
+      'Other',
       coalesce(p_unit_cost, 0),
       coalesce(p_unit_cost, 0),
       0,
@@ -329,10 +384,10 @@ begin
     returning id into v_inventory_item_id;
   else
     update public.inventory_items
-    set
-      supplier = 'Sportco',
-      cost_price = coalesce(p_unit_cost, cost_price),
-      sku = coalesce(nullif(trim(coalesce(p_sku, '')), ''), sku)
+  set
+    supplier = 'Sportco',
+    cost_price = coalesce(p_unit_cost, cost_price),
+    sku = coalesce(nullif(trim(coalesce(p_sku, '')), ''), sku)
     where id = v_inventory_item_id;
   end if;
 
@@ -476,8 +531,12 @@ begin
   update public.inventory_items
   set
     shop_product_id = v_shop_product.id,
+    category = v_shop_product.category,
+    description = coalesce(v_shop_product.description, description),
+    image = coalesce(v_shop_product.image, image),
     sell_price = v_shop_product.price,
     visible_in_shop = true,
+    is_active = true,
     review_status = 'reviewed'
   where id = v_item.id;
 
@@ -601,6 +660,266 @@ begin
 end;
 $$;
 
+create or replace function public.admin_save_inventory_item(
+  p_inventory_item_id uuid default null,
+  p_product_name text default '',
+  p_sku text default null,
+  p_supplier text default 'Sportco',
+  p_category text default 'Other',
+  p_description text default null,
+  p_cost_price numeric default 0,
+  p_sell_price numeric default 0,
+  p_quantity_on_hand integer default 0,
+  p_low_stock_threshold integer default 2,
+  p_need_order_threshold integer default 0,
+  p_image text default null,
+  p_visible_in_shop boolean default false,
+  p_is_active boolean default true
+)
+returns public.inventory_items
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item public.inventory_items;
+  v_existing_quantity integer;
+  v_quantity_delta integer;
+  v_product_id text;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only admins can save inventory items.';
+  end if;
+
+  if nullif(trim(p_product_name), '') is null then
+    raise exception 'Product name is required.';
+  end if;
+
+  if p_quantity_on_hand < 0 then
+    raise exception 'Quantity on hand cannot be negative.';
+  end if;
+
+  if p_inventory_item_id is null then
+    insert into public.inventory_items (
+      product_name,
+      sku,
+      supplier,
+      category,
+      description,
+      image,
+      cost_price,
+      sell_price,
+      quantity_on_hand,
+      low_stock_threshold,
+      need_order_threshold,
+      visible_in_shop,
+      is_active,
+      review_status
+    )
+    values (
+      trim(p_product_name),
+      nullif(trim(coalesce(p_sku, '')), ''),
+      coalesce(nullif(trim(p_supplier), ''), 'Sportco'),
+      coalesce(nullif(trim(p_category), ''), 'Other'),
+      nullif(trim(coalesce(p_description, '')), ''),
+      p_image,
+      coalesce(p_cost_price, 0),
+      coalesce(p_sell_price, 0),
+      0,
+      coalesce(p_low_stock_threshold, 2),
+      coalesce(p_need_order_threshold, 0),
+      coalesce(p_visible_in_shop, false),
+      coalesce(p_is_active, true),
+      'reviewed'
+    )
+    returning * into v_item;
+
+    if p_quantity_on_hand > 0 then
+      perform public.apply_stock_movement(
+        v_item.id,
+        p_quantity_on_hand,
+        'adjustment',
+        'Initial manual inventory entry',
+        null,
+        null
+      );
+    end if;
+  else
+    select quantity_on_hand into v_existing_quantity
+    from public.inventory_items
+    where id = p_inventory_item_id
+    for update;
+
+    if not found then
+      raise exception 'Inventory item % was not found.', p_inventory_item_id;
+    end if;
+
+    update public.inventory_items
+    set
+      product_name = trim(p_product_name),
+      sku = nullif(trim(coalesce(p_sku, '')), ''),
+      supplier = coalesce(nullif(trim(p_supplier), ''), 'Sportco'),
+      category = coalesce(nullif(trim(p_category), ''), 'Other'),
+      description = nullif(trim(coalesce(p_description, '')), ''),
+      image = coalesce(p_image, image),
+      cost_price = coalesce(p_cost_price, 0),
+      sell_price = coalesce(p_sell_price, 0),
+      low_stock_threshold = coalesce(p_low_stock_threshold, 2),
+      need_order_threshold = coalesce(p_need_order_threshold, 0),
+      visible_in_shop = coalesce(p_visible_in_shop, false),
+      is_active = coalesce(p_is_active, true),
+      archived_at = case when coalesce(p_is_active, true) then null else archived_at end,
+      archived_by = case when coalesce(p_is_active, true) then null else archived_by end
+    where id = p_inventory_item_id
+    returning * into v_item;
+
+    v_quantity_delta := p_quantity_on_hand - v_existing_quantity;
+    if v_quantity_delta <> 0 then
+      perform public.apply_stock_movement(
+        p_inventory_item_id,
+        v_quantity_delta,
+        'adjustment',
+        'Manual quantity edit',
+        null,
+        null
+      );
+    end if;
+  end if;
+
+  select * into v_item
+  from public.inventory_items
+  where id = coalesce(p_inventory_item_id, v_item.id);
+
+  if v_item.visible_in_shop and v_item.is_active and v_item.archived_at is null then
+    v_product_id := coalesce(v_item.shop_product_id, 'inv-' || v_item.id::text);
+    insert into public.shop_products (
+      id,
+      inventory_item_id,
+      name,
+      category,
+      description,
+      price,
+      discount,
+      image,
+      is_active
+    )
+    values (
+      v_product_id,
+      v_item.id,
+      v_item.product_name,
+      v_item.category,
+      v_item.description,
+      v_item.sell_price,
+      0,
+      v_item.image,
+      true
+    )
+    on conflict (id) do update
+    set
+      inventory_item_id = excluded.inventory_item_id,
+      name = excluded.name,
+      category = excluded.category,
+      description = excluded.description,
+      price = excluded.price,
+      image = coalesce(excluded.image, public.shop_products.image),
+      is_active = true,
+      updated_at = now();
+
+    update public.inventory_items
+    set shop_product_id = v_product_id
+    where id = v_item.id;
+  elsif v_item.shop_product_id is not null then
+    update public.shop_products
+    set is_active = false
+    where id = v_item.shop_product_id;
+  end if;
+
+  perform public.recalculate_inventory_status(v_item.id);
+  select * into v_item from public.inventory_items where id = v_item.id;
+  return v_item;
+end;
+$$;
+
+create or replace function public.archive_inventory_item(p_inventory_item_id uuid)
+returns public.inventory_items
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_item public.inventory_items;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only admins can archive inventory items.';
+  end if;
+
+  update public.inventory_items
+  set
+    visible_in_shop = false,
+    is_active = false,
+    archived_at = now(),
+    archived_by = auth.uid()
+  where id = p_inventory_item_id
+  returning * into v_item;
+
+  if not found then
+    raise exception 'Inventory item % was not found.', p_inventory_item_id;
+  end if;
+
+  if v_item.shop_product_id is not null then
+    update public.shop_products
+    set is_active = false
+    where id = v_item.shop_product_id;
+  end if;
+
+  return v_item;
+end;
+$$;
+
+create or replace function public.delete_inventory_item_if_safe(p_inventory_item_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_has_movements boolean;
+  v_has_orders boolean;
+begin
+  if not public.current_user_is_admin() then
+    raise exception 'Only admins can delete inventory items.';
+  end if;
+
+  select exists (
+    select 1 from public.stock_movements
+    where inventory_item_id = p_inventory_item_id
+  ) into v_has_movements;
+
+  select exists (
+    select 1
+    from public.shop_orders so
+    join public.shop_products sp on sp.id in (
+      select item->>'id'
+      from jsonb_array_elements(so.items) item
+    )
+    where sp.inventory_item_id = p_inventory_item_id
+  ) into v_has_orders;
+
+  if v_has_movements or v_has_orders then
+    perform public.archive_inventory_item(p_inventory_item_id);
+    return false;
+  end if;
+
+  delete from public.shop_products
+  where inventory_item_id = p_inventory_item_id;
+
+  delete from public.inventory_items
+  where id = p_inventory_item_id;
+
+  return true;
+end;
+$$;
+
 create or replace function public.create_shop_order_with_stock(
   p_user_id uuid,
   p_customer_name text,
@@ -646,6 +965,8 @@ begin
     where sp.id = v_product_id
       and sp.is_active = true
       and ii.visible_in_shop = true
+      and ii.is_active = true
+      and ii.archived_at is null
     for update of ii;
 
     if v_inventory_item_id is null then
@@ -740,6 +1061,7 @@ alter table public.supplier_invoices enable row level security;
 alter table public.supplier_invoice_items enable row level security;
 alter table public.stock_movements enable row level security;
 alter table public.shop_inventory_settings enable row level security;
+alter table public.product_categories enable row level security;
 
 drop policy if exists "Admins can manage inventory items" on public.inventory_items;
 create policy "Admins can manage inventory items"
@@ -759,6 +1081,21 @@ using (is_active = true);
 drop policy if exists "Admins can manage shop products" on public.shop_products;
 create policy "Admins can manage shop products"
 on public.shop_products
+for all
+to authenticated
+using (public.current_user_is_admin())
+with check (public.current_user_is_admin());
+
+drop policy if exists "Anyone can read product categories" on public.product_categories;
+create policy "Anyone can read product categories"
+on public.product_categories
+for select
+to anon, authenticated
+using (true);
+
+drop policy if exists "Admins can manage product categories" on public.product_categories;
+create policy "Admins can manage product categories"
+on public.product_categories
 for all
 to authenticated
 using (public.current_user_is_admin())
@@ -812,6 +1149,8 @@ with check (public.current_user_is_admin());
 grant select, insert, update, delete on public.inventory_items to authenticated;
 grant select on public.shop_products to anon, authenticated;
 grant insert, update, delete on public.shop_products to authenticated;
+grant select on public.product_categories to anon, authenticated;
+grant insert, update, delete on public.product_categories to authenticated;
 grant select, insert, update, delete on public.supplier_invoices to authenticated;
 grant select, insert, update, delete on public.supplier_invoice_items to authenticated;
 grant select, insert on public.stock_movements to authenticated;
@@ -825,6 +1164,9 @@ grant execute on function public.admin_adjust_inventory(uuid, integer, text) to 
 grant execute on function public.publish_inventory_item_to_shop(uuid, text, text, numeric, numeric, text) to authenticated, service_role;
 grant execute on function public.mark_inventory_item_internal(uuid) to authenticated, service_role;
 grant execute on function public.merge_inventory_item(uuid, uuid, text) to authenticated, service_role;
+grant execute on function public.admin_save_inventory_item(uuid, text, text, text, text, text, numeric, numeric, integer, integer, integer, text, boolean, boolean) to authenticated, service_role;
+grant execute on function public.archive_inventory_item(uuid) to authenticated, service_role;
+grant execute on function public.delete_inventory_item_if_safe(uuid) to authenticated, service_role;
 grant execute on function public.create_shop_order_with_stock(uuid, text, text, text, jsonb, numeric, numeric) to authenticated, service_role;
 
 insert into storage.buckets (id, name, public)

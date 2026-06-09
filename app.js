@@ -93,16 +93,17 @@ function normalizeShopProduct(row) {
   return {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
-    name: row.name,
+    name: row.name || inventory.product_name,
     price: Number(row.price || 0),
     discount: Number(row.discount || 0),
-    category: row.category || "Uncategorized",
-    description: row.description || "",
-    image: row.image || "",
-    is_active: row.is_active !== false,
+    category: row.category || inventory.category || "Uncategorized",
+    description: row.description || inventory.description || "",
+    image: row.image || inventory.image || "",
+    is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
     stock_status: inventory.status || row.stock_status || "out_of_stock",
-    visible_in_shop: inventory.visible_in_shop !== false
+    visible_in_shop: inventory.visible_in_shop !== false,
+    archived_at: inventory.archived_at || null
   };
 }
 
@@ -121,7 +122,7 @@ async function syncShopProductsFromSupabase() {
 
   const { data, error } = await supabaseClient
     .from("shop_products")
-    .select("*, inventory_items:inventory_item_id(id, quantity_on_hand, status, visible_in_shop)")
+    .select("*, inventory_items:inventory_item_id(id, product_name, category, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at)")
     .eq("is_active", true)
     .order("category", { ascending: true })
     .order("name", { ascending: true });
@@ -725,7 +726,7 @@ function renderProducts() {
   const publicProducts = products.filter((product) => {
     const outOfStock = isProductOutOfStock(product);
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
-    return product.is_active !== false && product.visible_in_shop !== false;
+    return product.is_active !== false && product.visible_in_shop !== false && !product.archived_at;
   });
 
   const filteredProducts = selectedCategory === "all"
