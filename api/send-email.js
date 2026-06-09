@@ -138,18 +138,32 @@ function line(label, value) {
   return `${label}: ${value || ""}`;
 }
 
+function formatEmailDate(value, options) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, options).format(date);
+}
+
+function getPlayerLevel(payload = {}) {
+  return payload.playerLevel || payload.player_level || "Not specified";
+}
+
 function renderBookingText(title, payload = {}) {
+  const startTime = payload.startTime || payload.dateTime;
   return [
     title,
     "",
-    line("Customer", payload.customerName || payload.customer_name),
     line("Player", payload.playerName || payload.player_name),
+    line("Player level", getPlayerLevel(payload)),
+    line("Duration", payload.durationMinutes ? `${payload.durationMinutes} minutes` : ""),
+    line("Date", formatEmailDate(startTime, { weekday: "long", month: "long", day: "numeric", year: "numeric" })),
+    line("Start time", formatEmailDate(startTime, { hour: "numeric", minute: "2-digit" })),
+    line("Coach", "Kim Jones"),
+    line("Customer", payload.customerName || payload.customer_name),
     line("Email", getCustomerEmail(payload)),
     line("Mobile", payload.mobile),
-    line("Start", payload.startTime || payload.dateTime),
-    line("End", payload.endTime),
-    line("Duration", payload.durationMinutes ? `${payload.durationMinutes} minutes` : ""),
-    line("Player level", payload.playerLevel || payload.player_level),
+    line("End time", formatEmailDate(payload.endTime, { hour: "numeric", minute: "2-digit" })),
     line("Status", payload.bookingStatus || payload.booking_status),
     line("Notes", payload.notes)
   ].join("\n");

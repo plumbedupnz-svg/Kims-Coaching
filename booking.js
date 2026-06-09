@@ -402,6 +402,8 @@
       relatedId: result.data?.id || "",
       customerName: payload.parent_name,
       playerName: payload.player_name,
+      playerLevel: payload.player_level,
+      player_level: payload.player_level,
       email: payload.customer_email,
       mobile: payload.mobile,
       dateTime: payload.start_time,
