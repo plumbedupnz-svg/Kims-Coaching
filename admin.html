@@ -46,6 +46,7 @@
               <a href="#availability" data-admin-tab="availability">Availability</a>
               <a href="#bookings" data-admin-tab="bookings">Bookings</a>
               <a href="#products" data-admin-tab="products">Products</a>
+              <a href="#inventory" data-admin-tab="inventory">Inventory</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
               <a href="#waitlist" data-admin-tab="waitlist">Waitlist</a>
               <a href="#settings" data-admin-tab="settings">Settings</a>
@@ -116,6 +117,66 @@
               </div>
             </section>
 
+            <section class="admin-section" data-admin-section="inventory" hidden>
+              <div class="admin-section-head">
+                <div>
+                  <p class="eyebrow">Inventory</p>
+                  <h2>Stock and Sportco invoices</h2>
+                </div>
+              </div>
+
+              <div class="admin-panel-grid">
+                <section class="admin-primary">
+                  <div class="admin-list-panel">
+                    <h3>All stock items</h3>
+                    <div class="admin-data-list" data-inventory-list>
+                      <p class="helper-text">Loading inventory...</p>
+                    </div>
+                  </div>
+
+                  <div class="admin-list-panel">
+                    <h3>New items to review</h3>
+                    <p class="helper-text">Items from Sportco invoices that did not match an existing product.</p>
+                    <div class="admin-data-list" data-inventory-review-list>
+                      <p class="helper-text">Loading new items...</p>
+                    </div>
+                  </div>
+                </section>
+
+                <aside class="admin-secondary">
+                  <form class="owner-add-form" data-invoice-upload-form>
+                    <h3>Upload Sportco PDF invoice</h3>
+                    <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted and added to inventory.</p>
+                    <input type="file" accept="application/pdf" data-invoice-file required />
+                    <button class="btn btn-primary" type="submit">Upload and update stock</button>
+                    <p class="form-message" data-invoice-message></p>
+                  </form>
+
+                  <form class="owner-add-form" data-stock-adjust-form>
+                    <h3>Manual stock adjustment</h3>
+                    <label for="stock-adjust-item">Stock item</label>
+                    <select id="stock-adjust-item" name="inventory_item_id" data-stock-adjust-item required>
+                      <option value="">Select item</option>
+                    </select>
+                    <input name="quantity_delta" type="number" step="1" placeholder="Quantity change, e.g. 2 or -1" required />
+                    <input name="reason" type="text" placeholder="Reason" required />
+                    <button class="btn btn-secondary" type="submit">Save adjustment</button>
+                    <p class="form-message" data-stock-adjust-message></p>
+                  </form>
+
+                  <form class="owner-add-form" data-inventory-settings-form>
+                    <h3>Shop stock settings</h3>
+                    <label class="availability-repeat">
+                      <span>Hide out of stock products</span>
+                      <input name="hide_out_of_stock" type="checkbox" data-hide-out-of-stock />
+                    </label>
+                    <button class="btn btn-secondary" type="submit">Save stock settings</button>
+                    <p class="form-message" data-inventory-settings-message></p>
+                  </form>
+                </aside>
+              </div>
+            </section>
+
             <section class="admin-section" data-admin-section="customers" hidden>
               <div class="admin-section-head"><div><p class="eyebrow">Customers</p><h2>Customer profiles</h2></div></div>
               <div class="admin-list-panel"><div class="admin-data-list" data-admin-customers-list></div></div>
@@ -172,6 +233,7 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
     <script src="supabase-config.js"></script>
     <script src="product-categories.js"></script>
     <script src="app.js"></script>
@@ -180,6 +242,7 @@
     <script src="admin-dashboard.js"></script>
     <script src="admin-bookings-management.js"></script>
     <script src="admin-email-notifications.js"></script>
+    <script src="admin-inventory.js"></script>
     <script src="admin-availability-state.js"></script>
     <script src="admin-availability.js"></script>
   </body>
