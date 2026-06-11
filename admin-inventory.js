@@ -34,6 +34,13 @@
   let productCategories = [];
   let pendingInvoice = null;
   let invoiceReviewItems = [];
+  let lastInventoryDebug = {
+    source: "not_loaded",
+    returnedRows: 0,
+    activeRows: 0,
+    filters: {},
+    error: ""
+  };
 
   function escapeHtml(value = "") {
     return String(value)
@@ -138,6 +145,36 @@
     target.innerHTML = `<p class="helper-text">${escapeHtml(message)}</p>`;
   }
 
+  function getCurrentFilters() {
+    return {
+      search: String(searchEl?.value || "").trim(),
+      category: categoryFilterEl?.value || "all",
+      showArchived: Boolean(showArchivedEl?.checked)
+    };
+  }
+
+  function updateInventoryDebug(details = {}) {
+    lastInventoryDebug = {
+      ...lastInventoryDebug,
+      ...details,
+      filters: getCurrentFilters()
+    };
+    console.info("[Kim's Coaching inventory]", lastInventoryDebug);
+  }
+
+  function getInventoryDebugText() {
+    const filters = lastInventoryDebug.filters || getCurrentFilters();
+    return [
+      `Inventory debug: ${lastInventoryDebug.returnedRows || 0} row(s) returned`,
+      `${lastInventoryDebug.activeRows || 0} active`,
+      `source: ${lastInventoryDebug.source || "unknown"}`,
+      `category: ${filters.category || "all"}`,
+      `search: ${filters.search || "none"}`,
+      `show archived: ${filters.showArchived ? "yes" : "no"}`,
+      lastInventoryDebug.error ? `error: ${lastInventoryDebug.error}` : ""
+    ].filter(Boolean).join(" | ");
+  }
+
   async function getSessionUser() {
     if (!client) return null;
     const { data } = await client.auth.getSession();
@@ -185,19 +222,42 @@
     if (!client) {
       renderEmpty(inventoryListEl, "Supabase is not configured yet.");
       renderEmpty(reviewListEl, "Supabase is not configured yet.");
+      updateInventoryDebug({ source: "not_configured", returnedRows: 0, activeRows: 0, error: "Supabase client is not configured." });
       return;
     }
 
     renderEmpty(inventoryListEl, "Loading inventory...");
     renderEmpty(reviewListEl, "Loading new items...");
 
-    let result = await client
-      .from("inventory_items")
-      .select("*, product_categories:category_id(id,name)")
-      .order("product_name", { ascending: true });
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    const user = sessionData?.session?.user || null;
+    if (sessionError || !user) {
+      const message = sessionError?.message || "No logged-in user session was found.";
+      updateInventoryDebug({ source: "auth_session", returnedRows: 0, activeRows: 0, error: message });
+      renderEmpty(inventoryListEl, `Could not load inventory: ${message}`);
+      renderEmpty(reviewListEl, `Could not load inventory: ${message}`);
+      renderAdjustmentSelect();
+      return;
+    }
+
+    const adminResult = await client.rpc("current_user_is_admin");
+    if (adminResult.error) {
+      console.warn("Inventory admin check failed; continuing to inventory read for diagnostics.", adminResult.error.message);
+    } else if (adminResult.data !== true) {
+      const message = "The current account is not recognised as an admin by Supabase RLS.";
+      updateInventoryDebug({ source: "admin_check", returnedRows: 0, activeRows: 0, error: message });
+      renderEmpty(inventoryListEl, `Could not load inventory: ${message}`);
+      renderEmpty(reviewListEl, `Could not load inventory: ${message}`);
+      renderAdjustmentSelect();
+      return;
+    }
+
+    let result = await client.rpc("admin_list_inventory_items");
+    let source = "admin_list_inventory_items RPC";
 
     if (result.error) {
-      console.warn("Inventory join query failed, retrying without category join.", result.error.message);
+      console.warn("Inventory RPC query failed, retrying direct inventory_items select.", result.error.message);
+      source = "inventory_items direct select";
       result = await client
         .from("inventory_items")
         .select("*")
@@ -206,8 +266,10 @@
 
     if (result.error) {
       const message = `Could not load inventory: ${result.error.message}. If rows exist in Supabase, check the inventory_items RLS select policy and run notify pgrst, 'reload schema'.`;
+      updateInventoryDebug({ source, returnedRows: 0, activeRows: 0, error: result.error.message });
       renderEmpty(inventoryListEl, message);
       renderEmpty(reviewListEl, message);
+      renderAdjustmentSelect();
       return;
     }
 
@@ -216,6 +278,12 @@
       if (item?.id) byId.set(item.id, normalizeInventoryItem(item));
     });
     inventoryItems = Array.from(byId.values());
+    updateInventoryDebug({
+      source,
+      returnedRows: inventoryItems.length,
+      activeRows: getActiveInventoryItems().length,
+      error: ""
+    });
     renderCategoryControls();
     resetInventoryCategoryFilterIfEmpty();
     renderInventoryList();
@@ -258,12 +326,16 @@
 
   function renderInventoryList() {
     if (!inventoryListEl) return;
+    updateInventoryDebug({
+      returnedRows: inventoryItems.length,
+      activeRows: getActiveInventoryItems().length
+    });
     const items = getFilteredInventoryItems();
     if (!items.length) {
       const hasInventory = inventoryItems.length > 0;
       renderEmpty(inventoryListEl, hasInventory
-        ? "No stock items match the current filters. Choose All categories or adjust the archived filter."
-        : "No inventory items found. Add a product or check that your admin account can select inventory_items.");
+        ? `No stock items match the current filters. Choose All categories or adjust the archived filter. ${getInventoryDebugText()}`
+        : `No inventory items found. Add a product or check that your admin account can select inventory_items. ${getInventoryDebugText()}`);
       return;
     }
 
@@ -305,6 +377,7 @@
           </div>
         `).join("")}
       </div>
+      <p class="helper-text">${escapeHtml(getInventoryDebugText())}</p>
     `;
   }
 
@@ -352,11 +425,11 @@
   function renderAdjustmentSelect() {
     if (!adjustItemEl) return;
     const current = adjustItemEl.value;
-    adjustItemEl.innerHTML = '<option value="">Select item</option>' + inventoryItems
-      .filter((item) => !isArchivedOrInactive(item))
+    const activeItems = getActiveInventoryItems();
+    adjustItemEl.innerHTML = '<option value="">Select item</option>' + activeItems
       .map((item) => `<option value="${item.id}">${escapeHtml(item.product_name)} (${Number(item.quantity_on_hand || 0)} on hand)</option>`)
       .join("");
-    if (getActiveInventoryItems().some((item) => item.id === current)) adjustItemEl.value = current;
+    if (activeItems.some((item) => item.id === current)) adjustItemEl.value = current;
   }
 
   function getCategoryById(categoryId) {
@@ -967,9 +1040,16 @@
     button.disabled = false;
   }
 
-  searchEl?.addEventListener("input", renderInventoryList);
-  categoryFilterEl?.addEventListener("change", renderInventoryList);
-  showArchivedEl?.addEventListener("change", renderInventoryList);
+  searchEl?.addEventListener("input", () => {
+    renderInventoryList();
+  });
+  categoryFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
+  showArchivedEl?.addEventListener("change", () => {
+    renderInventoryList();
+    renderAdjustmentSelect();
+  });
   addProductBtnEl?.addEventListener("click", () => showProductForm());
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
