@@ -76,6 +76,25 @@
     return productCategories.find((category) => category.id === item.category_id) || null;
   }
 
+  function isArchivedOrInactive(item = {}) {
+    return Boolean(item.archived_at) || item.is_active === false;
+  }
+
+  function itemMatchesCategory(item = {}, categoryId = "all") {
+    if (categoryId === "all") return true;
+    const selectedCategory = productCategories.find((category) => category.id === categoryId);
+    if (item.category_id && item.category_id === categoryId) return true;
+    if (!selectedCategory) return false;
+
+    const selectedName = normalizeText(selectedCategory.name);
+    return normalizeText(item.category) === selectedName
+      || normalizeText(item.product_categories?.name) === selectedName;
+  }
+
+  function getActiveInventoryItems() {
+    return inventoryItems.filter((item) => !isArchivedOrInactive(item));
+  }
+
   function normalizeInventoryItem(item = {}) {
     const category = item.product_categories || getCategoryForItem(item);
     return {
@@ -198,6 +217,7 @@
     });
     inventoryItems = Array.from(byId.values());
     renderCategoryControls();
+    resetInventoryCategoryFilterIfEmpty();
     renderInventoryList();
     renderReviewList();
     renderAdjustmentSelect();
@@ -220,12 +240,20 @@
     const showArchived = Boolean(showArchivedEl?.checked);
 
     return inventoryItems.filter((item) => {
-      if (!showArchived && item.archived_at) return false;
-      if (!showArchived && item.is_active === false) return false;
-      if (categoryId !== "all" && item.category_id !== categoryId) return false;
+      if (!showArchived && isArchivedOrInactive(item)) return false;
+      if (!itemMatchesCategory(item, categoryId)) return false;
       if (!search) return true;
       return `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search);
     });
+  }
+
+  function resetInventoryCategoryFilterIfEmpty() {
+    if (!categoryFilterEl || categoryFilterEl.value === "all") return;
+    const activeItems = getActiveInventoryItems();
+    if (!activeItems.length) return;
+    const selectedCategoryId = categoryFilterEl.value;
+    const hasMatch = activeItems.some((item) => itemMatchesCategory(item, selectedCategoryId));
+    if (!hasMatch) categoryFilterEl.value = "all";
   }
 
   function renderInventoryList() {
@@ -234,7 +262,7 @@
     if (!items.length) {
       const hasInventory = inventoryItems.length > 0;
       renderEmpty(inventoryListEl, hasInventory
-        ? "No stock items match the current filters."
+        ? "No stock items match the current filters. Choose All categories or adjust the archived filter."
         : "No inventory items found. Add a product or check that your admin account can select inventory_items.");
       return;
     }
@@ -325,10 +353,10 @@
     if (!adjustItemEl) return;
     const current = adjustItemEl.value;
     adjustItemEl.innerHTML = '<option value="">Select item</option>' + inventoryItems
-      .filter((item) => !item.archived_at)
+      .filter((item) => !isArchivedOrInactive(item))
       .map((item) => `<option value="${item.id}">${escapeHtml(item.product_name)} (${Number(item.quantity_on_hand || 0)} on hand)</option>`)
       .join("");
-    if (inventoryItems.some((item) => item.id === current)) adjustItemEl.value = current;
+    if (getActiveInventoryItems().some((item) => item.id === current)) adjustItemEl.value = current;
   }
 
   function getCategoryById(categoryId) {
