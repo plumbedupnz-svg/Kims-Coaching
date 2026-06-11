@@ -39,6 +39,12 @@
     returnedRows: 0,
     activeRows: 0,
     filters: {},
+    supabaseUrl: settings.url || "not configured",
+    projectRef: "",
+    userId: "",
+    profileRole: "",
+    isAdmin: "unknown",
+    rpcError: "",
     error: ""
   };
 
@@ -154,9 +160,18 @@
   }
 
   function updateInventoryDebug(details = {}) {
+    let projectRef = "";
+    try {
+      projectRef = settings.url ? new URL(settings.url).hostname.split(".")[0] : "";
+    } catch (error) {
+      projectRef = "unknown";
+    }
+
     lastInventoryDebug = {
       ...lastInventoryDebug,
       ...details,
+      supabaseUrl: settings.url || "not configured",
+      projectRef,
       filters: getCurrentFilters()
     };
     console.info("[Kim's Coaching inventory]", lastInventoryDebug);
@@ -168,9 +183,13 @@
       `Inventory debug: ${lastInventoryDebug.returnedRows || 0} row(s) returned`,
       `${lastInventoryDebug.activeRows || 0} active`,
       `source: ${lastInventoryDebug.source || "unknown"}`,
+      `project: ${lastInventoryDebug.projectRef || "unknown"}`,
+      `admin: ${lastInventoryDebug.isAdmin}`,
+      lastInventoryDebug.profileRole ? `profile role: ${lastInventoryDebug.profileRole}` : "",
       `category: ${filters.category || "all"}`,
       `search: ${filters.search || "none"}`,
       `show archived: ${filters.showArchived ? "yes" : "no"}`,
+      lastInventoryDebug.rpcError ? `rpc error: ${lastInventoryDebug.rpcError}` : "",
       lastInventoryDebug.error ? `error: ${lastInventoryDebug.error}` : ""
     ].filter(Boolean).join(" | ");
   }
@@ -233,14 +252,28 @@
     const user = sessionData?.session?.user || null;
     if (sessionError || !user) {
       const message = sessionError?.message || "No logged-in user session was found.";
-      updateInventoryDebug({ source: "auth_session", returnedRows: 0, activeRows: 0, error: message });
+      updateInventoryDebug({ source: "auth_session", returnedRows: 0, activeRows: 0, userId: "", profileRole: "", isAdmin: "no session", error: message });
       renderEmpty(inventoryListEl, `Could not load inventory: ${message}`);
       renderEmpty(reviewListEl, `Could not load inventory: ${message}`);
       renderAdjustmentSelect();
       return;
     }
 
+    const profileResult = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
     const adminResult = await client.rpc("current_user_is_admin");
+    const profileRole = profileResult.data?.role || "";
+    updateInventoryDebug({
+      userId: user.id,
+      profileRole,
+      isAdmin: adminResult.error ? "rpc error" : String(adminResult.data === true),
+      rpcError: adminResult.error?.message || "",
+      error: profileResult.error?.message || ""
+    });
+
     if (adminResult.error) {
       console.warn("Inventory admin check failed; continuing to inventory read for diagnostics.", adminResult.error.message);
     } else if (adminResult.data !== true) {
@@ -258,6 +291,7 @@
     if (result.error) {
       console.warn("Inventory RPC query failed, retrying direct inventory_items select.", result.error.message);
       source = "inventory_items direct select";
+      updateInventoryDebug({ source, rpcError: result.error.message });
       result = await client
         .from("inventory_items")
         .select("*")
@@ -282,6 +316,7 @@
       source,
       returnedRows: inventoryItems.length,
       activeRows: getActiveInventoryItems().length,
+      rpcError: "",
       error: ""
     });
     renderCategoryControls();
