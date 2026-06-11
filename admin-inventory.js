@@ -72,6 +72,30 @@
     return item.product_categories?.name || normalizeCategory(item.category);
   }
 
+  function getCategoryForItem(item) {
+    return productCategories.find((category) => category.id === item.category_id) || null;
+  }
+
+  function normalizeInventoryItem(item = {}) {
+    const category = item.product_categories || getCategoryForItem(item);
+    return {
+      ...item,
+      product_name: item.product_name || item.name || "Unnamed inventory item",
+      sku: item.sku || "",
+      supplier: item.supplier || "Sportco",
+      category: category?.name || item.category || "Other",
+      product_categories: category || item.product_categories || null,
+      quantity_on_hand: Number(item.quantity_on_hand || 0),
+      cost_price: Number(item.cost_price || 0),
+      sell_price: Number(item.sell_price || item.price || 0),
+      low_stock_threshold: Number(item.low_stock_threshold ?? 2),
+      need_order_threshold: Number(item.need_order_threshold ?? item.reorder_threshold ?? 0),
+      status: item.status || "out_of_stock",
+      visible_in_shop: Boolean(item.visible_in_shop),
+      is_active: item.is_active !== false
+    };
+  }
+
   function normaliseStatus(status = "") {
     return String(status).replace(/_/g, " ");
   }
@@ -145,18 +169,34 @@
       return;
     }
 
-    const { data, error } = await client
+    renderEmpty(inventoryListEl, "Loading inventory...");
+    renderEmpty(reviewListEl, "Loading new items...");
+
+    let result = await client
       .from("inventory_items")
       .select("*, product_categories:category_id(id,name)")
       .order("product_name", { ascending: true });
 
-    if (error) {
-      renderEmpty(inventoryListEl, `Could not load inventory: ${error.message}`);
-      renderEmpty(reviewListEl, `Could not load new items: ${error.message}`);
+    if (result.error) {
+      console.warn("Inventory join query failed, retrying without category join.", result.error.message);
+      result = await client
+        .from("inventory_items")
+        .select("*")
+        .order("product_name", { ascending: true });
+    }
+
+    if (result.error) {
+      const message = `Could not load inventory: ${result.error.message}. If rows exist in Supabase, check the inventory_items RLS select policy and run notify pgrst, 'reload schema'.`;
+      renderEmpty(inventoryListEl, message);
+      renderEmpty(reviewListEl, message);
       return;
     }
 
-    inventoryItems = data || [];
+    const byId = new Map();
+    (result.data || []).forEach((item) => {
+      if (item?.id) byId.set(item.id, normalizeInventoryItem(item));
+    });
+    inventoryItems = Array.from(byId.values());
     renderCategoryControls();
     renderInventoryList();
     renderReviewList();
@@ -181,6 +221,7 @@
 
     return inventoryItems.filter((item) => {
       if (!showArchived && item.archived_at) return false;
+      if (!showArchived && item.is_active === false) return false;
       if (categoryId !== "all" && item.category_id !== categoryId) return false;
       if (!search) return true;
       return `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search);
@@ -191,7 +232,10 @@
     if (!inventoryListEl) return;
     const items = getFilteredInventoryItems();
     if (!items.length) {
-      renderEmpty(inventoryListEl, "No stock items match the current filters.");
+      const hasInventory = inventoryItems.length > 0;
+      renderEmpty(inventoryListEl, hasInventory
+        ? "No stock items match the current filters."
+        : "No inventory items found. Add a product or check that your admin account can select inventory_items.");
       return;
     }
 
