@@ -19,6 +19,7 @@
   const productFormTitleEl = document.querySelector("[data-inventory-form-title]");
   const productCategoryEl = document.querySelector("[data-inventory-form-category]");
   const productMessageEl = document.querySelector("[data-inventory-product-message]");
+  const inventoryListMessageEl = document.querySelector("[data-inventory-list-message]");
   const cancelEditBtnEl = document.querySelector("[data-inventory-cancel-edit]");
   const invoiceFormEl = document.querySelector("[data-invoice-upload-form]");
   const invoiceFileEl = document.querySelector("[data-invoice-file]");
@@ -922,15 +923,20 @@
       p_is_active: Boolean(formData.get("is_active"))
     };
 
-    const { error } = await client.rpc("admin_save_inventory_item", payload);
+    const { data: savedItem, error } = await client.rpc("admin_save_inventory_item", payload);
     if (error) {
       setMessage(productMessageEl, error.message, "error");
       return;
     }
 
-    setMessage(productMessageEl, "Product saved.", "success");
+    const publicProductId = savedItem?.shop_product_id || "";
+    const publishMessage = payload.p_visible_in_shop
+      ? `Inventory saved. Public product created/updated${publicProductId ? `: ${publicProductId}` : "."}`
+      : `Inventory saved. Public product${publicProductId ? ` ${publicProductId}` : ""} hidden.`;
     hideProductForm();
     await loadInventory();
+    setMessage(productMessageEl, publishMessage, "success");
+    setMessage(inventoryListMessageEl, publishMessage, "success");
   }
 
   async function uploadInvoice(event) {

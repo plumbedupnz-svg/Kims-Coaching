@@ -91,6 +91,7 @@ const supabaseClient = hasSupabaseConfig
 function normalizeShopProduct(row) {
   const inventory = row.inventory_items || {};
   const category = row.product_categories?.name || inventory.product_categories?.name || row.category || inventory.category || "Uncategorized";
+  const hasInventoryRow = Boolean(inventory.id);
   return {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
@@ -103,10 +104,31 @@ function normalizeShopProduct(row) {
     image: row.image || inventory.image || "",
     is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
-    stock_status: inventory.status || row.stock_status || "out_of_stock",
-    visible_in_shop: inventory.visible_in_shop !== false,
-    archived_at: inventory.archived_at || null
+    stock_status: inventory.status || row.stock_status || row.status || "out_of_stock",
+    visible_in_shop: hasInventoryRow ? inventory.visible_in_shop !== false : row.visible_in_shop !== false,
+    archived_at: inventory.archived_at || row.archived_at || null
   };
+}
+
+async function loadPublicProductsFromTable(tableName) {
+  const joinedSelect = "*, product_categories:category_id(id,name), inventory_items:inventory_item_id(id, product_name, category, category_id, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name))";
+  const joinedResult = await supabaseClient
+    .from(tableName)
+    .select(joinedSelect)
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (!joinedResult.error) return joinedResult;
+
+  const fallbackResult = await supabaseClient
+    .from(tableName)
+    .select("*")
+    .eq("is_active", true)
+    .order("name", { ascending: true });
+
+  if (!fallbackResult.error) return fallbackResult;
+
+  return joinedResult;
 }
 
 async function syncShopProductsFromSupabase() {
@@ -122,11 +144,16 @@ async function syncShopProductsFromSupabase() {
     shopInventorySettings = settingsResult.data;
   }
 
-  const { data, error } = await supabaseClient
-    .from("shop_products")
-    .select("*, product_categories:category_id(id,name), inventory_items:inventory_item_id(id, product_name, category, category_id, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name))")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
+  const publicProductResult = await loadPublicProductsFromTable("products");
+  const legacyProductResult = Array.isArray(publicProductResult.data) && publicProductResult.data.length
+    ? { data: [], error: null }
+    : await loadPublicProductsFromTable("shop_products");
+  const data = Array.isArray(publicProductResult.data) && publicProductResult.data.length
+    ? publicProductResult.data
+    : legacyProductResult.data;
+  const error = publicProductResult.error && legacyProductResult.error
+    ? legacyProductResult.error
+    : null;
 
   if (error) {
     console.warn("Could not load shop products from Supabase.", error.message);
@@ -137,6 +164,11 @@ async function syncShopProductsFromSupabase() {
     const products = data.map(normalizeShopProduct);
     saveProducts(products);
     return products;
+  }
+
+  if (!publicProductResult.error || !legacyProductResult.error) {
+    saveProducts([]);
+    return [];
   }
 
   return loadProducts();
@@ -718,15 +750,14 @@ function renderCategoryFilter(products) {
 
 function renderProducts() {
   const products = loadProducts();
-  renderCategoryFilter(products);
   renderOwnerCategorySelect(products);
-  if (!productListEl) return;
-
   const publicProducts = products.filter((product) => {
     const outOfStock = isProductOutOfStock(product);
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
-    return product.is_active !== false && product.visible_in_shop !== false && !product.archived_at;
+    return product.inventory_item_id && product.is_active !== false && product.visible_in_shop !== false && !product.archived_at;
   });
+  renderCategoryFilter(publicProducts);
+  if (!productListEl) return;
 
   const filteredProducts = selectedCategory === "all"
     ? publicProducts
