@@ -30,5 +30,4 @@
   }
 
   normalizeStoredProductCategories();
-  if (typeof window.renderProducts === "function") window.renderProducts();
 })();

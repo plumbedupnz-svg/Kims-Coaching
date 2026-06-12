@@ -193,6 +193,9 @@ async function loadPublicInventoryProducts() {
     });
 
   shopLoadDebug.rowsAfterFilters = products.length;
+  console.log("RAW ROWS", result.data || []);
+  console.log("FIRST SHOP ROW", result.data?.[0] || null);
+  console.log("AFTER PUBLIC FILTER", products);
   console.info("[Kim Shop] inventory rows loaded", {
     rowsLoaded: result.data.length,
     rowsAfterHideOutOfStockFilter: products.length,
@@ -227,27 +230,6 @@ function getCurrentShopProducts() {
   return loadProducts();
 }
 
-async function loadPublicProductsFromTable(tableName) {
-  const joinedSelect = "*, product_categories:category_id(id,name), inventory_items:inventory_item_id(id, product_name, category, category_id, description, image, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name))";
-  const joinedResult = await supabaseClient
-    .from(tableName)
-    .select(joinedSelect)
-    .eq("is_active", true)
-    .order("name", { ascending: true });
-
-  if (!joinedResult.error) return joinedResult;
-
-  const fallbackResult = await supabaseClient
-    .from(tableName)
-    .select("*")
-    .eq("is_active", true)
-    .order("name", { ascending: true });
-
-  if (!fallbackResult.error) return fallbackResult;
-
-  return joinedResult;
-}
-
 async function syncShopProductsFromSupabase() {
   if (!supabaseClient) return loadProducts();
   if (!isShopPage) return loadProducts();
@@ -263,66 +245,22 @@ async function syncShopProductsFromSupabase() {
   }
 
   const inventoryProductResult = await loadPublicInventoryProducts();
-  if (!inventoryProductResult.error && Array.isArray(inventoryProductResult.data) && inventoryProductResult.data.length) {
-    return setPublicShopProducts(inventoryProductResult.data);
-  }
-
-  const publicProductResult = await loadPublicProductsFromTable("products");
-  const legacyProductResult = Array.isArray(publicProductResult.data) && publicProductResult.data.length
-    ? { data: [], error: null }
-    : await loadPublicProductsFromTable("shop_products");
-  const data = Array.isArray(publicProductResult.data) && publicProductResult.data.length
-    ? publicProductResult.data
-    : legacyProductResult.data;
-  const error = publicProductResult.error && legacyProductResult.error
-    ? legacyProductResult.error
-    : null;
-
-  if (error) {
+  if (inventoryProductResult.error) {
     shopLoadDebug = {
-      source: "inventory_items, products, shop_products",
+      source: "inventory_items",
       rowsReturned: 0,
       rowsAfterFilters: 0,
       rowsSentToRenderer: 0,
       rowsAfterVisibilityFilter: 0,
       rowsAfterCategoryFilter: 0,
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
-      error: [inventoryProductResult.error?.message, publicProductResult.error?.message, legacyProductResult.error?.message].filter(Boolean).join(" | ")
+      error: inventoryProductResult.error.message || "Could not load inventory_items"
     };
-    console.warn("Could not load shop products from Supabase.", error.message);
+    console.warn("Could not load public inventory shop products from Supabase.", inventoryProductResult.error.message);
     return setPublicShopProducts([]);
   }
 
-  if (Array.isArray(data) && data.length) {
-    const products = data.map(normalizeShopProduct).map(normalizeInventoryShopProduct);
-    shopLoadDebug = {
-      source: Array.isArray(publicProductResult.data) && publicProductResult.data.length ? "products" : "shop_products",
-      rowsReturned: data.length,
-      rowsAfterFilters: products.length,
-      rowsSentToRenderer: 0,
-      rowsAfterVisibilityFilter: 0,
-      rowsAfterCategoryFilter: 0,
-      filters: "is_active=true; render requires inventory_item_id,visible_in_shop!=false,archived_at=null",
-      error: inventoryProductResult.error?.message || ""
-    };
-    return setPublicShopProducts(products);
-  }
-
-  if (!publicProductResult.error || !legacyProductResult.error) {
-    shopLoadDebug = {
-      source: inventoryProductResult.error ? "products/shop_products fallback" : "inventory_items",
-      rowsReturned: 0,
-      rowsAfterFilters: 0,
-      rowsSentToRenderer: 0,
-      rowsAfterVisibilityFilter: 0,
-      rowsAfterCategoryFilter: 0,
-      filters: "visible_in_shop=true,is_active=true,archived_at=null",
-      error: inventoryProductResult.error?.message || publicProductResult.error?.message || legacyProductResult.error?.message || ""
-    };
-    return setPublicShopProducts([]);
-  }
-
-  return loadProducts();
+  return setPublicShopProducts(inventoryProductResult.data || []);
 }
 
 async function saveAdminProductToSupabase(product) {
@@ -900,6 +838,13 @@ function renderCategoryFilter(products) {
 }
 
 function renderProducts() {
+  if (isShopPage && supabaseClient && publicShopProducts === null) {
+    if (productListEl) {
+      productListEl.innerHTML = `<p class="empty-cart">Loading shop products...</p>`;
+    }
+    return;
+  }
+
   const products = getCurrentShopProducts().map(normalizeInventoryShopProduct);
   renderOwnerCategorySelect(products);
   const publicProducts = products.filter((product) => {
@@ -916,6 +861,7 @@ function renderProducts() {
     ? publicProducts
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
   shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
+  console.log("AFTER CATEGORY FILTER", filteredProducts);
   console.info("[Kim Shop] render counts", {
     rowsSentToRenderer: products.length,
     rowsAfterVisibilityFilter: publicProducts.length,
