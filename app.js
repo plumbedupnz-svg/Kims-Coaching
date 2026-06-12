@@ -79,6 +79,13 @@ let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup"
 let currentUser = null;
 let currentProfile = null;
 let shopInventorySettings = { hide_out_of_stock: false };
+let shopLoadDebug = {
+  source: "not_loaded",
+  rowsReturned: 0,
+  rowsAfterFilters: 0,
+  filters: "",
+  error: ""
+};
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -87,6 +94,15 @@ const hasSupabaseConfig = Boolean(supabaseSettings.url && supabaseSettings.anonK
 const supabaseClient = hasSupabaseConfig
   ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
   : null;
+
+function escapeHtml(value = "") {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
 
 function normalizeShopProduct(row) {
   const inventory = row.inventory_items || {};
@@ -108,6 +124,57 @@ function normalizeShopProduct(row) {
     visible_in_shop: hasInventoryRow ? inventory.visible_in_shop !== false : row.visible_in_shop !== false,
     archived_at: inventory.archived_at || row.archived_at || null
   };
+}
+
+function normalizeInventoryShopProduct(row) {
+  const category = row.product_categories?.name || row.category || "Uncategorized";
+  return {
+    id: row.shop_product_id || `inv-${row.id}`,
+    inventory_item_id: row.id,
+    name: row.product_name,
+    price: Number(row.sell_price || 0),
+    discount: 0,
+    category,
+    category_id: row.category_id || row.product_categories?.id || "",
+    description: row.description || "",
+    image: row.image || "",
+    is_active: row.is_active !== false,
+    quantity_on_hand: Number(row.quantity_on_hand || 0),
+    stock_status: row.status || "out_of_stock",
+    visible_in_shop: row.visible_in_shop === true,
+    archived_at: row.archived_at || null
+  };
+}
+
+async function loadPublicInventoryProducts() {
+  const filters = "visible_in_shop=true,is_active=true,archived_at=null";
+  const result = await supabaseClient
+    .from("inventory_items")
+    .select("id, shop_product_id, product_name, category, category_id, description, image, sell_price, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name)")
+    .eq("visible_in_shop", true)
+    .eq("is_active", true)
+    .is("archived_at", null)
+    .order("product_name", { ascending: true });
+
+  shopLoadDebug = {
+    source: "inventory_items",
+    rowsReturned: Array.isArray(result.data) ? result.data.length : 0,
+    rowsAfterFilters: Array.isArray(result.data) ? result.data.length : 0,
+    filters,
+    error: result.error?.message || ""
+  };
+
+  if (result.error) return result;
+
+  const products = (result.data || [])
+    .map(normalizeInventoryShopProduct)
+    .filter((product) => {
+      if (shopInventorySettings.hide_out_of_stock) return !isProductOutOfStock(product);
+      return true;
+    });
+
+  shopLoadDebug.rowsAfterFilters = products.length;
+  return { data: products, error: null };
 }
 
 async function loadPublicProductsFromTable(tableName) {
@@ -144,6 +211,12 @@ async function syncShopProductsFromSupabase() {
     shopInventorySettings = settingsResult.data;
   }
 
+  const inventoryProductResult = await loadPublicInventoryProducts();
+  if (!inventoryProductResult.error && Array.isArray(inventoryProductResult.data) && inventoryProductResult.data.length) {
+    saveProducts(inventoryProductResult.data);
+    return inventoryProductResult.data;
+  }
+
   const publicProductResult = await loadPublicProductsFromTable("products");
   const legacyProductResult = Array.isArray(publicProductResult.data) && publicProductResult.data.length
     ? { data: [], error: null }
@@ -156,17 +229,39 @@ async function syncShopProductsFromSupabase() {
     : null;
 
   if (error) {
+    shopLoadDebug = {
+      source: "inventory_items, products, shop_products",
+      rowsReturned: 0,
+      rowsAfterFilters: 0,
+      filters: "visible_in_shop=true,is_active=true,archived_at=null",
+      error: [inventoryProductResult.error?.message, publicProductResult.error?.message, legacyProductResult.error?.message].filter(Boolean).join(" | ")
+    };
     console.warn("Could not load shop products from Supabase.", error.message);
-    return loadProducts();
+    saveProducts([]);
+    return [];
   }
 
   if (Array.isArray(data) && data.length) {
     const products = data.map(normalizeShopProduct);
+    shopLoadDebug = {
+      source: Array.isArray(publicProductResult.data) && publicProductResult.data.length ? "products" : "shop_products",
+      rowsReturned: data.length,
+      rowsAfterFilters: products.length,
+      filters: "is_active=true; render requires inventory_item_id,visible_in_shop!=false,archived_at=null",
+      error: inventoryProductResult.error?.message || ""
+    };
     saveProducts(products);
     return products;
   }
 
   if (!publicProductResult.error || !legacyProductResult.error) {
+    shopLoadDebug = {
+      source: inventoryProductResult.error ? "products/shop_products fallback" : "inventory_items",
+      rowsReturned: 0,
+      rowsAfterFilters: 0,
+      filters: "visible_in_shop=true,is_active=true,archived_at=null",
+      error: inventoryProductResult.error?.message || publicProductResult.error?.message || legacyProductResult.error?.message || ""
+    };
     saveProducts([]);
     return [];
   }
@@ -788,7 +883,26 @@ function renderProducts() {
     })
     .join("");
 
-  productListEl.innerHTML = cards ? `<div class="cards three-col">${cards}</div>` : `<p class="empty-cart">No products found in this category.</p>`;
+  const emptyMessage = publicProducts.length
+    ? "No products found in this category."
+    : "No public shop products found.";
+  productListEl.innerHTML = cards
+    ? `<div class="cards three-col">${cards}</div>`
+    : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
+}
+
+function getShopDebugMarkup(publicCount, filteredCount) {
+  if (!supabaseClient) return "";
+  const parts = [
+    `table/query used: ${shopLoadDebug.source}`,
+    `rows returned: ${shopLoadDebug.rowsReturned}`,
+    `public rows after filters: ${shopLoadDebug.rowsAfterFilters}`,
+    `visible rows before category filter: ${publicCount}`,
+    `visible rows after category filter: ${filteredCount}`,
+    `filters applied: ${shopLoadDebug.filters || "none"}`,
+    `Supabase error: ${shopLoadDebug.error || "none"}`
+  ];
+  return `<p class="helper-text shop-debug-output">${parts.map(escapeHtml).join(" | ")}</p>`;
 }
 
 function isProductOutOfStock(product) {
