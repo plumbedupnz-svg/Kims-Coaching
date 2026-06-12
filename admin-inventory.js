@@ -38,6 +38,8 @@
     source: "not_loaded",
     returnedRows: 0,
     activeRows: 0,
+    categoryRows: 0,
+    searchRows: 0,
     filters: {},
     supabaseUrl: settings.url || "not configured",
     projectRef: "",
@@ -93,6 +95,10 @@
     return Boolean(item.archived_at) || item.is_active === false;
   }
 
+  function itemIsActive(item = {}) {
+    return item.is_active !== false && !item.archived_at;
+  }
+
   function itemMatchesCategory(item = {}, categoryId = "all") {
     if (categoryId === "all") return true;
     const selectedCategory = productCategories.find((category) => category.id === categoryId);
@@ -105,7 +111,7 @@
   }
 
   function getActiveInventoryItems() {
-    return inventoryItems.filter((item) => !isArchivedOrInactive(item));
+    return inventoryItems.filter(itemIsActive);
   }
 
   function normalizeInventoryItem(item = {}) {
@@ -181,7 +187,9 @@
     const filters = lastInventoryDebug.filters || getCurrentFilters();
     return [
       `Inventory debug: ${lastInventoryDebug.returnedRows || 0} row(s) returned`,
-      `${lastInventoryDebug.activeRows || 0} active`,
+      `${lastInventoryDebug.activeRows || 0} after active/archive filter`,
+      `${lastInventoryDebug.categoryRows || 0} after category filter`,
+      `${lastInventoryDebug.searchRows || 0} after search filter`,
       `source: ${lastInventoryDebug.source || "unknown"}`,
       `project: ${lastInventoryDebug.projectRef || "unknown"}`,
       `admin: ${lastInventoryDebug.isAdmin}`,
@@ -285,17 +293,33 @@
       return;
     }
 
-    let result = await client.rpc("admin_list_inventory_items");
-    let source = "admin_list_inventory_items RPC";
+    let result = await client
+      .from("inventory_items")
+      .select("*")
+      .order("product_name", { ascending: true });
+    let source = "inventory_items direct select";
 
     if (result.error) {
-      console.warn("Inventory RPC query failed, retrying direct inventory_items select.", result.error.message);
-      source = "inventory_items direct select";
+      console.warn("Inventory direct select failed, retrying admin inventory RPC.", result.error.message);
+      source = "admin_list_inventory_items RPC";
       updateInventoryDebug({ source, rpcError: result.error.message });
-      result = await client
-        .from("inventory_items")
-        .select("*")
-        .order("product_name", { ascending: true });
+      result = await client.rpc("admin_list_inventory_items");
+    } else if (!result.data?.length) {
+      const directResult = result;
+      const rpcResult = await client.rpc("admin_list_inventory_items");
+      if (!rpcResult.error && rpcResult.data?.length) {
+        source = "admin_list_inventory_items RPC after empty direct select";
+        result = rpcResult;
+      } else if (rpcResult.error) {
+        updateInventoryDebug({
+          source,
+          returnedRows: directResult.data?.length || 0,
+          activeRows: 0,
+          categoryRows: 0,
+          searchRows: 0,
+          rpcError: rpcResult.error.message
+        });
+      }
     }
 
     if (result.error) {
@@ -315,7 +339,7 @@
     updateInventoryDebug({
       source,
       returnedRows: inventoryItems.length,
-      activeRows: getActiveInventoryItems().length,
+      ...getInventoryFilterCounts(),
       rpcError: "",
       error: ""
     });
@@ -342,12 +366,34 @@
     const categoryId = categoryFilterEl?.value || "all";
     const showArchived = Boolean(showArchivedEl?.checked);
 
-    return inventoryItems.filter((item) => {
-      if (!showArchived && isArchivedOrInactive(item)) return false;
-      if (!itemMatchesCategory(item, categoryId)) return false;
-      if (!search) return true;
-      return `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search);
-    });
+    const archiveFiltered = showArchived ? inventoryItems : inventoryItems.filter(itemIsActive);
+    const categoryFiltered = categoryId === "all"
+      ? archiveFiltered
+      : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
+    const searchFiltered = search
+      ? categoryFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
+      : categoryFiltered;
+
+    return searchFiltered;
+  }
+
+  function getInventoryFilterCounts() {
+    const search = String(searchEl?.value || "").trim().toLowerCase();
+    const categoryId = categoryFilterEl?.value || "all";
+    const showArchived = Boolean(showArchivedEl?.checked);
+    const archiveFiltered = showArchived ? inventoryItems : inventoryItems.filter(itemIsActive);
+    const categoryFiltered = categoryId === "all"
+      ? archiveFiltered
+      : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
+    const searchFiltered = search
+      ? categoryFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
+      : categoryFiltered;
+
+    return {
+      activeRows: archiveFiltered.length,
+      categoryRows: categoryFiltered.length,
+      searchRows: searchFiltered.length
+    };
   }
 
   function resetInventoryCategoryFilterIfEmpty() {
@@ -363,7 +409,7 @@
     if (!inventoryListEl) return;
     updateInventoryDebug({
       returnedRows: inventoryItems.length,
-      activeRows: getActiveInventoryItems().length
+      ...getInventoryFilterCounts()
     });
     const items = getFilteredInventoryItems();
     if (!items.length) {
