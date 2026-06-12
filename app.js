@@ -85,6 +85,9 @@ let shopLoadDebug = {
   source: "not_loaded",
   rowsReturned: 0,
   rowsAfterFilters: 0,
+  rowsSentToRenderer: 0,
+  rowsAfterVisibilityFilter: 0,
+  rowsAfterCategoryFilter: 0,
   filters: "",
   error: ""
 };
@@ -130,11 +133,11 @@ function normalizeShopProduct(row) {
 }
 
 function isTruthy(value) {
-  return value === true || value === "true" || value === 1 || value === "1";
+  return value === true || String(value).trim().toLowerCase() === "true" || value === 1 || value === "1";
 }
 
 function isFalsy(value) {
-  return value === false || value === "false" || value === 0 || value === "0";
+  return value === false || String(value).trim().toLowerCase() === "false" || value === 0 || value === "0";
 }
 
 function normalizeInventoryShopProduct(row) {
@@ -173,6 +176,9 @@ async function loadPublicInventoryProducts() {
     source: "inventory_items",
     rowsReturned: Array.isArray(result.data) ? result.data.length : 0,
     rowsAfterFilters: Array.isArray(result.data) ? result.data.length : 0,
+    rowsSentToRenderer: 0,
+    rowsAfterVisibilityFilter: 0,
+    rowsAfterCategoryFilter: 0,
     filters,
     error: result.error?.message || ""
   };
@@ -187,11 +193,31 @@ async function loadPublicInventoryProducts() {
     });
 
   shopLoadDebug.rowsAfterFilters = products.length;
+  console.info("[Kim Shop] inventory rows loaded", {
+    rowsLoaded: result.data.length,
+    rowsAfterHideOutOfStockFilter: products.length,
+    hideOutOfStock: shopInventorySettings.hide_out_of_stock,
+    sample: result.data.slice(0, 3)
+  });
   return { data: products, error: null };
 }
 
 function setPublicShopProducts(products) {
   publicShopProducts = Array.isArray(products) ? products.map(normalizeInventoryShopProduct) : [];
+  shopLoadDebug.rowsSentToRenderer = publicShopProducts.length;
+  console.info("[Kim Shop] rows sent to renderer", {
+    rowsSentToRenderer: publicShopProducts.length,
+    sample: publicShopProducts.slice(0, 3).map((product) => ({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      category_id: product.category_id,
+      visible_in_shop: product.visible_in_shop,
+      is_active: product.is_active,
+      archived_at: product.archived_at,
+      quantity_on_hand: product.quantity_on_hand
+    }))
+  });
   saveProducts(publicShopProducts);
   return publicShopProducts;
 }
@@ -257,6 +283,9 @@ async function syncShopProductsFromSupabase() {
       source: "inventory_items, products, shop_products",
       rowsReturned: 0,
       rowsAfterFilters: 0,
+      rowsSentToRenderer: 0,
+      rowsAfterVisibilityFilter: 0,
+      rowsAfterCategoryFilter: 0,
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
       error: [inventoryProductResult.error?.message, publicProductResult.error?.message, legacyProductResult.error?.message].filter(Boolean).join(" | ")
     };
@@ -270,6 +299,9 @@ async function syncShopProductsFromSupabase() {
       source: Array.isArray(publicProductResult.data) && publicProductResult.data.length ? "products" : "shop_products",
       rowsReturned: data.length,
       rowsAfterFilters: products.length,
+      rowsSentToRenderer: 0,
+      rowsAfterVisibilityFilter: 0,
+      rowsAfterCategoryFilter: 0,
       filters: "is_active=true; render requires inventory_item_id,visible_in_shop!=false,archived_at=null",
       error: inventoryProductResult.error?.message || ""
     };
@@ -281,6 +313,9 @@ async function syncShopProductsFromSupabase() {
       source: inventoryProductResult.error ? "products/shop_products fallback" : "inventory_items",
       rowsReturned: 0,
       rowsAfterFilters: 0,
+      rowsSentToRenderer: 0,
+      rowsAfterVisibilityFilter: 0,
+      rowsAfterCategoryFilter: 0,
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
       error: inventoryProductResult.error?.message || publicProductResult.error?.message || legacyProductResult.error?.message || ""
     };
@@ -872,12 +907,23 @@ function renderProducts() {
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
     return product.visible_in_shop === true && product.is_active !== false && !product.archived_at;
   });
+  shopLoadDebug.rowsSentToRenderer = products.length;
+  shopLoadDebug.rowsAfterVisibilityFilter = publicProducts.length;
   renderCategoryFilter(publicProducts);
   if (!productListEl) return;
 
   const filteredProducts = selectedCategory === "all"
     ? publicProducts
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
+  shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
+  console.info("[Kim Shop] render counts", {
+    rowsSentToRenderer: products.length,
+    rowsAfterVisibilityFilter: publicProducts.length,
+    rowsAfterCategoryFilter: filteredProducts.length,
+    selectedCategory,
+    filters: shopLoadDebug.filters,
+    source: shopLoadDebug.source
+  });
 
   const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
@@ -926,6 +972,7 @@ function getShopDebugMarkup(publicCount, filteredCount) {
     `table/query used: ${shopLoadDebug.source}`,
     `rows returned: ${shopLoadDebug.rowsReturned}`,
     `public rows after filters: ${shopLoadDebug.rowsAfterFilters}`,
+    `rows sent to renderer: ${shopLoadDebug.rowsSentToRenderer}`,
     `visible rows before category filter: ${publicCount}`,
     `visible rows after category filter: ${filteredCount}`,
     `filters applied: ${shopLoadDebug.filters || "none"}`,
