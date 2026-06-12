@@ -71,6 +71,8 @@ const navLinksEl = document.querySelector("[data-nav-links]");
 
 const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+const isAdminPage = Boolean(document.body?.classList.contains("admin-page") || document.getElementById("owner-panel"));
+const isShopPage = Boolean(productListEl);
 let selectedCategory = "all";
 const urlParams = new URLSearchParams(window.location.search);
 const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -200,6 +202,7 @@ async function loadPublicProductsFromTable(tableName) {
 
 async function syncShopProductsFromSupabase() {
   if (!supabaseClient) return loadProducts();
+  if (!isShopPage) return loadProducts();
 
   const settingsResult = await supabaseClient
     .from("shop_inventory_settings")
@@ -1269,41 +1272,61 @@ if (menuToggleEl && navLinksEl) {
 }
 
 async function init() {
-  if (stripeInputEl) loadStripeLink();
-  if (authFormEl) setAuthMode(authMode);
-  if (productListEl || ownerProductsListEl) await syncShopProductsFromSupabase();
-  if (productListEl) renderProducts();
-  if (cartItemsEl) renderCart();
+  try {
+    if (stripeInputEl) loadStripeLink();
+    if (authFormEl) setAuthMode(authMode);
 
-  if (!supabaseClient && authMessageEl) {
-    showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
-  }
+    if (!supabaseClient && authMessageEl) {
+      showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
+    }
 
-  await refreshSessionProfile();
-  renderAccountNavigation();
-  renderCustomerAccount();
-  if (ownerStatusEl) setOwnerUI();
+    await refreshSessionProfile();
+    renderAccountNavigation();
+    renderCustomerAccount();
+    if (ownerStatusEl) setOwnerUI();
 
-  if (promoCodeEl) {
-    const applied = localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "";
-    promoCodeEl.value = applied;
-  }
-  if (ownerPromoCodeEl || ownerPromoPercentEl) {
-    const promo = loadPromoSettings();
-    if (ownerPromoCodeEl) ownerPromoCodeEl.value = promo.code || "";
-    if (ownerPromoPercentEl) ownerPromoPercentEl.value = promo.percent || 0;
-  }
+    if (isShopPage) await syncShopProductsFromSupabase();
+    if (productListEl) renderProducts();
+    if (cartItemsEl) renderCart();
 
-  if (supabaseClient) {
-    supabaseClient.auth.onAuthStateChange(async (event, session) => {
-      currentUser = session?.user || null;
-      currentProfile = currentUser ? await loadProfile(currentUser) : null;
-      if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
-      renderAccountNavigation();
-      renderCustomerAccount();
-      if (ownerStatusEl) setOwnerUI();
-    });
+    if (ownerProductsListEl && !isShopPage) renderOwnerProducts();
+
+    if (promoCodeEl) {
+      const applied = localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "";
+      promoCodeEl.value = applied;
+    }
+    if (ownerPromoCodeEl || ownerPromoPercentEl) {
+      const promo = loadPromoSettings();
+      if (ownerPromoCodeEl) ownerPromoCodeEl.value = promo.code || "";
+      if (ownerPromoPercentEl) ownerPromoPercentEl.value = promo.percent || 0;
+    }
+
+    if (supabaseClient) {
+      supabaseClient.auth.onAuthStateChange(async (event, session) => {
+        try {
+          currentUser = session?.user || null;
+          currentProfile = currentUser ? await loadProfile(currentUser) : null;
+          if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
+          renderAccountNavigation();
+          renderCustomerAccount();
+          if (ownerStatusEl) setOwnerUI();
+        } catch (error) {
+          handleAdminStartupError(error);
+        }
+      });
+    }
+  } catch (error) {
+    handleAdminStartupError(error);
   }
 }
 
-init();
+function handleAdminStartupError(error) {
+  console.error("Kim's Coaching startup failed.", error);
+  if (isAdminPage && window.KimsShowAdminRuntimeError) {
+    window.KimsShowAdminRuntimeError(error);
+    return;
+  }
+  throw error;
+}
+
+init().catch(handleAdminStartupError);
