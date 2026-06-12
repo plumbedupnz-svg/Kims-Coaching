@@ -8,7 +8,11 @@
   const reviewListEl = document.querySelector("[data-inventory-review-list]");
   const searchEl = document.querySelector("[data-inventory-search]");
   const categoryFilterEl = document.querySelector("[data-inventory-category-filter]");
+  const statusFilterEl = document.querySelector("[data-inventory-status-filter]");
+  const supplierFilterEl = document.querySelector("[data-inventory-supplier-filter]");
   const showArchivedEl = document.querySelector("[data-inventory-show-archived]");
+  const inventoryTabEls = document.querySelectorAll("[data-inventory-tab]");
+  const inventoryPanelEls = document.querySelectorAll("[data-inventory-panel]");
   const addProductBtnEl = document.querySelector("[data-inventory-add-product]");
   const productFormEl = document.querySelector("[data-inventory-product-form]");
   const productFormTitleEl = document.querySelector("[data-inventory-form-title]");
@@ -39,6 +43,8 @@
     returnedRows: 0,
     activeRows: 0,
     categoryRows: 0,
+    statusRows: 0,
+    supplierRows: 0,
     searchRows: 0,
     filters: {},
     supabaseUrl: settings.url || "not configured",
@@ -138,9 +144,14 @@
     return String(status).replace(/_/g, " ");
   }
 
+  function normalizeStatusFilter(status = "") {
+    const value = String(status || "").trim().toLowerCase();
+    return value === "need_to_order" ? "need_order" : value;
+  }
+
   function getStatusClass(status = "") {
     if (status === "out_of_stock" || status === "new_supplier_item") return "blocked";
-    if (status === "low_stock" || status === "need_to_order") return "warning";
+    if (status === "low_stock" || status === "need_order" || status === "need_to_order") return "warning";
     return "available";
   }
 
@@ -161,6 +172,8 @@
     return {
       search: String(searchEl?.value || "").trim(),
       category: categoryFilterEl?.value || "all",
+      status: statusFilterEl?.value || "all",
+      supplier: supplierFilterEl?.value || "all",
       showArchived: Boolean(showArchivedEl?.checked)
     };
   }
@@ -189,12 +202,16 @@
       `Inventory debug: ${lastInventoryDebug.returnedRows || 0} row(s) returned`,
       `${lastInventoryDebug.activeRows || 0} after active/archive filter`,
       `${lastInventoryDebug.categoryRows || 0} after category filter`,
+      `${lastInventoryDebug.statusRows || 0} after status filter`,
+      `${lastInventoryDebug.supplierRows || 0} after supplier filter`,
       `${lastInventoryDebug.searchRows || 0} after search filter`,
       `source: ${lastInventoryDebug.source || "unknown"}`,
       `project: ${lastInventoryDebug.projectRef || "unknown"}`,
       `admin: ${lastInventoryDebug.isAdmin}`,
       lastInventoryDebug.profileRole ? `profile role: ${lastInventoryDebug.profileRole}` : "",
       `category: ${filters.category || "all"}`,
+      `status: ${filters.status || "all"}`,
+      `supplier: ${filters.supplier || "all"}`,
       `search: ${filters.search || "none"}`,
       `show archived: ${filters.showArchived ? "yes" : "no"}`,
       lastInventoryDebug.rpcError ? `rpc error: ${lastInventoryDebug.rpcError}` : "",
@@ -225,6 +242,33 @@
         .join("");
       productCategoryEl.value = productCategories.some((category) => category.id === currentFormCategory) ? currentFormCategory : "";
     }
+  }
+
+  function renderSupplierControls() {
+    if (!supplierFilterEl) return;
+    const currentSupplier = supplierFilterEl.value || "all";
+    const suppliers = Array.from(new Set(
+      inventoryItems
+        .map((item) => String(item.supplier || "").trim())
+        .filter(Boolean)
+    )).sort((a, b) => a.localeCompare(b));
+
+    supplierFilterEl.innerHTML = '<option value="all">All suppliers</option>' + suppliers
+      .map((supplier) => `<option value="${escapeHtml(normalizeText(supplier))}">${escapeHtml(supplier)}</option>`)
+      .join("");
+    supplierFilterEl.value = suppliers.some((supplier) => normalizeText(supplier) === currentSupplier) ? currentSupplier : "all";
+  }
+
+  function setInventoryTab(tabName = "stock-list") {
+    inventoryTabEls.forEach((button) => {
+      const isActive = button.dataset.inventoryTab === tabName;
+      button.classList.toggle("active", isActive);
+      button.setAttribute("aria-selected", String(isActive));
+    });
+
+    inventoryPanelEls.forEach((panel) => {
+      panel.hidden = panel.dataset.inventoryPanel !== tabName;
+    });
   }
 
   async function loadProductCategories() {
@@ -344,6 +388,7 @@
       error: ""
     });
     renderCategoryControls();
+    renderSupplierControls();
     resetInventoryCategoryFilterIfEmpty();
     renderInventoryList();
     renderReviewList();
@@ -364,15 +409,23 @@
   function getFilteredInventoryItems() {
     const search = String(searchEl?.value || "").trim().toLowerCase();
     const categoryId = categoryFilterEl?.value || "all";
+    const status = normalizeStatusFilter(statusFilterEl?.value || "all");
+    const supplier = supplierFilterEl?.value || "all";
     const showArchived = Boolean(showArchivedEl?.checked);
 
     const archiveFiltered = showArchived ? inventoryItems : inventoryItems.filter(itemIsActive);
     const categoryFiltered = categoryId === "all"
       ? archiveFiltered
       : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
+    const statusFiltered = status === "all"
+      ? categoryFiltered
+      : categoryFiltered.filter((item) => normalizeStatusFilter(item.status) === status);
+    const supplierFiltered = supplier === "all"
+      ? statusFiltered
+      : statusFiltered.filter((item) => normalizeText(item.supplier) === supplier);
     const searchFiltered = search
-      ? categoryFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
-      : categoryFiltered;
+      ? supplierFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
+      : supplierFiltered;
 
     return searchFiltered;
   }
@@ -380,18 +433,28 @@
   function getInventoryFilterCounts() {
     const search = String(searchEl?.value || "").trim().toLowerCase();
     const categoryId = categoryFilterEl?.value || "all";
+    const status = normalizeStatusFilter(statusFilterEl?.value || "all");
+    const supplier = supplierFilterEl?.value || "all";
     const showArchived = Boolean(showArchivedEl?.checked);
     const archiveFiltered = showArchived ? inventoryItems : inventoryItems.filter(itemIsActive);
     const categoryFiltered = categoryId === "all"
       ? archiveFiltered
       : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
+    const statusFiltered = status === "all"
+      ? categoryFiltered
+      : categoryFiltered.filter((item) => normalizeStatusFilter(item.status) === status);
+    const supplierFiltered = supplier === "all"
+      ? statusFiltered
+      : statusFiltered.filter((item) => normalizeText(item.supplier) === supplier);
     const searchFiltered = search
-      ? categoryFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
-      : categoryFiltered;
+      ? supplierFiltered.filter((item) => `${item.product_name || ""} ${item.sku || ""}`.toLowerCase().includes(search))
+      : supplierFiltered;
 
     return {
       activeRows: archiveFiltered.length,
       categoryRows: categoryFiltered.length,
+      statusRows: statusFiltered.length,
+      supplierRows: supplierFiltered.length,
       searchRows: searchFiltered.length
     };
   }
@@ -427,13 +490,10 @@
           <span>SKU</span>
           <span>Category</span>
           <span>Supplier</span>
-          <span>Qty</span>
+          <span>Quantity</span>
+          <span>Cost Price</span>
+          <span>Sell Price</span>
           <span>Status</span>
-          <span>Cost</span>
-          <span>Sell</span>
-          <span>Profit / margin</span>
-          <span>Shop</span>
-          <span>Updated</span>
           <span>Actions</span>
         </div>
         ${items.map((item) => `
@@ -443,12 +503,9 @@
             <span>${escapeHtml(getItemCategory(item))}</span>
             <span>${escapeHtml(item.supplier || "Sportco")}</span>
             <span>${Number(item.quantity_on_hand || 0)}</span>
-            <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
             <span>${money(item.cost_price)}</span>
             <span>${money(item.sell_price)}</span>
-            <span>${getMargin(item)}</span>
-            <span>${item.visible_in_shop && item.is_active !== false && !item.archived_at ? "Yes" : "No"}</span>
-            <span>${formatDate(item.updated_at || item.created_at)}</span>
+            <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
             <span class="inventory-actions">
               <button class="btn btn-secondary" type="button" data-inventory-action="edit">Edit</button>
               <button class="btn btn-secondary" type="button" data-inventory-action="adjust">Adjust</button>
@@ -633,6 +690,7 @@
     if (!productFormEl) return;
     const fields = productFormEl.elements;
     productFormEl.hidden = false;
+    setInventoryTab("add-product");
     productFormEl.reset();
     renderCategoryControls();
     productFormTitleEl.textContent = item ? "Edit inventory product" : "Add inventory product";
@@ -654,9 +712,9 @@
 
   function hideProductForm() {
     if (!productFormEl) return;
-    productFormEl.hidden = true;
     productFormEl.reset();
     setMessage(productMessageEl, "");
+    setInventoryTab("stock-list");
   }
 
   function buildInvoiceReviewItems(parsedItems) {
@@ -1096,6 +1154,7 @@
 
     if (action === "adjust") {
       if (adjustItemEl) adjustItemEl.value = item.id;
+      setInventoryTab("stock-adjustments");
       adjustFormEl?.scrollIntoView({ behavior: "smooth", block: "center" });
       return;
     }
@@ -1127,11 +1186,20 @@
   categoryFilterEl?.addEventListener("change", () => {
     renderInventoryList();
   });
+  statusFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
+  supplierFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
   showArchivedEl?.addEventListener("change", () => {
     renderInventoryList();
     renderAdjustmentSelect();
   });
   addProductBtnEl?.addEventListener("click", () => showProductForm());
+  inventoryTabEls.forEach((button) => {
+    button.addEventListener("click", () => setInventoryTab(button.dataset.inventoryTab));
+  });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
   inventoryListEl?.addEventListener("click", handleInventoryAction);

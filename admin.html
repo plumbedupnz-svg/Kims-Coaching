@@ -125,9 +125,17 @@
                 </div>
               </div>
 
-              <div class="admin-panel-grid">
-                <section class="admin-primary">
-                  <div class="admin-list-panel">
+              <div class="inventory-workspace">
+                <nav class="inventory-subtabs" aria-label="Inventory sections">
+                  <button type="button" class="active" data-inventory-tab="stock-list">Stock List</button>
+                  <button type="button" data-inventory-tab="add-product">Add Product</button>
+                  <button type="button" data-inventory-tab="stock-adjustments">Stock Adjustments</button>
+                  <button type="button" data-inventory-tab="supplier-invoices">Supplier Invoices</button>
+                  <button type="button" data-inventory-tab="settings">Settings</button>
+                </nav>
+
+                <section class="inventory-tab-panel" data-inventory-panel="stock-list">
+                  <div class="admin-list-panel inventory-stock-panel">
                     <div class="inventory-toolbar-head">
                       <h3>All stock items</h3>
                       <button class="btn btn-primary" type="button" data-inventory-add-product>Add product</button>
@@ -141,6 +149,21 @@
                           <option value="all">All categories</option>
                         </select>
                       </label>
+                      <label>Status filter
+                        <select data-inventory-status-filter>
+                          <option value="all">All statuses</option>
+                          <option value="in_stock">In stock</option>
+                          <option value="low_stock">Low stock</option>
+                          <option value="out_of_stock">Out of stock</option>
+                          <option value="need_order">Need to order</option>
+                          <option value="new_supplier_item">New supplier item</option>
+                        </select>
+                      </label>
+                      <label>Supplier filter
+                        <select data-inventory-supplier-filter>
+                          <option value="all">All suppliers</option>
+                        </select>
+                      </label>
                       <label class="availability-repeat">
                         <span>Show archived</span>
                         <input type="checkbox" data-inventory-show-archived />
@@ -150,18 +173,10 @@
                       <p class="helper-text">Loading inventory...</p>
                     </div>
                   </div>
-
-                  <div class="admin-list-panel">
-                    <h3>New items to review</h3>
-                    <p class="helper-text">Items from Sportco invoices that did not match an existing product.</p>
-                    <div class="admin-data-list" data-inventory-review-list>
-                      <p class="helper-text">Loading new items...</p>
-                    </div>
-                  </div>
                 </section>
 
-                <aside class="admin-secondary">
-                  <form class="owner-add-form" data-inventory-product-form hidden>
+                <section class="inventory-tab-panel" data-inventory-panel="add-product" hidden>
+                  <form class="owner-add-form inventory-wide-form" data-inventory-product-form>
                     <div class="availability-form-head">
                       <h3 data-inventory-form-title>Add inventory product</h3>
                       <button class="btn btn-secondary" type="button" data-inventory-cancel-edit>Cancel</button>
@@ -230,32 +245,10 @@
                     <button class="btn btn-primary" type="submit">Save product</button>
                     <p class="form-message" data-inventory-product-message></p>
                   </form>
+                </section>
 
-                  <form class="owner-add-form" data-invoice-upload-form>
-                    <h3>Upload Sportco PDF invoice</h3>
-                    <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted into a review table before stock is updated.</p>
-                    <label>Supplier invoice PDF
-                      <input type="file" accept="application/pdf" data-invoice-file required />
-                    </label>
-                    <button class="btn btn-primary" type="submit">Upload and review items</button>
-                    <p class="form-message" data-invoice-message></p>
-                  </form>
-                  <section class="owner-add-form" data-invoice-review-panel hidden>
-                    <div class="availability-form-head">
-                      <div>
-                        <h3>Review invoice items</h3>
-                        <p class="helper-text">Confirm matches, categories, prices, and shop visibility before importing stock.</p>
-                      </div>
-                      <button class="btn btn-secondary" type="button" data-invoice-review-clear>Clear review</button>
-                    </div>
-                    <div data-invoice-review-table></div>
-                    <div class="availability-actions">
-                      <button class="btn btn-primary" type="button" data-invoice-import-confirm>Confirm import</button>
-                    </div>
-                    <p class="form-message" data-invoice-review-message></p>
-                  </section>
-
-                  <form class="owner-add-form" data-stock-adjust-form>
+                <section class="inventory-tab-panel" data-inventory-panel="stock-adjustments" hidden>
+                  <form class="owner-add-form inventory-wide-form" data-stock-adjust-form>
                     <h3>Manual stock adjustment</h3>
                     <label for="stock-adjust-item">Stock item</label>
                     <select id="stock-adjust-item" name="inventory_item_id" data-stock-adjust-item required>
@@ -270,8 +263,45 @@
                     <button class="btn btn-secondary" type="submit">Save adjustment</button>
                     <p class="form-message" data-stock-adjust-message></p>
                   </form>
+                </section>
 
-                  <form class="owner-add-form" data-inventory-settings-form>
+                <section class="inventory-tab-panel" data-inventory-panel="supplier-invoices" hidden>
+                  <div class="inventory-stacked-panels">
+                    <form class="owner-add-form" data-invoice-upload-form>
+                      <h3>Upload Sportco PDF invoice</h3>
+                      <p class="helper-text">The PDF is stored in Supabase Storage, then line items are extracted into a review table before stock is updated.</p>
+                      <label>Supplier invoice PDF
+                        <input type="file" accept="application/pdf" data-invoice-file required />
+                      </label>
+                      <button class="btn btn-primary" type="submit">Upload and review items</button>
+                      <p class="form-message" data-invoice-message></p>
+                    </form>
+                    <section class="owner-add-form" data-invoice-review-panel hidden>
+                      <div class="availability-form-head">
+                        <div>
+                          <h3>Review invoice items</h3>
+                          <p class="helper-text">Confirm matches, categories, prices, and shop visibility before importing stock.</p>
+                        </div>
+                        <button class="btn btn-secondary" type="button" data-invoice-review-clear>Clear review</button>
+                      </div>
+                      <div data-invoice-review-table></div>
+                      <div class="availability-actions">
+                        <button class="btn btn-primary" type="button" data-invoice-import-confirm>Confirm import</button>
+                      </div>
+                      <p class="form-message" data-invoice-review-message></p>
+                    </section>
+                    <div class="admin-list-panel">
+                      <h3>New items to review</h3>
+                      <p class="helper-text">Items from Sportco invoices that did not match an existing product.</p>
+                      <div class="admin-data-list" data-inventory-review-list>
+                        <p class="helper-text">Loading new items...</p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="inventory-tab-panel" data-inventory-panel="settings" hidden>
+                  <form class="owner-add-form inventory-wide-form" data-inventory-settings-form>
                     <h3>Shop stock settings</h3>
                     <label class="availability-repeat">
                       <span>Hide out of stock products</span>
@@ -280,7 +310,8 @@
                     <button class="btn btn-secondary" type="submit">Save stock settings</button>
                     <p class="form-message" data-inventory-settings-message></p>
                   </form>
-                </aside>
+                </section>
+
               </div>
             </section>
 
