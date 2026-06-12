@@ -127,14 +127,27 @@
 
               <div class="inventory-workspace">
                 <nav class="inventory-subtabs" aria-label="Inventory sections">
-                  <button type="button" class="active" data-inventory-tab="stock-list">Stock List</button>
+                  <button type="button" class="active" data-inventory-tab="dashboard">Inventory Dashboard</button>
+                  <button type="button" data-inventory-tab="stock-list">Inventory List</button>
                   <button type="button" data-inventory-tab="add-product">Add Product</button>
                   <button type="button" data-inventory-tab="stock-adjustments">Stock Adjustments</button>
                   <button type="button" data-inventory-tab="supplier-invoices">Supplier Invoices</button>
                   <button type="button" data-inventory-tab="settings">Settings</button>
                 </nav>
 
-                <section class="inventory-tab-panel" data-inventory-panel="stock-list">
+                <section class="inventory-tab-panel" data-inventory-panel="dashboard">
+                  <div class="admin-list-panel inventory-dashboard-panel">
+                    <div class="inventory-toolbar-head">
+                      <h3>Inventory Dashboard</h3>
+                      <button class="btn btn-primary" type="button" data-inventory-add-product>Add product</button>
+                    </div>
+                    <div class="inventory-dashboard-grid" data-inventory-dashboard>
+                      <p class="helper-text">Loading inventory summary...</p>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="inventory-tab-panel" data-inventory-panel="stock-list" hidden>
                   <div class="admin-list-panel inventory-stock-panel">
                     <div class="inventory-toolbar-head">
                       <h3>All stock items</h3>

@@ -13,7 +13,8 @@
   const showArchivedEl = document.querySelector("[data-inventory-show-archived]");
   const inventoryTabEls = document.querySelectorAll("[data-inventory-tab]");
   const inventoryPanelEls = document.querySelectorAll("[data-inventory-panel]");
-  const addProductBtnEl = document.querySelector("[data-inventory-add-product]");
+  const inventoryDashboardEl = document.querySelector("[data-inventory-dashboard]");
+  const addProductBtnEls = document.querySelectorAll("[data-inventory-add-product]");
   const productFormEl = document.querySelector("[data-inventory-product-form]");
   const productFormTitleEl = document.querySelector("[data-inventory-form-title]");
   const productCategoryEl = document.querySelector("[data-inventory-form-category]");
@@ -163,6 +164,10 @@
     return `${money(profit)} / ${margin.toFixed(1)}%`;
   }
 
+  function sumItems(items, field) {
+    return items.reduce((total, item) => total + Number(item[field] || 0), 0);
+  }
+
   function renderEmpty(target, message) {
     if (!target) return;
     target.innerHTML = `<p class="helper-text">${escapeHtml(message)}</p>`;
@@ -259,7 +264,7 @@
     supplierFilterEl.value = suppliers.some((supplier) => normalizeText(supplier) === currentSupplier) ? currentSupplier : "all";
   }
 
-  function setInventoryTab(tabName = "stock-list") {
+  function setInventoryTab(tabName = "dashboard") {
     inventoryTabEls.forEach((button) => {
       const isActive = button.dataset.inventoryTab === tabName;
       button.classList.toggle("active", isActive);
@@ -390,6 +395,7 @@
     renderCategoryControls();
     renderSupplierControls();
     resetInventoryCategoryFilterIfEmpty();
+    renderInventoryDashboard();
     renderInventoryList();
     renderReviewList();
     renderAdjustmentSelect();
@@ -507,16 +513,48 @@
             <span>${money(item.sell_price)}</span>
             <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
             <span class="inventory-actions">
-              <button class="btn btn-secondary" type="button" data-inventory-action="edit">Edit</button>
-              <button class="btn btn-secondary" type="button" data-inventory-action="adjust">Adjust</button>
-              <button class="btn btn-secondary" type="button" data-inventory-action="archive">${item.archived_at ? "Archived" : "Archive"}</button>
-              <button class="btn btn-secondary" type="button" data-inventory-action="delete">Delete</button>
+              <button class="inventory-action-toggle" type="button" aria-label="Open actions menu" data-inventory-menu-toggle>⋮</button>
+              <div class="inventory-action-list" data-inventory-action-list hidden>
+                <button type="button" data-inventory-action="edit">Edit</button>
+                <button type="button" data-inventory-action="adjust">Adjust Stock</button>
+                <button type="button" data-inventory-action="archive">${item.archived_at ? "Archived" : "Archive"}</button>
+                <button type="button" data-inventory-action="delete">Delete</button>
+              </div>
             </span>
           </div>
         `).join("")}
       </div>
       <p class="helper-text">${escapeHtml(getInventoryDebugText())}</p>
     `;
+  }
+
+  function renderInventoryDashboard() {
+    if (!inventoryDashboardEl) return;
+    const activeItems = getActiveInventoryItems();
+    const lowItems = activeItems.filter((item) => ["low_stock", "need_order", "need_to_order"].includes(item.status));
+    const outItems = activeItems.filter((item) => item.status === "out_of_stock" || Number(item.quantity_on_hand || 0) <= 0);
+    const visibleItems = activeItems.filter((item) => item.visible_in_shop);
+    const totalQuantity = sumItems(activeItems, "quantity_on_hand");
+    const costValue = activeItems.reduce((total, item) => total + (Number(item.quantity_on_hand || 0) * Number(item.cost_price || 0)), 0);
+    const sellValue = activeItems.reduce((total, item) => total + (Number(item.quantity_on_hand || 0) * Number(item.sell_price || 0)), 0);
+
+    const cards = [
+      ["Active items", activeItems.length],
+      ["Units on hand", totalQuantity],
+      ["Low / need order", lowItems.length],
+      ["Out of stock", outItems.length],
+      ["Visible in shop", visibleItems.length],
+      ["Cost value", money(costValue)],
+      ["Retail value", money(sellValue)],
+      ["Archived items", inventoryItems.filter(isArchivedOrInactive).length]
+    ];
+
+    inventoryDashboardEl.innerHTML = cards.map(([label, value]) => `
+      <article class="inventory-summary-card">
+        <strong>${escapeHtml(value)}</strong>
+        <span>${escapeHtml(label)}</span>
+      </article>
+    `).join("");
   }
 
   function renderReviewList() {
@@ -1139,6 +1177,17 @@
   }
 
   async function handleInventoryAction(event) {
+    const menuToggle = event.target.closest("[data-inventory-menu-toggle]");
+    if (menuToggle) {
+      const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
+      const shouldOpen = Boolean(menu?.hidden);
+      document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
+        list.hidden = true;
+      });
+      if (menu) menu.hidden = !shouldOpen;
+      return;
+    }
+
     const button = event.target.closest("[data-inventory-action]");
     if (!button || !client) return;
 
@@ -1147,6 +1196,10 @@
     if (!item) return;
 
     const action = button.dataset.inventoryAction;
+    document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
+      list.hidden = true;
+    });
+
     if (action === "edit") {
       showProductForm(item);
       return;
@@ -1196,7 +1249,9 @@
     renderInventoryList();
     renderAdjustmentSelect();
   });
-  addProductBtnEl?.addEventListener("click", () => showProductForm());
+  addProductBtnEls.forEach((button) => {
+    button.addEventListener("click", () => showProductForm());
+  });
   inventoryTabEls.forEach((button) => {
     button.addEventListener("click", () => setInventoryTab(button.dataset.inventoryTab));
   });
