@@ -88,6 +88,7 @@ let shopLoadDebug = {
   filters: "",
   error: ""
 };
+let publicShopProducts = null;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -128,23 +129,33 @@ function normalizeShopProduct(row) {
   };
 }
 
+function isTruthy(value) {
+  return value === true || value === "true" || value === 1 || value === "1";
+}
+
+function isFalsy(value) {
+  return value === false || value === "false" || value === 0 || value === "0";
+}
+
 function normalizeInventoryShopProduct(row) {
   const category = row.product_categories?.name || row.category || "Uncategorized";
+  const inventoryId = row.inventory_item_id || row.id || "";
   return {
-    id: row.shop_product_id || `inv-${row.id}`,
-    inventory_item_id: row.id,
-    name: row.product_name,
-    price: Number(row.sell_price || 0),
-    discount: 0,
+    id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
+    inventory_item_id: inventoryId,
+    name: row.product_name || row.name || "Unnamed product",
+    price: Number(row.sell_price ?? row.price ?? 0),
+    discount: Number(row.discount || 0),
     category,
     category_id: row.category_id || row.product_categories?.id || "",
     description: row.description || "",
     image: row.image || "",
-    is_active: row.is_active !== false,
-    quantity_on_hand: Number(row.quantity_on_hand || 0),
-    stock_status: row.status || "out_of_stock",
-    visible_in_shop: row.visible_in_shop === true,
-    archived_at: row.archived_at || null
+    is_active: !isFalsy(row.is_active),
+    quantity_on_hand: Number(row.quantity_on_hand ?? 0),
+    stock_status: row.status || row.stock_status || "out_of_stock",
+    visible_in_shop: isTruthy(row.visible_in_shop),
+    archived_at: row.archived_at || null,
+    source_row: "inventory_items"
   };
 }
 
@@ -177,6 +188,17 @@ async function loadPublicInventoryProducts() {
 
   shopLoadDebug.rowsAfterFilters = products.length;
   return { data: products, error: null };
+}
+
+function setPublicShopProducts(products) {
+  publicShopProducts = Array.isArray(products) ? products.map(normalizeInventoryShopProduct) : [];
+  saveProducts(publicShopProducts);
+  return publicShopProducts;
+}
+
+function getCurrentShopProducts() {
+  if (isShopPage && Array.isArray(publicShopProducts)) return publicShopProducts;
+  return loadProducts();
 }
 
 async function loadPublicProductsFromTable(tableName) {
@@ -216,8 +238,7 @@ async function syncShopProductsFromSupabase() {
 
   const inventoryProductResult = await loadPublicInventoryProducts();
   if (!inventoryProductResult.error && Array.isArray(inventoryProductResult.data) && inventoryProductResult.data.length) {
-    saveProducts(inventoryProductResult.data);
-    return inventoryProductResult.data;
+    return setPublicShopProducts(inventoryProductResult.data);
   }
 
   const publicProductResult = await loadPublicProductsFromTable("products");
@@ -240,12 +261,11 @@ async function syncShopProductsFromSupabase() {
       error: [inventoryProductResult.error?.message, publicProductResult.error?.message, legacyProductResult.error?.message].filter(Boolean).join(" | ")
     };
     console.warn("Could not load shop products from Supabase.", error.message);
-    saveProducts([]);
-    return [];
+    return setPublicShopProducts([]);
   }
 
   if (Array.isArray(data) && data.length) {
-    const products = data.map(normalizeShopProduct);
+    const products = data.map(normalizeShopProduct).map(normalizeInventoryShopProduct);
     shopLoadDebug = {
       source: Array.isArray(publicProductResult.data) && publicProductResult.data.length ? "products" : "shop_products",
       rowsReturned: data.length,
@@ -253,8 +273,7 @@ async function syncShopProductsFromSupabase() {
       filters: "is_active=true; render requires inventory_item_id,visible_in_shop!=false,archived_at=null",
       error: inventoryProductResult.error?.message || ""
     };
-    saveProducts(products);
-    return products;
+    return setPublicShopProducts(products);
   }
 
   if (!publicProductResult.error || !legacyProductResult.error) {
@@ -265,8 +284,7 @@ async function syncShopProductsFromSupabase() {
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
       error: inventoryProductResult.error?.message || publicProductResult.error?.message || legacyProductResult.error?.message || ""
     };
-    saveProducts([]);
-    return [];
+    return setPublicShopProducts([]);
   }
 
   return loadProducts();
@@ -847,19 +865,19 @@ function renderCategoryFilter(products) {
 }
 
 function renderProducts() {
-  const products = loadProducts();
+  const products = getCurrentShopProducts().map(normalizeInventoryShopProduct);
   renderOwnerCategorySelect(products);
   const publicProducts = products.filter((product) => {
     const outOfStock = isProductOutOfStock(product);
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
-    return product.inventory_item_id && product.is_active !== false && product.visible_in_shop !== false && !product.archived_at;
+    return product.visible_in_shop === true && product.is_active !== false && !product.archived_at;
   });
   renderCategoryFilter(publicProducts);
   if (!productListEl) return;
 
   const filteredProducts = selectedCategory === "all"
     ? publicProducts
-    : publicProducts.filter((p) => (p.category?.trim() || "Uncategorized") === selectedCategory);
+    : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
 
   const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
@@ -892,6 +910,14 @@ function renderProducts() {
   productListEl.innerHTML = cards
     ? `<div class="cards three-col">${cards}</div>`
     : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
+}
+
+function productMatchesSelectedCategory(product, selectedValue) {
+  if (!selectedValue || selectedValue === "all") return true;
+  const selected = String(selectedValue).trim().toLowerCase();
+  const categoryName = String(product.category || "Uncategorized").trim().toLowerCase();
+  const categoryId = String(product.category_id || "").trim().toLowerCase();
+  return selected === categoryName || (categoryId && selected === categoryId);
 }
 
 function getShopDebugMarkup(publicCount, filteredCount) {
@@ -967,7 +993,7 @@ function updateQuantity(productId, action) {
   const cart = loadCart();
   const item = cart.find((entry) => entry.id === productId);
   if (!item) return;
-  const products = loadProducts();
+  const products = getCurrentShopProducts();
   const product = products.find((entry) => entry.id === productId);
   const availableQuantity = Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
   if (action === "increase" && Number.isFinite(availableQuantity) && item.quantity + 1 > availableQuantity) {
@@ -1023,7 +1049,7 @@ if (productListEl) productListEl.addEventListener("click", (event) => {
   const button = event.target.closest(".add-to-cart");
   if (!button) return;
   const card = button.closest(".product-card");
-  const product = loadProducts().find((item) => item.id === card.dataset.id);
+  const product = getCurrentShopProducts().find((item) => item.id === card.dataset.id);
   addToCart(product || { id: card.dataset.id, name: card.dataset.name, price: Number(card.dataset.price) });
 });
 
