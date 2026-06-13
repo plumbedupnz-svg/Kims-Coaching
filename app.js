@@ -93,6 +93,7 @@ let shopLoadDebug = {
 };
 let publicShopProducts = null;
 let initialShopRenderComplete = false;
+const SHOP_LOAD_TIMEOUT_MS = 8000;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -231,22 +232,53 @@ function getCurrentShopProducts() {
   return loadProducts();
 }
 
+function withShopLoadTimeout(promise, message, timeoutMs = SHOP_LOAD_TIMEOUT_MS) {
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    })
+  ]);
+}
+
+function appendShopLoadError(error) {
+  const message = error?.message || String(error || "Unknown shop loading error");
+  shopLoadDebug.error = shopLoadDebug.error
+    ? `${shopLoadDebug.error} | ${message}`
+    : message;
+  return message;
+}
+
 async function syncShopProductsFromSupabase() {
-  if (!supabaseClient) return loadProducts();
+  if (!supabaseClient) {
+    return setPublicShopProducts(loadProducts());
+  }
   if (!isShopPage) return loadProducts();
 
-  const settingsResult = await supabaseClient
-    .from("shop_inventory_settings")
-    .select("hide_out_of_stock")
-    .eq("id", true)
-    .maybeSingle();
+  try {
+    const settingsResult = await withShopLoadTimeout(
+      supabaseClient
+        .from("shop_inventory_settings")
+        .select("hide_out_of_stock")
+        .eq("id", true)
+        .maybeSingle(),
+      "Shop inventory settings request timed out."
+    );
 
-  if (!settingsResult.error && settingsResult.data) {
-    shopInventorySettings = settingsResult.data;
-  }
+    if (!settingsResult.error && settingsResult.data) {
+      shopInventorySettings = settingsResult.data;
+    }
 
-  const inventoryProductResult = await loadPublicInventoryProducts();
-  if (inventoryProductResult.error) {
+    const inventoryProductResult = await withShopLoadTimeout(
+      loadPublicInventoryProducts(),
+      "Public inventory products request timed out."
+    );
+    if (inventoryProductResult.error) {
+      throw new Error(inventoryProductResult.error.message || "Could not load inventory_items");
+    }
+
+    return setPublicShopProducts(inventoryProductResult.data || []);
+  } catch (error) {
     shopLoadDebug = {
       source: "inventory_items",
       rowsReturned: 0,
@@ -255,13 +287,11 @@ async function syncShopProductsFromSupabase() {
       rowsAfterVisibilityFilter: 0,
       rowsAfterCategoryFilter: 0,
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
-      error: inventoryProductResult.error.message || "Could not load inventory_items"
+      error: appendShopLoadError(error)
     };
-    console.warn("Could not load public inventory shop products from Supabase.", inventoryProductResult.error.message);
+    console.warn("Could not load public inventory shop products from Supabase.", error);
     return setPublicShopProducts([]);
   }
-
-  return setPublicShopProducts(inventoryProductResult.data || []);
 }
 
 async function saveAdminProductToSupabase(product) {
@@ -841,21 +871,32 @@ function renderCategoryFilter(products) {
 
 async function refreshShopCategoriesBeforeRender() {
   if (!isShopPage) return;
-  if (!window.KimsProductCategories?.refresh) {
-    await new Promise((resolve) => {
-      window.addEventListener("kims:categories-ready", resolve, { once: true });
-    });
-    return;
+  try {
+    if (!window.KimsProductCategories?.refresh) {
+      await withShopLoadTimeout(
+        new Promise((resolve) => {
+          window.addEventListener("kims:categories-ready", resolve, { once: true });
+        }),
+        "Product categories did not finish loading."
+      );
+      return;
+    }
+    selectedCategory = "all";
+    await withShopLoadTimeout(
+      window.KimsProductCategories.refresh("all"),
+      "Product categories refresh timed out."
+    );
+    if (categoryFilterEl) categoryFilterEl.value = "all";
+  } catch (error) {
+    console.warn("Could not refresh shop categories before render.", error);
+    appendShopLoadError(error);
   }
-  selectedCategory = "all";
-  await window.KimsProductCategories.refresh("all");
-  if (categoryFilterEl) categoryFilterEl.value = "all";
 }
 
 function renderProducts() {
   if (isShopPage && supabaseClient && publicShopProducts === null) {
     if (productListEl) {
-      productListEl.innerHTML = `<p class="empty-cart">Loading shop products...</p>`;
+      productListEl.innerHTML = `<p class="empty-cart">Loading shop products...</p>${getShopDebugMarkup(0, 0)}`;
     }
     return;
   }
@@ -1340,10 +1381,17 @@ async function init() {
     if (ownerStatusEl) setOwnerUI();
 
     if (isShopPage) {
-      await refreshShopCategoriesBeforeRender();
-      await syncShopProductsFromSupabase();
-      selectedCategory = "all";
-      if (categoryFilterEl) categoryFilterEl.value = "all";
+      try {
+        await refreshShopCategoriesBeforeRender();
+        await syncShopProductsFromSupabase();
+      } catch (error) {
+        console.warn("Shop initial load failed.", error);
+        appendShopLoadError(error);
+        setPublicShopProducts([]);
+      } finally {
+        selectedCategory = "all";
+        if (categoryFilterEl) categoryFilterEl.value = "all";
+      }
     }
     if (productListEl) renderProducts();
     if (cartItemsEl) renderCart();

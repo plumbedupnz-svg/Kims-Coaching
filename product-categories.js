@@ -123,15 +123,20 @@
   }
 
   async function refreshCategoryControls(preferredFilterValue) {
-    await loadCategories();
-    renderAllCategoryControls(preferredFilterValue);
-    window.dispatchEvent(new CustomEvent("kims:categories-ready", {
-      detail: {
-        categories: [...categories],
-        preferredFilterValue: preferredFilterValue || lastSelectedFilterCategory || "all"
-      }
-    }));
-    window.KimsRenderShopProducts?.();
+    try {
+      await loadCategories();
+      renderAllCategoryControls(preferredFilterValue);
+    } catch (error) {
+      console.warn("Could not refresh product categories.", error);
+    } finally {
+      window.dispatchEvent(new CustomEvent("kims:categories-ready", {
+        detail: {
+          categories: [...categories],
+          preferredFilterValue: preferredFilterValue || lastSelectedFilterCategory || "all"
+        }
+      }));
+      window.KimsRenderShopProducts?.();
+    }
   }
 
   window.KimsProductCategories = {
