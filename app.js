@@ -1,6 +1,5 @@
 const CART_KEY = "kims_cart";
 const STRIPE_KEY = "kims_stripe_link";
-const PRODUCTS_KEY = "kims_products";
 const PROMO_SETTINGS_KEY = "kims_promo_settings";
 const APPLIED_PROMO_CODE_KEY = "kims_applied_promo_code";
 
@@ -93,6 +92,7 @@ let shopLoadDebug = {
 };
 let publicShopProducts = null;
 let initialShopRenderComplete = false;
+let legacyProductsInMemory = null;
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -110,6 +110,42 @@ function escapeHtml(value = "") {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function safeStorageGet(key, fallback = "") {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch (error) {
+    console.warn(`Could not read ${key} from localStorage.`, error);
+    return fallback;
+  }
+}
+
+function safeStorageSet(key, value) {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (error) {
+    console.warn(`Could not save ${key} to localStorage. Continuing without local cache.`, error);
+    return false;
+  }
+}
+
+function safeStorageRemove(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch (error) {
+    console.warn(`Could not remove ${key} from localStorage.`, error);
+  }
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (error) {
+    console.warn("Could not parse saved browser data.", error);
+    return fallback;
+  }
 }
 
 function normalizeShopProduct(row) {
@@ -223,7 +259,6 @@ function setPublicShopProducts(products) {
       quantity_on_hand: product.quantity_on_hand
     }))
   });
-  saveProducts(publicShopProducts);
   return publicShopProducts;
 }
 
@@ -349,17 +384,41 @@ function fileToDataUrl(file) {
 }
 
 function loadProducts() {
-  const raw = localStorage.getItem(PRODUCTS_KEY);
-  if (!raw) {
-    localStorage.setItem(PRODUCTS_KEY, JSON.stringify(defaultProducts));
-    return [...defaultProducts];
-  }
-  return JSON.parse(raw);
+  if (Array.isArray(legacyProductsInMemory)) return legacyProductsInMemory;
+  return [...defaultProducts];
 }
 
-const saveProducts = (products) => localStorage.setItem(PRODUCTS_KEY, JSON.stringify(products));
-const loadCart = () => JSON.parse(localStorage.getItem(CART_KEY) || "[]");
-const saveCart = (cart) => localStorage.setItem(CART_KEY, JSON.stringify(cart));
+const saveProducts = (products) => {
+  legacyProductsInMemory = Array.isArray(products) ? products : [];
+};
+
+function getStorableImage(image) {
+  if (!image) return "";
+  const value = String(image);
+  if (value.startsWith("data:") && value.length > 2000) return "";
+  return value.length <= 2000 ? value : "";
+}
+
+function getMinimalCartItem(item) {
+  return {
+    id: item.id,
+    inventory_item_id: item.inventory_item_id || item.id || "",
+    name: item.name || "Product",
+    price: Number(item.price || 0),
+    quantity: Math.max(1, Number(item.quantity || 1)),
+    image: getStorableImage(item.image)
+  };
+}
+
+function loadCart() {
+  const cart = safeJsonParse(safeStorageGet(CART_KEY, "[]"), []);
+  return Array.isArray(cart) ? cart.map(getMinimalCartItem) : [];
+}
+
+function saveCart(cart) {
+  const payload = Array.isArray(cart) ? cart.map(getMinimalCartItem) : [];
+  safeStorageSet(CART_KEY, JSON.stringify(payload));
+}
 
 function isAdminProfile(profile = currentProfile) {
   return profile?.role === "admin";
@@ -806,16 +865,16 @@ async function saveProfile(formData) {
 }
 
 function loadPromoSettings() {
-  const raw = localStorage.getItem(PROMO_SETTINGS_KEY);
-  return raw ? JSON.parse(raw) : { code: "", percent: 0 };
+  const raw = safeStorageGet(PROMO_SETTINGS_KEY, "");
+  return raw ? safeJsonParse(raw, { code: "", percent: 0 }) : { code: "", percent: 0 };
 }
 
 function savePromoSettings(code, percent) {
-  localStorage.setItem(PROMO_SETTINGS_KEY, JSON.stringify({ code, percent }));
+  safeStorageSet(PROMO_SETTINGS_KEY, JSON.stringify({ code, percent }));
 }
 
 function getAppliedPromoPercent() {
-  const appliedCode = (localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "").trim().toLowerCase();
+  const appliedCode = safeStorageGet(APPLIED_PROMO_CODE_KEY, "").trim().toLowerCase();
   const promo = loadPromoSettings();
   if (!appliedCode || !promo.code) return 0;
   return appliedCode === promo.code.toLowerCase() ? Number(promo.percent || 0) : 0;
@@ -1048,7 +1107,7 @@ function addToCart(product) {
     return;
   }
   if (existing) existing.quantity += 1;
-  else cart.push({ ...product, quantity: 1 });
+  else cart.push(getMinimalCartItem({ ...product, quantity: 1 }));
   saveCart(cart);
   renderCart();
 }
@@ -1069,8 +1128,8 @@ function updateQuantity(productId, action) {
   renderCart();
 }
 
-const loadStripeLink = () => (stripeInputEl.value = localStorage.getItem(STRIPE_KEY) || "");
-const saveStripeLink = () => localStorage.setItem(STRIPE_KEY, stripeInputEl.value.trim());
+const loadStripeLink = () => (stripeInputEl.value = safeStorageGet(STRIPE_KEY, ""));
+const saveStripeLink = () => safeStorageSet(STRIPE_KEY, stripeInputEl.value.trim());
 
 function renderOwnerProducts() {
   if (!ownerProductsListEl) return;
@@ -1143,17 +1202,17 @@ if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
   const promo = loadPromoSettings();
 
   if (!entered) {
-    localStorage.removeItem(APPLIED_PROMO_CODE_KEY);
+    safeStorageRemove(APPLIED_PROMO_CODE_KEY);
     if (promoMessageEl) promoMessageEl.textContent = "Promo removed.";
     renderCart();
     return;
   }
 
   if (promo.code && entered.toLowerCase() === promo.code.toLowerCase()) {
-    localStorage.setItem(APPLIED_PROMO_CODE_KEY, entered);
+    safeStorageSet(APPLIED_PROMO_CODE_KEY, entered);
     if (promoMessageEl) promoMessageEl.textContent = `Promo applied: ${promo.percent}% off.`;
   } else {
-    localStorage.removeItem(APPLIED_PROMO_CODE_KEY);
+    safeStorageRemove(APPLIED_PROMO_CODE_KEY);
     if (promoMessageEl) promoMessageEl.textContent = "Invalid promo code.";
   }
 
@@ -1163,7 +1222,7 @@ if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
 if (checkoutBtnEl) checkoutBtnEl.addEventListener("click", () => {
   const cart = loadCart();
   const account = activeAccount();
-  const link = (localStorage.getItem(STRIPE_KEY) || "").trim();
+  const link = safeStorageGet(STRIPE_KEY, "").trim();
   if (!cart.length) return alert("Your cart is empty. Add items before checkout.");
   if (!account) {
     if (checkoutAccountMessageEl) checkoutAccountMessageEl.textContent = "Please log in or create an account before checkout.";
@@ -1399,7 +1458,7 @@ async function init() {
     if (ownerProductsListEl && !isShopPage) renderOwnerProducts();
 
     if (promoCodeEl) {
-      const applied = localStorage.getItem(APPLIED_PROMO_CODE_KEY) || "";
+      const applied = safeStorageGet(APPLIED_PROMO_CODE_KEY, "");
       promoCodeEl.value = applied;
     }
     if (ownerPromoCodeEl || ownerPromoPercentEl) {
