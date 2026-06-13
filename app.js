@@ -74,6 +74,7 @@ const isAdminPage = Boolean(document.body?.classList.contains("admin-page") || d
 const isShopPage = Boolean(productListEl);
 let selectedCategory = "all";
 const urlParams = new URLSearchParams(window.location.search);
+const showShopDebug = urlParams.get("debug") === "shop";
 const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
 const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.get("type") === "recovery" || urlParams.get("mode") === "reset";
 let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
@@ -204,7 +205,7 @@ async function loadPublicInventoryProducts() {
   const filters = "visible_in_shop=true,is_active=true,archived_at=null";
   const result = await supabaseClient
     .from("inventory_items")
-    .select("id, shop_product_id, product_name, category, category_id, description, image, sell_price, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name)")
+    .select("id, product_name, category, category_id, description, sell_price, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name)")
     .eq("visible_in_shop", true)
     .eq("is_active", true)
     .is("archived_at", null)
@@ -231,34 +232,38 @@ async function loadPublicInventoryProducts() {
     });
 
   shopLoadDebug.rowsAfterFilters = products.length;
-  console.log("RAW ROWS", result.data || []);
-  console.log("FIRST SHOP ROW", result.data?.[0] || null);
-  console.log("AFTER PUBLIC FILTER", products);
-  console.info("[Kim Shop] inventory rows loaded", {
-    rowsLoaded: result.data.length,
-    rowsAfterHideOutOfStockFilter: products.length,
-    hideOutOfStock: shopInventorySettings.hide_out_of_stock,
-    sample: result.data.slice(0, 3)
-  });
+  if (showShopDebug) {
+    console.log("RAW ROWS", result.data || []);
+    console.log("FIRST SHOP ROW", result.data?.[0] || null);
+    console.log("AFTER PUBLIC FILTER", products);
+    console.info("[Kim Shop] inventory rows loaded", {
+      rowsLoaded: result.data.length,
+      rowsAfterHideOutOfStockFilter: products.length,
+      hideOutOfStock: shopInventorySettings.hide_out_of_stock,
+      sample: result.data.slice(0, 3)
+    });
+  }
   return { data: products, error: null };
 }
 
 function setPublicShopProducts(products) {
   publicShopProducts = Array.isArray(products) ? products.map(normalizeInventoryShopProduct) : [];
   shopLoadDebug.rowsSentToRenderer = publicShopProducts.length;
-  console.info("[Kim Shop] rows sent to renderer", {
-    rowsSentToRenderer: publicShopProducts.length,
-    sample: publicShopProducts.slice(0, 3).map((product) => ({
-      id: product.id,
-      name: product.name,
-      category: product.category,
-      category_id: product.category_id,
-      visible_in_shop: product.visible_in_shop,
-      is_active: product.is_active,
-      archived_at: product.archived_at,
-      quantity_on_hand: product.quantity_on_hand
-    }))
-  });
+  if (showShopDebug) {
+    console.info("[Kim Shop] rows sent to renderer", {
+      rowsSentToRenderer: publicShopProducts.length,
+      sample: publicShopProducts.slice(0, 3).map((product) => ({
+        id: product.id,
+        name: product.name,
+        category: product.category,
+        category_id: product.category_id,
+        visible_in_shop: product.visible_in_shop,
+        is_active: product.is_active,
+        archived_at: product.archived_at,
+        quantity_on_hand: product.quantity_on_hand
+      }))
+    });
+  }
   return publicShopProducts;
 }
 
@@ -976,9 +981,9 @@ function renderProducts() {
     ? publicProducts
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
   shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
-  console.log("AFTER CATEGORY FILTER", filteredProducts);
+  if (showShopDebug) console.log("AFTER CATEGORY FILTER", filteredProducts);
   if (isShopPage && !initialShopRenderComplete) {
-    console.log("[Kim Shop] first render", {
+    if (showShopDebug) console.log("[Kim Shop] first render", {
       categoriesLoaded: window.KimsProductCategories?.getAll?.().length || 0,
       publicProductsCount: publicProducts.length,
       selectedCategory,
@@ -986,14 +991,16 @@ function renderProducts() {
     });
     initialShopRenderComplete = true;
   }
-  console.info("[Kim Shop] render counts", {
-    rowsSentToRenderer: products.length,
-    rowsAfterVisibilityFilter: publicProducts.length,
-    rowsAfterCategoryFilter: filteredProducts.length,
-    selectedCategory,
-    filters: shopLoadDebug.filters,
-    source: shopLoadDebug.source
-  });
+  if (showShopDebug) {
+    console.info("[Kim Shop] render counts", {
+      rowsSentToRenderer: products.length,
+      rowsAfterVisibilityFilter: publicProducts.length,
+      rowsAfterCategoryFilter: filteredProducts.length,
+      selectedCategory,
+      filters: shopLoadDebug.filters,
+      source: shopLoadDebug.source
+    });
+  }
 
   const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
@@ -1043,7 +1050,7 @@ function productMatchesSelectedCategory(product, selectedValue) {
 }
 
 function getShopDebugMarkup(publicCount, filteredCount) {
-  if (!supabaseClient) return "";
+  if (!supabaseClient || !showShopDebug) return "";
   const parts = [
     `table/query used: ${shopLoadDebug.source}`,
     `rows returned: ${shopLoadDebug.rowsReturned}`,
@@ -1441,18 +1448,25 @@ async function init() {
 
     if (isShopPage) {
       try {
-        await refreshShopCategoriesBeforeRender();
+        selectedCategory = "all";
+        if (categoryFilterEl) categoryFilterEl.value = "all";
         await syncShopProductsFromSupabase();
+        renderProducts();
+        refreshShopCategoriesBeforeRender().then(() => {
+          selectedCategory = categoryFilterEl?.value || "all";
+          renderProducts();
+        });
       } catch (error) {
         console.warn("Shop initial load failed.", error);
         appendShopLoadError(error);
         setPublicShopProducts([]);
+        renderProducts();
       } finally {
         selectedCategory = "all";
         if (categoryFilterEl) categoryFilterEl.value = "all";
       }
     }
-    if (productListEl) renderProducts();
+    if (productListEl && !isShopPage) renderProducts();
     if (cartItemsEl) renderCart();
 
     if (ownerProductsListEl && !isShopPage) renderOwnerProducts();
