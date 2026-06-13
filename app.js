@@ -835,6 +835,14 @@ function renderCategoryFilter(products) {
   const options = ["<option value=\"all\">All categories</option>", ...categories.map((cat)=>`<option value=\"${cat}\">${cat}</option>`)].join("");
   categoryFilterEl.innerHTML = options;
   categoryFilterEl.value = categories.includes(selectedCategory) || selectedCategory === "all" ? selectedCategory : "all";
+  selectedCategory = categoryFilterEl.value || "all";
+}
+
+async function refreshShopCategoriesBeforeRender() {
+  if (!isShopPage || !window.KimsProductCategories?.refresh) return;
+  selectedCategory = "all";
+  await window.KimsProductCategories.refresh("all");
+  if (categoryFilterEl) categoryFilterEl.value = "all";
 }
 
 function renderProducts() {
@@ -1059,7 +1067,7 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
 
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
 if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
-  selectedCategory = categoryFilterEl.value;
+  selectedCategory = categoryFilterEl.value || "all";
   renderProducts();
 });
 if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
@@ -1304,7 +1312,13 @@ async function init() {
     renderCustomerAccount();
     if (ownerStatusEl) setOwnerUI();
 
-    if (isShopPage) await syncShopProductsFromSupabase();
+    if (isShopPage) {
+      await Promise.all([
+        syncShopProductsFromSupabase(),
+        refreshShopCategoriesBeforeRender()
+      ]);
+      selectedCategory = categoryFilterEl?.value || "all";
+    }
     if (productListEl) renderProducts();
     if (cartItemsEl) renderCart();
 
