@@ -92,6 +92,7 @@ let shopLoadDebug = {
   error: ""
 };
 let publicShopProducts = null;
+let initialShopRenderComplete = false;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -839,7 +840,13 @@ function renderCategoryFilter(products) {
 }
 
 async function refreshShopCategoriesBeforeRender() {
-  if (!isShopPage || !window.KimsProductCategories?.refresh) return;
+  if (!isShopPage) return;
+  if (!window.KimsProductCategories?.refresh) {
+    await new Promise((resolve) => {
+      window.addEventListener("kims:categories-ready", resolve, { once: true });
+    });
+    return;
+  }
   selectedCategory = "all";
   await window.KimsProductCategories.refresh("all");
   if (categoryFilterEl) categoryFilterEl.value = "all";
@@ -870,6 +877,15 @@ function renderProducts() {
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
   shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
   console.log("AFTER CATEGORY FILTER", filteredProducts);
+  if (isShopPage && !initialShopRenderComplete) {
+    console.log("[Kim Shop] first render", {
+      categoriesLoaded: window.KimsProductCategories?.getAll?.().length || 0,
+      publicProductsCount: publicProducts.length,
+      selectedCategory,
+      renderedProductsCount: filteredProducts.length
+    });
+    initialShopRenderComplete = true;
+  }
   console.info("[Kim Shop] render counts", {
     rowsSentToRenderer: products.length,
     rowsAfterVisibilityFilter: publicProducts.length,
@@ -911,6 +927,12 @@ function renderProducts() {
     ? `<div class="cards three-col">${cards}</div>`
     : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
 }
+
+window.KimsRenderShopProducts = () => {
+  if (!isShopPage) return;
+  selectedCategory = categoryFilterEl?.value || "all";
+  renderProducts();
+};
 
 function productMatchesSelectedCategory(product, selectedValue) {
   if (!selectedValue || selectedValue === "all") return true;
@@ -1068,6 +1090,11 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
 if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
   selectedCategory = categoryFilterEl.value || "all";
+  renderProducts();
+});
+window.addEventListener("kims:categories-ready", () => {
+  if (!isShopPage) return;
+  selectedCategory = categoryFilterEl?.value || "all";
   renderProducts();
 });
 if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
@@ -1313,11 +1340,10 @@ async function init() {
     if (ownerStatusEl) setOwnerUI();
 
     if (isShopPage) {
-      await Promise.all([
-        syncShopProductsFromSupabase(),
-        refreshShopCategoriesBeforeRender()
-      ]);
-      selectedCategory = categoryFilterEl?.value || "all";
+      await refreshShopCategoriesBeforeRender();
+      await syncShopProductsFromSupabase();
+      selectedCategory = "all";
+      if (categoryFilterEl) categoryFilterEl.value = "all";
     }
     if (productListEl) renderProducts();
     if (cartItemsEl) renderCart();

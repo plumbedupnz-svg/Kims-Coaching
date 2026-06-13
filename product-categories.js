@@ -125,6 +125,13 @@
   async function refreshCategoryControls(preferredFilterValue) {
     await loadCategories();
     renderAllCategoryControls(preferredFilterValue);
+    window.dispatchEvent(new CustomEvent("kims:categories-ready", {
+      detail: {
+        categories: [...categories],
+        preferredFilterValue: preferredFilterValue || lastSelectedFilterCategory || "all"
+      }
+    }));
+    window.KimsRenderShopProducts?.();
   }
 
   window.KimsProductCategories = {
