@@ -96,6 +96,9 @@ let publicShopProducts = null;
 let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
 const SHOP_LOAD_TIMEOUT_MS = 8000;
+const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
+const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
+const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -214,7 +217,7 @@ async function loadPublicInventoryProducts() {
   const queryStart = performance.now();
   const result = await fetchPublicInventoryProductsRest();
 
-  const imageUrlQueryMs = Math.round(performance.now() - queryStart);
+  const productQueryMs = Math.round(performance.now() - queryStart);
 
   shopLoadDebug = {
     source: "inventory_items",
@@ -226,8 +229,9 @@ async function loadPublicInventoryProducts() {
     filters,
     error: result.error?.message || "",
     timings: {
-      imageUrlQueryMs,
-      usedFallback: false
+      productQueryMs,
+      imageFieldsSelected: false,
+      usedApiCache: Boolean(result.fromApiCache)
     }
   };
 
@@ -266,7 +270,7 @@ async function fetchPublicInventoryProductsRest() {
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), SHOP_LOAD_TIMEOUT_MS);
   const url = new URL(`${supabaseSettings.url.replace(/\/$/, "")}/rest/v1/inventory_items`);
-  url.searchParams.set("select", "id,product_name,category,category_id,description,image_url,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at");
+  url.searchParams.set("select", PUBLIC_SHOP_SELECT);
   url.searchParams.set("visible_in_shop", "eq.true");
   url.searchParams.set("is_active", "eq.true");
   url.searchParams.set("archived_at", "is.null");
@@ -309,13 +313,98 @@ async function fetchPublicInventoryProductsApiCache() {
     });
     if (!response.ok) return null;
     const data = await response.json();
-    return { data: Array.isArray(data?.products) ? data.products : [], error: null };
+    return { data: Array.isArray(data?.products) ? data.products : [], error: null, fromApiCache: true };
   } catch (error) {
     if (showShopDebug) console.warn("Public shop cache unavailable; falling back to Supabase REST.", error);
     return null;
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+async function fetchPublicInventoryImageUrlsRest(inventoryIds = []) {
+  if (!supabaseSettings.url || !supabaseSettings.anonKey || !inventoryIds.length) {
+    return { data: [], error: null };
+  }
+
+  const ids = inventoryIds
+    .map((id) => String(id || "").trim())
+    .filter(Boolean);
+  if (!ids.length) return { data: [], error: null };
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), SHOP_IMAGE_LOAD_TIMEOUT_MS);
+  const url = new URL(`${supabaseSettings.url.replace(/\/$/, "")}/rest/v1/inventory_items`);
+  url.searchParams.set("select", PUBLIC_SHOP_IMAGE_SELECT);
+  url.searchParams.set("id", `in.(${ids.join(",")})`);
+  url.searchParams.set("visible_in_shop", "eq.true");
+  url.searchParams.set("is_active", "eq.true");
+  url.searchParams.set("archived_at", "is.null");
+  url.searchParams.set("image_url", "ilike.http%");
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        apikey: supabaseSettings.anonKey,
+        Authorization: `Bearer ${supabaseSettings.anonKey}`
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      return { data: [], error: new Error(message || `Shop image URL request failed with ${response.status}.`) };
+    }
+
+    const data = await response.json();
+    return { data: Array.isArray(data) ? data : [], error: null };
+  } catch (error) {
+    return { data: [], error };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function hydratePublicShopProductImages() {
+  if (!isShopPage || !Array.isArray(publicShopProducts) || !publicShopProducts.length) return;
+
+  const imageStart = performance.now();
+  const inventoryIds = publicShopProducts
+    .map((product) => product.inventory_item_id || product.id)
+    .filter(Boolean);
+
+  const result = await fetchPublicInventoryImageUrlsRest(inventoryIds);
+  shopLoadDebug.timings = {
+    ...shopLoadDebug.timings,
+    imageUrlHydrateMs: Math.round(performance.now() - imageStart),
+    storageUrlImagesLoaded: Array.isArray(result.data) ? result.data.length : 0
+  };
+
+  if (result.error) {
+    if (showShopDebug) console.warn("Could not hydrate public shop image URLs.", result.error);
+    appendShopLoadError(result.error);
+    return;
+  }
+
+  const imageById = new Map(
+    (result.data || [])
+      .filter((row) => isImageUrl(row.image_url))
+      .map((row) => [String(row.id), row.image_url])
+  );
+  if (!imageById.size) {
+    if (showShopDebug) console.info("[Kim Shop] no Supabase Storage image URLs found for public products");
+    return;
+  }
+
+  let changed = false;
+  publicShopProducts = publicShopProducts.map((product) => {
+    const imageUrl = imageById.get(String(product.inventory_item_id || product.id));
+    if (!imageUrl || product.image === imageUrl) return product;
+    changed = true;
+    return { ...product, image: imageUrl, image_url: imageUrl };
+  });
+
+  if (changed) renderProducts();
 }
 
 function setPublicShopProducts(products) {
@@ -380,6 +469,10 @@ async function syncShopProductsFromSupabase() {
     }
 
     const products = setPublicShopProducts(inventoryProductResult.data || []);
+    hydratePublicShopProductImages().catch((error) => {
+      if (showShopDebug) console.warn("Public shop image hydration failed.", error);
+      appendShopLoadError(error);
+    });
     shopLoadDebug.timings = {
       ...shopLoadDebug.timings,
       syncProductsMs: Math.round(performance.now() - syncStart)
