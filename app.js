@@ -89,13 +89,12 @@ let shopLoadDebug = {
   rowsAfterVisibilityFilter: 0,
   rowsAfterCategoryFilter: 0,
   filters: "",
-  error: ""
+  error: "",
+  timings: {}
 };
 let publicShopProducts = null;
 let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
-let shopImagesLoaded = false;
-let shopImagesLoading = false;
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -184,7 +183,7 @@ function isFalsy(value) {
 function normalizeInventoryShopProduct(row) {
   const category = row.product_categories?.name || row.category || "Uncategorized";
   const inventoryId = row.inventory_item_id || row.id || "";
-  const imageUrl = row.image_url || row.image || "";
+  const imageUrl = row.image_url || "";
   return {
     id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
     inventory_item_id: inventoryId,
@@ -207,18 +206,15 @@ function normalizeInventoryShopProduct(row) {
 
 function isImageUrl(value = "") {
   const text = String(value || "");
-  return /^https?:\/\//i.test(text) || text.startsWith("data:image/");
+  return /^https?:\/\//i.test(text);
 }
 
 async function loadPublicInventoryProducts() {
   const filters = "visible_in_shop=true,is_active=true,archived_at=null";
-  const result = await supabaseClient
-    .from("inventory_items")
-    .select("id, product_name, category, category_id, description, sell_price, quantity_on_hand, status, visible_in_shop, is_active, archived_at, product_categories:category_id(id,name)")
-    .eq("visible_in_shop", true)
-    .eq("is_active", true)
-    .is("archived_at", null)
-    .order("product_name", { ascending: true });
+  const queryStart = performance.now();
+  const result = await fetchPublicInventoryProductsRest();
+
+  const imageUrlQueryMs = Math.round(performance.now() - queryStart);
 
   shopLoadDebug = {
     source: "inventory_items",
@@ -228,7 +224,11 @@ async function loadPublicInventoryProducts() {
     rowsAfterVisibilityFilter: 0,
     rowsAfterCategoryFilter: 0,
     filters,
-    error: result.error?.message || ""
+    error: result.error?.message || "",
+    timings: {
+      imageUrlQueryMs,
+      usedFallback: false
+    }
   };
 
   if (result.error) return result;
@@ -255,10 +255,71 @@ async function loadPublicInventoryProducts() {
   return { data: products, error: null };
 }
 
+async function fetchPublicInventoryProductsRest() {
+  const cachedResult = await fetchPublicInventoryProductsApiCache();
+  if (cachedResult) return cachedResult;
+
+  if (!supabaseSettings.url || !supabaseSettings.anonKey) {
+    return { data: [], error: new Error("Supabase public shop config is missing.") };
+  }
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), SHOP_LOAD_TIMEOUT_MS);
+  const url = new URL(`${supabaseSettings.url.replace(/\/$/, "")}/rest/v1/inventory_items`);
+  url.searchParams.set("select", "id,product_name,category,category_id,description,image_url,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at");
+  url.searchParams.set("visible_in_shop", "eq.true");
+  url.searchParams.set("is_active", "eq.true");
+  url.searchParams.set("archived_at", "is.null");
+  url.searchParams.set("order", "product_name.asc");
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        apikey: supabaseSettings.anonKey,
+        Authorization: `Bearer ${supabaseSettings.anonKey}`
+      },
+      signal: controller.signal
+    });
+
+    if (!response.ok) {
+      const message = await response.text();
+      return { data: [], error: new Error(message || `Shop products request failed with ${response.status}.`) };
+    }
+
+    const data = await response.json();
+    return { data: Array.isArray(data) ? data : [], error: null };
+  } catch (error) {
+    return { data: [], error };
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+async function fetchPublicInventoryProductsApiCache() {
+  const host = window.location.hostname;
+  if (!host || host === "localhost" || host === "127.0.0.1") return null;
+
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), 2500);
+
+  try {
+    const response = await fetch("/api/shop-products", {
+      headers: { Accept: "application/json" },
+      signal: controller.signal
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    return { data: Array.isArray(data?.products) ? data.products : [], error: null };
+  } catch (error) {
+    if (showShopDebug) console.warn("Public shop cache unavailable; falling back to Supabase REST.", error);
+    return null;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
 function setPublicShopProducts(products) {
   publicShopProducts = Array.isArray(products) ? products.map(normalizeInventoryShopProduct) : [];
-  shopImagesLoaded = false;
-  shopImagesLoading = false;
   shopLoadDebug.rowsSentToRenderer = publicShopProducts.length;
   if (showShopDebug) {
     console.info("[Kim Shop] rows sent to renderer", {
@@ -276,44 +337,6 @@ function setPublicShopProducts(products) {
     });
   }
   return publicShopProducts;
-}
-
-async function loadPublicInventoryProductImages(products = []) {
-  if (!isShopPage || !supabaseClient || shopImagesLoaded || shopImagesLoading) return;
-  const ids = products
-    .map((product) => product.inventory_item_id || product.id)
-    .filter(Boolean);
-  if (!ids.length) return;
-
-  shopImagesLoading = true;
-  try {
-    let result = await supabaseClient
-      .from("inventory_items")
-      .select("id,image_url,image")
-      .in("id", ids);
-
-    if (result.error && /image_url/i.test(result.error.message || "")) {
-      result = await supabaseClient
-        .from("inventory_items")
-        .select("id,image")
-        .in("id", ids);
-    }
-
-    if (result.error) throw result.error;
-
-    const imageById = new Map((result.data || []).map((row) => [row.id, row.image_url || row.image || ""]));
-    publicShopProducts = publicShopProducts.map((product) => {
-      const image = imageById.get(product.inventory_item_id || product.id) || product.image || "";
-      return isImageUrl(image) ? { ...product, image, image_url: image } : product;
-    });
-    shopImagesLoaded = true;
-    renderProducts();
-  } catch (error) {
-    console.warn("Could not load public shop product images.", error);
-    shopImagesLoaded = true;
-  } finally {
-    shopImagesLoading = false;
-  }
 }
 
 function getCurrentShopProducts() {
@@ -345,18 +368,8 @@ async function syncShopProductsFromSupabase() {
   if (!isShopPage) return loadProducts();
 
   try {
-    const settingsResult = await withShopLoadTimeout(
-      supabaseClient
-        .from("shop_inventory_settings")
-        .select("hide_out_of_stock")
-        .eq("id", true)
-        .maybeSingle(),
-      "Shop inventory settings request timed out."
-    );
-
-    if (!settingsResult.error && settingsResult.data) {
-      shopInventorySettings = settingsResult.data;
-    }
+    const syncStart = performance.now();
+    refreshShopInventorySettings();
 
     const inventoryProductResult = await withShopLoadTimeout(
       loadPublicInventoryProducts(),
@@ -366,7 +379,12 @@ async function syncShopProductsFromSupabase() {
       throw new Error(inventoryProductResult.error.message || "Could not load inventory_items");
     }
 
-    return setPublicShopProducts(inventoryProductResult.data || []);
+    const products = setPublicShopProducts(inventoryProductResult.data || []);
+    shopLoadDebug.timings = {
+      ...shopLoadDebug.timings,
+      syncProductsMs: Math.round(performance.now() - syncStart)
+    };
+    return products;
   } catch (error) {
     shopLoadDebug = {
       source: "inventory_items",
@@ -376,10 +394,37 @@ async function syncShopProductsFromSupabase() {
       rowsAfterVisibilityFilter: 0,
       rowsAfterCategoryFilter: 0,
       filters: "visible_in_shop=true,is_active=true,archived_at=null",
-      error: appendShopLoadError(error)
+      error: appendShopLoadError(error),
+      timings: shopLoadDebug.timings || {}
     };
     console.warn("Could not load public inventory shop products from Supabase.", error);
     return setPublicShopProducts([]);
+  }
+}
+
+async function refreshShopInventorySettings() {
+  if (!supabaseClient || !isShopPage) return;
+
+  try {
+    const settingsResult = await withShopLoadTimeout(
+      supabaseClient
+        .from("shop_inventory_settings")
+        .select("hide_out_of_stock")
+        .eq("id", true)
+        .maybeSingle(),
+      "Shop inventory settings request timed out.",
+      3000
+    );
+
+    if (!settingsResult.error && settingsResult.data) {
+      const previousHideOutOfStock = Boolean(shopInventorySettings.hide_out_of_stock);
+      shopInventorySettings = settingsResult.data;
+      if (previousHideOutOfStock !== Boolean(shopInventorySettings.hide_out_of_stock) && Array.isArray(publicShopProducts)) {
+        renderProducts();
+      }
+    }
+  } catch (error) {
+    if (showShopDebug) console.warn("Could not refresh shop inventory settings.", error);
   }
 }
 
@@ -1044,15 +1089,17 @@ function renderProducts() {
 
   const cards = filteredProducts
     .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
-    .map((p) => {
+    .map((p, index) => {
       const discounted = getDiscountedPrice(p);
       const hasDiscount = Number(p.discount || 0) > 0;
       const outOfStock = isProductOutOfStock(p);
       const stockText = getProductStockText(p);
+      const imageLoading = index < 4 ? "eager" : "lazy";
+      const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
       return `
         <article class="product-card" data-id="${p.id}" data-name="${p.name}" data-price="${discounted}">
           <div class="product-image-wrap">
-            ${p.image ? `<img src="${p.image}" alt="${p.name}" class="product-image" loading="lazy" decoding="async" />` : `<div class="product-image product-image-placeholder">No image</div>`}
+            ${isImageUrl(p.image) ? `<img src="${p.image}" alt="${p.name}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
           </div>
           <p class="owner-meta">${p.category || "Uncategorized"}</p>
           <h3>${p.name}</h3>
@@ -1073,7 +1120,6 @@ function renderProducts() {
   productListEl.innerHTML = cards
     ? `<div class="cards three-col">${cards}</div>`
     : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
-  loadPublicInventoryProductImages(publicProducts);
 }
 
 window.KimsRenderShopProducts = () => {
@@ -1081,6 +1127,34 @@ window.KimsRenderShopProducts = () => {
   selectedCategory = categoryFilterEl?.value || "all";
   renderProducts();
 };
+
+async function renderInitialShopProducts() {
+  if (!isShopPage) return;
+
+  try {
+    const initialStart = performance.now();
+    selectedCategory = "all";
+    if (categoryFilterEl) categoryFilterEl.value = "all";
+    await syncShopProductsFromSupabase();
+    shopLoadDebug.timings = {
+      ...shopLoadDebug.timings,
+      beforeFirstRenderMs: Math.round(performance.now() - initialStart)
+    };
+    renderProducts();
+    refreshShopCategoriesBeforeRender().then(() => {
+      selectedCategory = categoryFilterEl?.value || "all";
+      renderProducts();
+    });
+  } catch (error) {
+    console.warn("Shop initial load failed.", error);
+    appendShopLoadError(error);
+    setPublicShopProducts([]);
+    renderProducts();
+  } finally {
+    selectedCategory = "all";
+    if (categoryFilterEl) categoryFilterEl.value = "all";
+  }
+}
 
 function productMatchesSelectedCategory(product, selectedValue) {
   if (!selectedValue || selectedValue === "all") return true;
@@ -1100,7 +1174,8 @@ function getShopDebugMarkup(publicCount, filteredCount) {
     `visible rows before category filter: ${publicCount}`,
     `visible rows after category filter: ${filteredCount}`,
     `filters applied: ${shopLoadDebug.filters || "none"}`,
-    `Supabase error: ${shopLoadDebug.error || "none"}`
+    `Supabase error: ${shopLoadDebug.error || "none"}`,
+    `timings: ${JSON.stringify(shopLoadDebug.timings || {})}`
   ];
   return `<p class="helper-text shop-debug-output">${parts.map(escapeHtml).join(" | ")}</p>`;
 }
@@ -1476,33 +1551,18 @@ async function init() {
       showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
     }
 
+    if (isShopPage) {
+      await renderInitialShopProducts();
+      if (cartItemsEl) renderCart();
+    }
+
     await refreshSessionProfile();
     renderAccountNavigation();
     renderCustomerAccount();
     if (ownerStatusEl) setOwnerUI();
 
-    if (isShopPage) {
-      try {
-        selectedCategory = "all";
-        if (categoryFilterEl) categoryFilterEl.value = "all";
-        await syncShopProductsFromSupabase();
-        renderProducts();
-        refreshShopCategoriesBeforeRender().then(() => {
-          selectedCategory = categoryFilterEl?.value || "all";
-          renderProducts();
-        });
-      } catch (error) {
-        console.warn("Shop initial load failed.", error);
-        appendShopLoadError(error);
-        setPublicShopProducts([]);
-        renderProducts();
-      } finally {
-        selectedCategory = "all";
-        if (categoryFilterEl) categoryFilterEl.value = "all";
-      }
-    }
     if (productListEl && !isShopPage) renderProducts();
-    if (cartItemsEl) renderCart();
+    if (cartItemsEl && !isShopPage) renderCart();
 
     if (ownerProductsListEl && !isShopPage) renderOwnerProducts();
 
