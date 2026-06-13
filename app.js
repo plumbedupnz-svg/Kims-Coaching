@@ -94,6 +94,8 @@ let shopLoadDebug = {
 let publicShopProducts = null;
 let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
+let shopImagesLoaded = false;
+let shopImagesLoading = false;
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -162,7 +164,7 @@ function normalizeShopProduct(row) {
     category,
     category_id: row.category_id || inventory.category_id || row.product_categories?.id || inventory.product_categories?.id || "",
     description: row.description || inventory.description || "",
-    image: row.image || inventory.image || "",
+    image: row.image_url || inventory.image_url || row.image || inventory.image || "",
     is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
     stock_status: inventory.status || row.stock_status || row.status || "out_of_stock",
@@ -182,6 +184,7 @@ function isFalsy(value) {
 function normalizeInventoryShopProduct(row) {
   const category = row.product_categories?.name || row.category || "Uncategorized";
   const inventoryId = row.inventory_item_id || row.id || "";
+  const imageUrl = row.image_url || row.image || "";
   return {
     id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
     inventory_item_id: inventoryId,
@@ -191,7 +194,8 @@ function normalizeInventoryShopProduct(row) {
     category,
     category_id: row.category_id || row.product_categories?.id || "",
     description: row.description || "",
-    image: row.image || "",
+    image: imageUrl,
+    image_url: imageUrl,
     is_active: !isFalsy(row.is_active),
     quantity_on_hand: Number(row.quantity_on_hand ?? 0),
     stock_status: row.status || row.stock_status || "out_of_stock",
@@ -199,6 +203,11 @@ function normalizeInventoryShopProduct(row) {
     archived_at: row.archived_at || null,
     source_row: "inventory_items"
   };
+}
+
+function isImageUrl(value = "") {
+  const text = String(value || "");
+  return /^https?:\/\//i.test(text) || text.startsWith("data:image/");
 }
 
 async function loadPublicInventoryProducts() {
@@ -248,6 +257,8 @@ async function loadPublicInventoryProducts() {
 
 function setPublicShopProducts(products) {
   publicShopProducts = Array.isArray(products) ? products.map(normalizeInventoryShopProduct) : [];
+  shopImagesLoaded = false;
+  shopImagesLoading = false;
   shopLoadDebug.rowsSentToRenderer = publicShopProducts.length;
   if (showShopDebug) {
     console.info("[Kim Shop] rows sent to renderer", {
@@ -265,6 +276,44 @@ function setPublicShopProducts(products) {
     });
   }
   return publicShopProducts;
+}
+
+async function loadPublicInventoryProductImages(products = []) {
+  if (!isShopPage || !supabaseClient || shopImagesLoaded || shopImagesLoading) return;
+  const ids = products
+    .map((product) => product.inventory_item_id || product.id)
+    .filter(Boolean);
+  if (!ids.length) return;
+
+  shopImagesLoading = true;
+  try {
+    let result = await supabaseClient
+      .from("inventory_items")
+      .select("id,image_url,image")
+      .in("id", ids);
+
+    if (result.error && /image_url/i.test(result.error.message || "")) {
+      result = await supabaseClient
+        .from("inventory_items")
+        .select("id,image")
+        .in("id", ids);
+    }
+
+    if (result.error) throw result.error;
+
+    const imageById = new Map((result.data || []).map((row) => [row.id, row.image_url || row.image || ""]));
+    publicShopProducts = publicShopProducts.map((product) => {
+      const image = imageById.get(product.inventory_item_id || product.id) || product.image || "";
+      return isImageUrl(image) ? { ...product, image, image_url: image } : product;
+    });
+    shopImagesLoaded = true;
+    renderProducts();
+  } catch (error) {
+    console.warn("Could not load public shop product images.", error);
+    shopImagesLoaded = true;
+  } finally {
+    shopImagesLoading = false;
+  }
 }
 
 function getCurrentShopProducts() {
@@ -379,15 +428,6 @@ function getDiscountedPrice(product) {
   return Math.max(0, base * (1 - discount / 100));
 }
 
-function fileToDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = () => reject(new Error("Failed to read image."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function loadProducts() {
   if (Array.isArray(legacyProductsInMemory)) return legacyProductsInMemory;
   return [...defaultProducts];
@@ -400,8 +440,8 @@ const saveProducts = (products) => {
 function getStorableImage(image) {
   if (!image) return "";
   const value = String(image);
-  if (value.startsWith("data:") && value.length > 2000) return "";
-  return value.length <= 2000 ? value : "";
+  if (value.startsWith("data:")) return "";
+  return /^https?:\/\//i.test(value) && value.length <= 2000 ? value : "";
 }
 
 function getMinimalCartItem(item) {
@@ -411,7 +451,7 @@ function getMinimalCartItem(item) {
     name: item.name || "Product",
     price: Number(item.price || 0),
     quantity: Math.max(1, Number(item.quantity || 1)),
-    image: getStorableImage(item.image)
+    image_url: getStorableImage(item.image_url || item.image)
   };
 }
 
@@ -1012,7 +1052,7 @@ function renderProducts() {
       return `
         <article class="product-card" data-id="${p.id}" data-name="${p.name}" data-price="${discounted}">
           <div class="product-image-wrap">
-            ${p.image ? `<img src="${p.image}" alt="${p.name}" class="product-image" />` : `<div class="product-image product-image-placeholder">No image</div>`}
+            ${p.image ? `<img src="${p.image}" alt="${p.name}" class="product-image" loading="lazy" decoding="async" />` : `<div class="product-image product-image-placeholder">No image</div>`}
           </div>
           <p class="owner-meta">${p.category || "Uncategorized"}</p>
           <h3>${p.name}</h3>
@@ -1033,6 +1073,7 @@ function renderProducts() {
   productListEl.innerHTML = cards
     ? `<div class="cards three-col">${cards}</div>`
     : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
+  loadPublicInventoryProductImages(publicProducts);
 }
 
 window.KimsRenderShopProducts = () => {
@@ -1265,13 +1306,7 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
   let imageData = "";
 
   if (selectedFile) {
-    if (!selectedFile.type.startsWith("image/")) return alert("Please select a valid image file.");
-    if (selectedFile.size > 2 * 1024 * 1024) return alert("Image is too large. Please use a file under 2MB.");
-    try {
-      imageData = await fileToDataUrl(selectedFile);
-    } catch {
-      return alert("Could not read image file.");
-    }
+    return alert("Please upload product images from Admin > Inventory > Add Product so they are stored in Supabase Storage.");
   }
 
   const newProduct = {

@@ -35,6 +35,10 @@
   const settingsFormEl = document.querySelector("[data-inventory-settings-form]");
   const hideOutOfStockEl = document.querySelector("[data-hide-out-of-stock]");
   const settingsMessageEl = document.querySelector("[data-inventory-settings-message]");
+  const PRODUCT_IMAGE_BUCKET = "product-images";
+  const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+  const PRODUCT_IMAGE_MAX_DIMENSION = 1000;
+  const PRODUCT_IMAGE_TARGET_QUALITY = 0.82;
 
   let inventoryItems = [];
   let productCategories = [];
@@ -123,6 +127,7 @@
   }
 
   function normalizeInventoryItem(item = {}) {
+    const imageUrl = item.image_url || item.image || "";
     const category = item.product_categories || getCategoryForItem(item);
     return {
       ...item,
@@ -138,7 +143,9 @@
       need_order_threshold: Number(item.need_order_threshold ?? item.reorder_threshold ?? 0),
       status: item.status || "out_of_stock",
       visible_in_shop: Boolean(item.visible_in_shop),
-      is_active: item.is_active !== false
+      is_active: item.is_active !== false,
+      image_url: imageUrl,
+      image: imageUrl
     };
   }
 
@@ -659,13 +666,113 @@
       .join("");
   }
 
-  function fileToDataUrl(file) {
+  function getSafeImageFileName(fileName = "product-image") {
+    const baseName = String(fileName)
+      .replace(/\.[^.]+$/, "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      || "product-image";
+    return `${baseName}.webp`;
+  }
+
+  function validateProductImage(file) {
+    if (!file) return "";
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(file.type)) return "Choose a JPG, PNG, or WebP product image.";
+    if (file.size > PRODUCT_IMAGE_MAX_BYTES) return "Image is too large. Please use a file under 2MB.";
+    return "";
+  }
+
+  function canvasToBlob(canvas, type, quality) {
     return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result);
-      reader.onerror = () => reject(new Error("Failed to read image."));
-      reader.readAsDataURL(file);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Could not compress product image."));
+      }, type, quality);
     });
+  }
+
+  function loadImageElement(file) {
+    return new Promise((resolve, reject) => {
+      const image = new Image();
+      const url = URL.createObjectURL(file);
+      image.onload = () => {
+        URL.revokeObjectURL(url);
+        resolve(image);
+      };
+      image.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("Could not read product image."));
+      };
+      image.src = url;
+    });
+  }
+
+  async function compressProductImage(file) {
+    const source = window.createImageBitmap
+      ? await createImageBitmap(file)
+      : await loadImageElement(file);
+    const sourceWidth = source.width || source.naturalWidth;
+    const sourceHeight = source.height || source.naturalHeight;
+    const scale = Math.min(1, PRODUCT_IMAGE_MAX_DIMENSION / Math.max(sourceWidth, sourceHeight));
+    const width = Math.max(1, Math.round(sourceWidth * scale));
+    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Could not prepare product image.");
+    context.drawImage(source, 0, 0, width, height);
+
+    const supportsWebp = canvas.toDataURL("image/webp").startsWith("data:image/webp");
+    const outputType = supportsWebp ? "image/webp" : "image/jpeg";
+    const extension = supportsWebp ? "webp" : "jpg";
+    const blob = await canvasToBlob(canvas, outputType, PRODUCT_IMAGE_TARGET_QUALITY);
+    source.close?.();
+    return { blob, contentType: outputType, extension };
+  }
+
+  async function uploadProductImage(file, inventoryItemId = "") {
+    const validationError = validateProductImage(file);
+    if (validationError) throw new Error(validationError);
+
+    setMessage(productMessageEl, "Optimising and uploading product image...", "neutral");
+    const { blob, contentType, extension } = await compressProductImage(file);
+    const folderId = inventoryItemId || `temp-${Date.now()}`;
+    const safeName = getSafeImageFileName(file.name).replace(/\.webp$/, `.${extension}`);
+    const storagePath = `inventory/${folderId}/${Date.now()}-${safeName}`;
+    const { error: uploadError } = await client.storage
+      .from(PRODUCT_IMAGE_BUCKET)
+      .upload(storagePath, blob, {
+        cacheControl: "31536000",
+        contentType,
+        upsert: true
+      });
+
+    if (uploadError) throw new Error(`Product image upload failed: ${uploadError.message}`);
+
+    const { data } = client.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(storagePath);
+    if (!data?.publicUrl) throw new Error("Product image uploaded, but no public URL was returned.");
+    return data.publicUrl;
+  }
+
+  async function updateInventoryImageUrl(inventoryItemId, imageUrl) {
+    if (!inventoryItemId || !imageUrl) return;
+    let result = await client
+      .from("inventory_items")
+      .update({ image_url: imageUrl, image: imageUrl })
+      .eq("id", inventoryItemId);
+
+    if (result.error && /image_url/i.test(result.error.message || "")) {
+      result = await client
+        .from("inventory_items")
+        .update({ image: imageUrl })
+        .eq("id", inventoryItemId);
+    }
+
+    if (result.error) throw new Error(`Product image URL could not be saved: ${result.error.message}`);
   }
 
   async function extractPdfText(file) {
@@ -746,7 +853,11 @@
     fields.need_order_threshold.value = Number(item?.need_order_threshold ?? 0);
     fields.visible_in_shop.checked = Boolean(item?.visible_in_shop);
     fields.is_active.checked = item?.is_active !== false;
-    setMessage(productMessageEl, "");
+    const existingImage = item?.image_url || item?.image || "";
+    const imageWarning = existingImage.startsWith("data:")
+      ? "Replace this image to optimise loading."
+      : "";
+    setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
   }
 
   function hideProductForm() {
@@ -890,17 +1001,19 @@
 
     const formData = new FormData(productFormEl);
     const imageFile = productFormEl.elements.image.files[0];
-    let image = null;
+    let imageUrl = null;
     if (imageFile) {
-      if (!imageFile.type.startsWith("image/")) {
-        setMessage(productMessageEl, "Choose a valid product image.", "error");
+      const validationError = validateProductImage(imageFile);
+      if (validationError) {
+        setMessage(productMessageEl, validationError, "error");
         return;
       }
-      if (imageFile.size > 2 * 1024 * 1024) {
-        setMessage(productMessageEl, "Image is too large. Please use a file under 2MB.", "error");
+      try {
+        imageUrl = await uploadProductImage(imageFile, formData.get("inventory_item_id"));
+      } catch (error) {
+        setMessage(productMessageEl, error.message, "error");
         return;
       }
-      image = await fileToDataUrl(imageFile);
     }
 
     const category = getCategoryById(formData.get("category"));
@@ -918,7 +1031,7 @@
       p_quantity_on_hand: Number(formData.get("quantity_on_hand") || 0),
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
       p_need_order_threshold: Number(formData.get("need_order_threshold") || 0),
-      p_image: image,
+      p_image: imageUrl,
       p_visible_in_shop: Boolean(formData.get("visible_in_shop")),
       p_is_active: Boolean(formData.get("is_active"))
     };
@@ -927,6 +1040,15 @@
     if (error) {
       setMessage(productMessageEl, error.message, "error");
       return;
+    }
+
+    if (imageUrl) {
+      try {
+        await updateInventoryImageUrl(savedItem?.id, imageUrl);
+      } catch (imageError) {
+        setMessage(productMessageEl, imageError.message, "error");
+        return;
+      }
     }
 
     const publicProductId = savedItem?.shop_product_id || "";
