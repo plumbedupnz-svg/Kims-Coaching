@@ -39,6 +39,7 @@
   const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
   const PRODUCT_IMAGE_MAX_DIMENSION = 1000;
   const PRODUCT_IMAGE_TARGET_QUALITY = 0.82;
+  const PRODUCT_IMAGE_TARGET_BYTES = 300 * 1024;
 
   let inventoryItems = [];
   let productCategories = [];
@@ -729,7 +730,12 @@
     const supportsWebp = canvas.toDataURL("image/webp").startsWith("data:image/webp");
     const outputType = supportsWebp ? "image/webp" : "image/jpeg";
     const extension = supportsWebp ? "webp" : "jpg";
-    const blob = await canvasToBlob(canvas, outputType, PRODUCT_IMAGE_TARGET_QUALITY);
+    let quality = PRODUCT_IMAGE_TARGET_QUALITY;
+    let blob = await canvasToBlob(canvas, outputType, quality);
+    while (blob.size > PRODUCT_IMAGE_TARGET_BYTES && quality > 0.58) {
+      quality = Math.max(0.58, quality - 0.08);
+      blob = await canvasToBlob(canvas, outputType, quality);
+    }
     source.close?.();
     return { blob, contentType: outputType, extension };
   }
@@ -740,6 +746,9 @@
 
     setMessage(productMessageEl, "Optimising and uploading product image...", "neutral");
     const { blob, contentType, extension } = await compressProductImage(file);
+    if (blob.size > PRODUCT_IMAGE_MAX_BYTES) {
+      throw new Error("Compressed image is still too large. Please choose a smaller product image.");
+    }
     const folderId = inventoryItemId || `temp-${Date.now()}`;
     const safeName = getSafeImageFileName(file.name).replace(/\.webp$/, `.${extension}`);
     const storagePath = `inventory/${folderId}/${Date.now()}-${safeName}`;
