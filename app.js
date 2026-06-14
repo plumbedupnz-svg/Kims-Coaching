@@ -157,6 +157,7 @@ function normalizeShopProduct(row) {
   const inventory = row.inventory_items || {};
   const category = row.product_categories?.name || inventory.product_categories?.name || row.category || inventory.category || "Uncategorized";
   const hasInventoryRow = Boolean(inventory.id);
+  const imageUrl = getStorableImage(row.image_url || inventory.image_url || row.image || inventory.image);
   return {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
@@ -166,7 +167,8 @@ function normalizeShopProduct(row) {
     category,
     category_id: row.category_id || inventory.category_id || row.product_categories?.id || inventory.product_categories?.id || "",
     description: row.description || inventory.description || "",
-    image: row.image_url || inventory.image_url || row.image || inventory.image || "",
+    image: imageUrl,
+    image_url: imageUrl,
     is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
     stock_status: inventory.status || row.stock_status || row.status || "out_of_stock",
@@ -186,7 +188,7 @@ function isFalsy(value) {
 function normalizeInventoryShopProduct(row) {
   const category = row.product_categories?.name || row.category || "Uncategorized";
   const inventoryId = row.inventory_item_id || row.id || "";
-  const imageUrl = row.image_url || "";
+  const imageUrl = getStorableImage(row.image_url || row.image);
   return {
     id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
     inventory_item_id: inventoryId,
@@ -1469,12 +1471,14 @@ if (ownerPromoFormEl) ownerPromoFormEl.addEventListener("submit", (event) => {
 
 if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const products = loadProducts();
   const selectedFile = ownerProductImageEl.files[0];
-  let imageData = "";
 
   if (selectedFile) {
     return alert("Please upload product images from Admin > Inventory > Add Product so they are stored in Supabase Storage.");
+  }
+
+  if (!supabaseClient || !isAdminProfile()) {
+    return alert("Please add products from Admin > Inventory > Add Product so they are saved to Supabase.");
   }
 
   const newProduct = {
@@ -1484,7 +1488,7 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     discount: Number(ownerProductDiscountEl.value || 0),
     category: getNormalizedCategoryName(ownerProductCategorySelectEl?.value || ""),
     description: ownerProductDescEl.value.trim(),
-    image: imageData
+    image: ""
   };
 
   if (
@@ -1499,16 +1503,14 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     return alert("Please enter valid name, category, price, and discount (0-100).");
   }
 
-  products.push(newProduct);
-  saveProducts(products);
   try {
     const savedProduct = await saveAdminProductToSupabase(newProduct);
     if (savedProduct) {
-      const nextProducts = loadProducts().filter((product) => product.id !== newProduct.id);
-      saveProducts([...nextProducts, savedProduct]);
+      saveProducts([...loadProducts().filter((product) => product.id !== savedProduct.id), savedProduct]);
     }
   } catch (error) {
-    alert(`Product saved locally, but Supabase save failed: ${error.message}`);
+    alert(`Product could not be saved to Supabase: ${error.message}`);
+    return;
   }
   ownerAddFormEl.reset();
   renderProducts();
