@@ -9,7 +9,7 @@ module.exports = async function handler(request, response) {
   }
 
   const url = new URL(`${SUPABASE_URL.replace(/\/$/, "")}/rest/v1/inventory_items`);
-  url.searchParams.set("select", "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at");
+  url.searchParams.set("select", "id,product_name,category,category_id,description,image_url,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at");
   url.searchParams.set("visible_in_shop", "eq.true");
   url.searchParams.set("is_active", "eq.true");
   url.searchParams.set("archived_at", "is.null");

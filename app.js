@@ -98,7 +98,7 @@ let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
-const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
+const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,image_url,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -279,6 +279,17 @@ async function loadPublicInventoryProducts() {
     console.log("RAW ROWS", result.data || []);
     console.log("FIRST SHOP ROW", result.data?.[0] || null);
     console.log("AFTER PUBLIC FILTER", products);
+    console.log("[Kim Shop] first product image mapping", {
+      rawImageUrl: result.data?.[0]?.image_url || "",
+      normalizedImage: products[0]?.image || "",
+      normalizedImageUrl: products[0]?.image_url || ""
+    });
+    const firstProductWithImage = products.find((product) => isImageUrl(product.image_url || product.image));
+    console.log("[Kim Shop] first product with image mapping", {
+      productName: firstProductWithImage?.name || "",
+      normalizedImage: firstProductWithImage?.image || "",
+      normalizedImageUrl: firstProductWithImage?.image_url || ""
+    });
     console.log("[Kim Shop] selectedCategory after query", selectedCategory);
     console.info("[Kim Shop] inventory rows loaded", {
       rowsLoaded: result.data.length,
@@ -1241,10 +1252,25 @@ function renderProducts() {
       const stockText = getProductStockText(p);
       const imageLoading = index < 4 ? "eager" : "lazy";
       const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
+      const imageSrc = getStorableImage(p.image_url || p.image);
+      if (showShopDebug && index === 0) {
+        console.log("[Kim Shop] first rendered image src", {
+          productName: p.name,
+          rawImage: p.image || "",
+          rawImageUrl: p.image_url || "",
+          renderedImgSrc: imageSrc || ""
+        });
+      }
+      if (showShopDebug && imageSrc) {
+        console.log("[Kim Shop] rendered product image src", {
+          productName: p.name,
+          renderedImgSrc: imageSrc
+        });
+      }
       return `
         <article class="product-card" data-id="${p.id}" data-name="${p.name}" data-price="${discounted}">
           <div class="product-image-wrap">
-            ${isImageUrl(p.image) ? `<img src="${p.image}" alt="${p.name}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
+            ${isImageUrl(imageSrc) ? `<img src="${imageSrc}" alt="${p.name}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
           </div>
           <p class="owner-meta">${p.category || "Uncategorized"}</p>
           <h3>${p.name}</h3>
