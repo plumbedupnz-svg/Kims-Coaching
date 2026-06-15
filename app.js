@@ -72,7 +72,8 @@ const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 const isAdminPage = Boolean(document.body?.classList.contains("admin-page") || document.getElementById("owner-panel"));
 const isShopPage = Boolean(productListEl);
-let selectedCategory = "all";
+const SHOP_ALL_CATEGORY = "all";
+let selectedCategory = SHOP_ALL_CATEGORY;
 const urlParams = new URLSearchParams(window.location.search);
 const showShopDebug = urlParams.get("debug") === "shop";
 const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -214,6 +215,33 @@ function isImageUrl(value = "") {
   return /^https?:\/\//i.test(text);
 }
 
+function normalizeSelectedCategory(value = SHOP_ALL_CATEGORY) {
+  const normalized = String(value || "").trim();
+  if (!normalized || normalized.toLowerCase() === SHOP_ALL_CATEGORY || normalized.toLowerCase() === "all categories") {
+    return SHOP_ALL_CATEGORY;
+  }
+  return normalized;
+}
+
+function getSelectedShopCategory() {
+  return normalizeSelectedCategory(categoryFilterEl?.value || selectedCategory || SHOP_ALL_CATEGORY);
+}
+
+function setSelectedShopCategory(value = SHOP_ALL_CATEGORY) {
+  selectedCategory = normalizeSelectedCategory(value);
+  if (categoryFilterEl) categoryFilterEl.value = selectedCategory;
+  return selectedCategory;
+}
+
+function logShopFilterState(stage, details = {}) {
+  if (!showShopDebug || !isShopPage) return;
+  console.log(`[Kim Shop] ${stage}`, {
+    selectedCategory,
+    dropdownValue: categoryFilterEl?.value || "",
+    ...details
+  });
+}
+
 async function loadPublicInventoryProducts() {
   const filters = "visible_in_shop=true,is_active=true,archived_at=null";
   const queryStart = performance.now();
@@ -251,6 +279,7 @@ async function loadPublicInventoryProducts() {
     console.log("RAW ROWS", result.data || []);
     console.log("FIRST SHOP ROW", result.data?.[0] || null);
     console.log("AFTER PUBLIC FILTER", products);
+    console.log("[Kim Shop] selectedCategory after query", selectedCategory);
     console.info("[Kim Shop] inventory rows loaded", {
       rowsLoaded: result.data.length,
       rowsAfterHideOutOfStockFilter: products.length,
@@ -1107,10 +1136,12 @@ function renderOwnerCategorySelect(products) {
 function renderCategoryFilter(products) {
   if (!categoryFilterEl) return;
   const categories = getCategoryList(products);
+  const requestedCategory = normalizeSelectedCategory(selectedCategory);
   const options = ["<option value=\"all\">All categories</option>", ...categories.map((cat)=>`<option value=\"${cat}\">${cat}</option>`)].join("");
   categoryFilterEl.innerHTML = options;
-  categoryFilterEl.value = categories.includes(selectedCategory) || selectedCategory === "all" ? selectedCategory : "all";
-  selectedCategory = categoryFilterEl.value || "all";
+  const matchingCategory = categories.find((cat) => cat.toLowerCase() === requestedCategory.toLowerCase());
+  categoryFilterEl.value = requestedCategory === SHOP_ALL_CATEGORY ? SHOP_ALL_CATEGORY : matchingCategory || SHOP_ALL_CATEGORY;
+  selectedCategory = normalizeSelectedCategory(categoryFilterEl.value);
 }
 
 async function refreshShopCategoriesBeforeRender() {
@@ -1125,12 +1156,12 @@ async function refreshShopCategoriesBeforeRender() {
       );
       return;
     }
-    selectedCategory = "all";
+    setSelectedShopCategory(SHOP_ALL_CATEGORY);
     await withShopLoadTimeout(
       window.KimsProductCategories.refresh("all"),
       "Product categories refresh timed out."
     );
-    if (categoryFilterEl) categoryFilterEl.value = "all";
+    setSelectedShopCategory(SHOP_ALL_CATEGORY);
   } catch (error) {
     console.warn("Could not refresh shop categories before render.", error);
     appendShopLoadError(error);
@@ -1145,6 +1176,7 @@ function renderProducts() {
     return;
   }
 
+  selectedCategory = getSelectedShopCategory();
   const products = getCurrentShopProducts().map(normalizeInventoryShopProduct);
   renderOwnerCategorySelect(products);
   const publicProducts = products.filter((product) => {
@@ -1152,16 +1184,34 @@ function renderProducts() {
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
     return product.visible_in_shop === true && product.is_active !== false && !product.archived_at;
   });
+  logShopFilterState("products before filtering", {
+    productsBeforeFiltering: products.length,
+    products: products.slice(0, 5).map((product) => ({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      category_id: product.category_id,
+      visible_in_shop: product.visible_in_shop,
+      is_active: product.is_active,
+      archived_at: product.archived_at
+    }))
+  });
   shopLoadDebug.rowsSentToRenderer = products.length;
   shopLoadDebug.rowsAfterVisibilityFilter = publicProducts.length;
+  logShopFilterState("products after public filter", {
+    productsAfterPublicFilter: publicProducts.length
+  });
   renderCategoryFilter(publicProducts);
   if (!productListEl) return;
 
-  const filteredProducts = selectedCategory === "all"
+  const filteredProducts = selectedCategory === SHOP_ALL_CATEGORY
     ? publicProducts
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
   shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
   if (showShopDebug) console.log("AFTER CATEGORY FILTER", filteredProducts);
+  logShopFilterState("products after category filter", {
+    productsAfterCategoryFilter: filteredProducts.length
+  });
   if (isShopPage && !initialShopRenderComplete) {
     if (showShopDebug) console.log("[Kim Shop] first render", {
       categoriesLoaded: window.KimsProductCategories?.getAll?.().length || 0,
@@ -1219,7 +1269,7 @@ function renderProducts() {
 
 window.KimsRenderShopProducts = () => {
   if (!isShopPage) return;
-  selectedCategory = categoryFilterEl?.value || "all";
+  selectedCategory = getSelectedShopCategory();
   renderProducts();
 };
 
@@ -1228,8 +1278,7 @@ async function renderInitialShopProducts() {
 
   try {
     const initialStart = performance.now();
-    selectedCategory = "all";
-    if (categoryFilterEl) categoryFilterEl.value = "all";
+    setSelectedShopCategory(SHOP_ALL_CATEGORY);
     await syncShopProductsFromSupabase();
     shopLoadDebug.timings = {
       ...shopLoadDebug.timings,
@@ -1237,7 +1286,7 @@ async function renderInitialShopProducts() {
     };
     renderProducts();
     refreshShopCategoriesBeforeRender().then(() => {
-      selectedCategory = categoryFilterEl?.value || "all";
+      selectedCategory = getSelectedShopCategory();
       renderProducts();
     });
   } catch (error) {
@@ -1246,8 +1295,10 @@ async function renderInitialShopProducts() {
     setPublicShopProducts([]);
     renderProducts();
   } finally {
-    selectedCategory = "all";
-    if (categoryFilterEl) categoryFilterEl.value = "all";
+    if (isShopPage && Array.isArray(publicShopProducts)) {
+      setSelectedShopCategory(SHOP_ALL_CATEGORY);
+      renderProducts();
+    }
   }
 }
 
@@ -1407,12 +1458,12 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
 
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
 if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
-  selectedCategory = categoryFilterEl.value || "all";
+  selectedCategory = getSelectedShopCategory();
   renderProducts();
 });
 window.addEventListener("kims:categories-ready", () => {
   if (!isShopPage) return;
-  selectedCategory = categoryFilterEl?.value || "all";
+  selectedCategory = getSelectedShopCategory();
   renderProducts();
 });
 if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
