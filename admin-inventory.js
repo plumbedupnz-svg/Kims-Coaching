@@ -40,6 +40,7 @@
   const PRODUCT_IMAGE_MAX_DIMENSION = 1000;
   const PRODUCT_IMAGE_TARGET_QUALITY = 0.82;
   const PRODUCT_IMAGE_TARGET_BYTES = 300 * 1024;
+  const DELETE_BLOCKED_MESSAGE = "This item has stock history and cannot be permanently deleted. Use Archive instead.";
 
   let inventoryItems = [];
   let productCategories = [];
@@ -1362,8 +1363,25 @@
 
     if (action === "delete") {
       if (confirm(`Permanently delete ${item.product_name}? This is only allowed when there are no stock movements or orders.`)) {
-        const { error } = await client.rpc("delete_inventory_item_if_safe", { p_inventory_item_id: item.id });
-        if (error) alert(error.message);
+        const { data, error } = await client.rpc("delete_inventory_item_if_safe", { p_inventory_item_id: item.id });
+        if (error) {
+          const message = /stock history|stock movements|orders|cannot be permanently deleted/i.test(error.message || "")
+            ? DELETE_BLOCKED_MESSAGE
+            : error.message;
+          alert(message);
+          setMessage(inventoryListMessageEl, message, "error");
+          await loadInventory();
+          button.disabled = false;
+          return;
+        }
+        if (data === false) {
+          alert(DELETE_BLOCKED_MESSAGE);
+          setMessage(inventoryListMessageEl, DELETE_BLOCKED_MESSAGE, "error");
+          await loadInventory();
+          button.disabled = false;
+          return;
+        }
+        setMessage(inventoryListMessageEl, `${item.product_name} was permanently deleted.`, "success");
         await loadInventory();
       }
     }
