@@ -343,7 +343,9 @@
                 <div class="admin-list-panel"><h3>Settings</h3><p class="helper-text">Manage shop and admin settings from here.</p></div>
                 <form id="email-settings-form" class="owner-add-form" data-email-settings-form>
                   <h3>Email Settings</h3>
-                  <p class="helper-text">Email provider secrets must be set in Vercel environment variables. Do not paste passwords or API keys here.</p>
+                  <div class="settings-help-box">
+                    You can update the public sender name, from email, and reply-to email here. SMTP passwords, API keys, host, port, and provider secrets are managed securely in Vercel Environment Variables.
+                  </div>
                   <label for="email-provider">Provider</label>
                   <select id="email-provider" name="provider">
                     <option value="disabled">Disabled/Test Mode</option>
@@ -352,12 +354,19 @@
                     <option value="sendgrid">SendGrid placeholder</option>
                     <option value="mailgun">Mailgun placeholder</option>
                   </select>
-                  <input name="from_name" type="text" placeholder="From name" value="Kim Jones Coaching" />
-                  <input name="from_email" type="email" placeholder="From email" value="kimjonescoaching@outlook.com" />
-                  <input name="reply_to_email" type="email" placeholder="Reply-to email" value="kimjonescoaching@outlook.com" />
-                  <label class="availability-repeat"><span>Provider enabled</span><input name="enabled" type="checkbox" /></label>
+                  <label for="email-from-name">From name</label>
+                  <input id="email-from-name" name="from_name" type="text" placeholder="Kim Jones Coaching" value="Kim Jones Coaching" />
+                  <label for="email-from-email">From email address</label>
+                  <input id="email-from-email" name="from_email" type="email" placeholder="kimjonescoaching@outlook.com" value="kimjonescoaching@outlook.com" />
+                  <label for="email-reply-to">Reply-to email address</label>
+                  <input id="email-reply-to" name="reply_to_email" type="email" placeholder="kimjonescoaching@outlook.com" value="kimjonescoaching@outlook.com" />
+                  <label for="email-provider-enabled">Provider enabled</label>
+                  <label class="availability-repeat"><span>Enabled</span><input id="email-provider-enabled" name="enabled" type="checkbox" /></label>
                   <button type="submit" class="btn btn-primary">Save Email Settings</button>
-                  <p class="helper-text">Set real secrets in Vercel: EMAIL_PROVIDER, SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, EMAIL_REPLY_TO, RESEND_API_KEY.</p>
+                  <details class="advanced-settings-notes">
+                    <summary>Advanced setup notes</summary>
+                    <p class="helper-text">Set real secrets in Vercel: EMAIL_PROVIDER, SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, EMAIL_FROM_NAME, EMAIL_FROM_ADDRESS, EMAIL_REPLY_TO, RESEND_API_KEY.</p>
+                  </details>
                   <p class="form-message" data-email-settings-message></p>
                   <div class="admin-list-panel" data-email-diagnostics>
                     <h3>Email Diagnostics</h3>
@@ -365,7 +374,10 @@
                     <div class="admin-data-list" data-email-diagnostics-list>
                       <p class="helper-text">Loading email diagnostics...</p>
                     </div>
-                    <button type="button" class="btn btn-secondary" data-email-test-smtp>Test SMTP Connection</button>
+                    <div class="admin-action-row">
+                      <button type="button" class="btn btn-secondary" data-email-refresh-diagnostics>Refresh diagnostics</button>
+                      <button type="button" class="btn btn-secondary" data-email-test-smtp>Test SMTP Connection</button>
+                    </div>
                     <p class="form-message" data-email-diagnostics-message></p>
                   </div>
                 </form>

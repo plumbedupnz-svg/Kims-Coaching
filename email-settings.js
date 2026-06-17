@@ -4,6 +4,7 @@
   const diagnosticsListEl = document.querySelector("[data-email-diagnostics-list]");
   const diagnosticsMessageEl = document.querySelector("[data-email-diagnostics-message]");
   const smtpTestButton = document.querySelector("[data-email-test-smtp]");
+  const refreshDiagnosticsButton = document.querySelector("[data-email-refresh-diagnostics]");
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
     ? window.supabase.createClient(settings.url, settings.anonKey)
@@ -67,8 +68,13 @@
 
   async function loadDiagnostics() {
     if (!diagnosticsListEl) return;
-    if (!(await ensureAdminSession())) return;
+    if (!(await ensureAdminSession())) {
+      diagnosticsListEl.innerHTML = '<p class="helper-text">Diagnostics could not confirm your admin session.</p>';
+      setDiagnosticsMessage("Diagnostics could not confirm your admin session. Sign out and back in, then try again.", "error");
+      return;
+    }
     try {
+      setDiagnosticsMessage("Refreshing diagnostics...", "neutral");
       const response = await fetch("/api/send-email", {
         headers: await getAdminAuthHeaders()
       });
@@ -78,17 +84,19 @@
       setDiagnosticsMessage("", "neutral");
     } catch (error) {
       diagnosticsListEl.innerHTML = '<p class="helper-text">Could not load email diagnostics.</p>';
-      setDiagnosticsMessage(error?.message || "Could not load email diagnostics.", "error");
+      const message = normalizeDiagnosticsError(error?.message || "Could not load email diagnostics.");
+      setDiagnosticsMessage(message, "error");
     }
   }
 
   async function testSmtpConnection() {
     if (!smtpTestButton) return;
     if (!(await ensureAdminSession())) {
-      setDiagnosticsMessage("Only admin users can test SMTP settings.", "error");
+      setDiagnosticsMessage("Diagnostics could not confirm your admin session. Sign out and back in, then try again.", "error");
       return;
     }
     smtpTestButton.disabled = true;
+    if (refreshDiagnosticsButton) refreshDiagnosticsButton.disabled = true;
     setDiagnosticsMessage("Testing SMTP connection...", "neutral");
     try {
       const response = await fetch("/api/send-email", {
@@ -105,13 +113,21 @@
       } else if (test.status === "skipped") {
         setDiagnosticsMessage(test.error || "SMTP test skipped.", "neutral");
       } else {
-        setDiagnosticsMessage(test.error || "SMTP connection test failed.", "error");
+        setDiagnosticsMessage(normalizeDiagnosticsError(test.error || "SMTP connection test failed."), "error");
       }
     } catch (error) {
-      setDiagnosticsMessage(error?.message || "SMTP connection test failed.", "error");
+      setDiagnosticsMessage(normalizeDiagnosticsError(error?.message || "SMTP connection test failed."), "error");
     } finally {
       smtpTestButton.disabled = false;
+      if (refreshDiagnosticsButton) refreshDiagnosticsButton.disabled = false;
     }
+  }
+
+  function normalizeDiagnosticsError(message = "") {
+    if (/authenticated admin session|verify admin diagnostics|diagnostics access|admin users only/i.test(message)) {
+      return "Diagnostics could not confirm your admin session. Sign out and back in, then try again.";
+    }
+    return message;
   }
 
   function applySettings(data = {}) {
@@ -125,10 +141,12 @@
 
   async function ensureAdminSession() {
     if (!client) return false;
-    const { data: sessionData } = await client.auth.getSession();
+    const { data: sessionData, error: sessionError } = await client.auth.getSession();
+    if (sessionError) return false;
     const user = sessionData?.session?.user;
     if (!user) return false;
-    const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
+    const { data: profile, error: profileError } = await client.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (profileError) return false;
     return profile?.role === "admin";
   }
 
@@ -145,7 +163,11 @@
       setMessage("Supabase is not configured. Email settings cannot be saved yet.", "error");
       return;
     }
-    if (!(await ensureAdminSession())) return;
+    if (!(await ensureAdminSession())) {
+      setMessage("Only admin users can load email settings. Sign out and back in, then try again.", "error");
+      await loadDiagnostics();
+      return;
+    }
 
     const { data, error } = await client
       .from("email_settings")
@@ -203,5 +225,6 @@
 
   formEl?.addEventListener("submit", saveSettings);
   smtpTestButton?.addEventListener("click", testSmtpConnection);
+  refreshDiagnosticsButton?.addEventListener("click", loadDiagnostics);
   loadSettings();
 })();
