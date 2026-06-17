@@ -99,8 +99,12 @@
               <div class="admin-panel-grid">
                 <form id="owner-add-form" class="owner-add-form">
                   <h3>Add Product</h3>
+                  <p class="helper-text">Products are items or services customers can buy. Link to inventory only when stock is physically held.</p>
+                  <label for="owner-product-name">Product name</label>
                   <input id="owner-product-name" type="text" placeholder="Product name" required />
+                  <label for="owner-product-price">Sell price</label>
                   <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
+                  <label for="owner-product-discount">Discount %</label>
                   <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
                   <label for="owner-product-category">Category</label>
                   <select id="owner-product-category" required><option value="">Select category</option></select>
@@ -108,7 +112,24 @@
                     <input id="owner-new-category" type="text" placeholder="Add new category" />
                     <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
                   </div>
+                  <label for="owner-product-desc">Short description</label>
                   <input id="owner-product-desc" type="text" placeholder="Short description" />
+                  <label for="owner-product-fulfilment">Product fulfilment type</label>
+                  <select id="owner-product-fulfilment" data-product-fulfilment-type>
+                    <option value="order_to_sale">Order-to-sale / no inventory tracking</option>
+                    <option value="stock">Held in stock / track inventory</option>
+                  </select>
+                  <div class="product-stock-options" data-product-stock-options hidden>
+                    <label for="owner-product-inventory-link">Link existing inventory item</label>
+                    <select id="owner-product-inventory-link" data-product-inventory-link>
+                      <option value="">Select inventory item</option>
+                    </select>
+                    <label class="availability-repeat">
+                      <span>Create inventory item from this product</span>
+                      <input id="owner-create-inventory" type="checkbox" data-product-create-inventory />
+                    </label>
+                    <p class="helper-text" data-product-stock-summary>Choose an existing stock item or create one from this product.</p>
+                  </div>
                   <label for="owner-product-image">Product image</label>
                   <input id="owner-product-image" type="file" accept="image/*" />
                   <button type="submit" class="btn btn-primary">Add Product</button>
@@ -121,6 +142,7 @@
               <div class="admin-section-head">
                 <div>
                   <h2>Inventory</h2>
+                  <p class="helper-text">Stock we physically hold.</p>
                 </div>
               </div>
 

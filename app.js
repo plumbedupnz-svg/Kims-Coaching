@@ -33,6 +33,11 @@ const ownerProductCategoryEl = document.getElementById("owner-product-category")
 const ownerProductDescEl = document.getElementById("owner-product-desc");
 const ownerProductImageEl = document.getElementById("owner-product-image");
 const ownerProductsListEl = document.getElementById("owner-products-list");
+const ownerProductFulfilmentEl = document.getElementById("owner-product-fulfilment");
+const ownerProductStockOptionsEl = document.querySelector("[data-product-stock-options]");
+const ownerProductInventoryLinkEl = document.querySelector("[data-product-inventory-link]");
+const ownerCreateInventoryEl = document.querySelector("[data-product-create-inventory]");
+const ownerProductStockSummaryEl = document.querySelector("[data-product-stock-summary]");
 const categoryFilterEl = document.getElementById("category-filter");
 const ownerProductCategorySelectEl = document.getElementById("owner-product-category");
 const ownerNewCategoryEl = document.getElementById("owner-new-category");
@@ -96,10 +101,14 @@ let shopLoadDebug = {
 let publicShopProducts = null;
 let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
+let adminInventoryLinkItems = [];
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
+const PUBLIC_PRODUCTS_SELECT = "id,inventory_item_id,category,category_id,name,description,price,discount,image,image_url,is_active,visible_in_shop,quantity_on_hand,stock_status,archived_at,fulfilment_type";
+const ADMIN_PRODUCTS_SELECT = "id,inventory_item_id,category,category_id,name,description,price,discount,image,image_url,is_active,visible_in_shop,quantity_on_hand,stock_status,archived_at,fulfilment_type";
+const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
 
@@ -159,6 +168,7 @@ function normalizeShopProduct(row) {
   const category = row.product_categories?.name || inventory.product_categories?.name || row.category || inventory.category || "Uncategorized";
   const hasInventoryRow = Boolean(inventory.id);
   const imageUrl = getStorableImage(row.image_url || inventory.image_url || row.image || inventory.image);
+  const fulfilmentType = row.fulfilment_type || (row.inventory_item_id || hasInventoryRow ? "stock" : "order_to_sale");
   return {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
@@ -173,8 +183,10 @@ function normalizeShopProduct(row) {
     is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
     stock_status: inventory.status || row.stock_status || row.status || "out_of_stock",
+    fulfilment_type: fulfilmentType,
     visible_in_shop: hasInventoryRow ? inventory.visible_in_shop !== false : row.visible_in_shop !== false,
-    archived_at: inventory.archived_at || row.archived_at || null
+    archived_at: inventory.archived_at || row.archived_at || null,
+    source_row: row.source_row || "products"
   };
 }
 
@@ -188,6 +200,9 @@ function isFalsy(value) {
 
 function normalizeInventoryShopProduct(row) {
   const category = row.product_categories?.name || row.category || "Uncategorized";
+  if (row.source_row === "products" || row.name) {
+    return normalizeShopProduct(row);
+  }
   const inventoryId = row.inventory_item_id || row.id || "";
   const imageUrl = getStorableImage(row.image_url || row.image);
   return {
@@ -204,6 +219,7 @@ function normalizeInventoryShopProduct(row) {
     is_active: !isFalsy(row.is_active),
     quantity_on_hand: Number(row.quantity_on_hand ?? 0),
     stock_status: row.status || row.stock_status || "out_of_stock",
+    fulfilment_type: "stock",
     visible_in_shop: isTruthy(row.visible_in_shop),
     archived_at: row.archived_at || null,
     source_row: "inventory_items"
@@ -243,7 +259,7 @@ function logShopFilterState(stage, details = {}) {
 }
 
 async function loadPublicInventoryProducts() {
-  const filters = "visible_in_shop=true,is_active=true,archived_at=null";
+  const filters = "inventory_items: visible_in_shop=true,is_active=true,archived_at=null; products: visible_in_shop=true,is_active=true,archived_at=null";
   const queryStart = performance.now();
   const result = await fetchPublicInventoryProductsRest();
 
@@ -298,36 +314,66 @@ async function fetchPublicInventoryProductsRest() {
     return { data: [], error: new Error("Supabase public shop config is missing.") };
   }
 
-  const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), SHOP_LOAD_TIMEOUT_MS);
-  const url = new URL(`${supabaseSettings.url.replace(/\/$/, "")}/rest/v1/inventory_items`);
-  url.searchParams.set("select", PUBLIC_SHOP_SELECT);
-  url.searchParams.set("visible_in_shop", "eq.true");
-  url.searchParams.set("is_active", "eq.true");
-  url.searchParams.set("archived_at", "is.null");
-  url.searchParams.set("order", "product_name.asc");
+  const fetchRestRows = async (table, select, params = {}) => {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), SHOP_LOAD_TIMEOUT_MS);
+    const url = new URL(`${supabaseSettings.url.replace(/\/$/, "")}/rest/v1/${table}`);
+    url.searchParams.set("select", select);
+    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
 
-  try {
-    const response = await fetch(url, {
-      headers: {
-        apikey: supabaseSettings.anonKey,
-        Authorization: `Bearer ${supabaseSettings.anonKey}`
-      },
-      signal: controller.signal
-    });
+    try {
+      const response = await fetch(url, {
+        headers: {
+          apikey: supabaseSettings.anonKey,
+          Authorization: `Bearer ${supabaseSettings.anonKey}`
+        },
+        signal: controller.signal
+      });
 
-    if (!response.ok) {
-      const message = await response.text();
-      return { data: [], error: new Error(message || `Shop products request failed with ${response.status}.`) };
+      if (!response.ok) {
+        const message = await response.text();
+        return { data: [], error: new Error(message || `${table} request failed with ${response.status}.`) };
+      }
+
+      const data = await response.json();
+      return { data: Array.isArray(data) ? data : [], error: null };
+    } catch (error) {
+      return { data: [], error };
+    } finally {
+      window.clearTimeout(timeoutId);
     }
+  };
 
-    const data = await response.json();
-    return { data: Array.isArray(data) ? data : [], error: null };
-  } catch (error) {
-    return { data: [], error };
-  } finally {
-    window.clearTimeout(timeoutId);
+  const [inventoryResult, productResult] = await Promise.all([
+    fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, {
+      visible_in_shop: "eq.true",
+      is_active: "eq.true",
+      archived_at: "is.null",
+      order: "product_name.asc"
+    }),
+    fetchRestRows("products", PUBLIC_PRODUCTS_SELECT, {
+      visible_in_shop: "eq.true",
+      is_active: "eq.true",
+      archived_at: "is.null",
+      order: "name.asc"
+    })
+  ]);
+
+  const productSchemaMissing = productResult.error && /inventory_item_id|fulfilment_type|image_url|does not exist|PGRST|42703/i.test(productResult.error.message || "");
+  if (productSchemaMissing) {
+    console.warn("Products fulfilment columns are not available yet. Run the product fulfilment migration to enable order-to-sale products.", productResult.error);
   }
+  const errors = [inventoryResult.error, productSchemaMissing ? null : productResult.error].filter(Boolean);
+  const productRows = productSchemaMissing ? [] : (productResult.data || []);
+  const productInventoryIds = new Set(productRows.map((row) => String(row.inventory_item_id || "")).filter(Boolean));
+  const inventoryRows = (inventoryResult.data || []).filter((row) => !productInventoryIds.has(String(row.id)));
+  return {
+    data: [
+      ...productRows.map((row) => ({ ...row, source_row: "products" })),
+      ...inventoryRows.map((row) => ({ ...row, source_row: "inventory_items" }))
+    ],
+    error: errors[0] || null
+  };
 }
 
 async function fetchPublicInventoryProductsApiCache() {
@@ -401,7 +447,7 @@ async function hydratePublicShopProductImages() {
 
   const imageStart = performance.now();
   const inventoryIds = publicShopProducts
-    .map((product) => product.inventory_item_id || product.id)
+    .map((product) => product.inventory_item_id)
     .filter(Boolean);
 
   const result = await fetchPublicInventoryImageUrlsRest(inventoryIds);
@@ -429,7 +475,7 @@ async function hydratePublicShopProductImages() {
 
   let changed = false;
   publicShopProducts = publicShopProducts.map((product) => {
-    const imageUrl = imageById.get(String(product.inventory_item_id || product.id));
+    const imageUrl = imageById.get(String(product.inventory_item_id));
     if (!imageUrl || product.image === imageUrl) return product;
     changed = true;
     return { ...product, image: imageUrl, image_url: imageUrl };
@@ -555,38 +601,162 @@ async function refreshShopInventorySettings() {
 async function saveAdminProductToSupabase(product) {
   if (!supabaseClient || !isAdminProfile()) return null;
   const category = await window.KimsProductCategories?.save(product.category);
-  const { data: inventoryItem, error } = await supabaseClient.rpc("admin_save_inventory_item", {
-    p_inventory_item_id: null,
-    p_product_name: product.name,
-    p_sku: null,
-    p_supplier: "Manual",
-    p_category_id: category?.id || null,
-    p_category: category?.name || product.category,
-    p_description: product.description,
-    p_cost_price: 0,
-    p_sell_price: product.price,
-    p_quantity_on_hand: 0,
-    p_low_stock_threshold: 2,
-    p_need_order_threshold: 0,
-    p_image: product.image,
-    p_visible_in_shop: true,
-    p_is_active: true
-  });
+  let inventoryItem = null;
 
-  if (error) throw error;
-  return normalizeShopProduct({
-    id: inventoryItem.shop_product_id,
-    inventory_item_id: inventoryItem.id,
-    name: inventoryItem.product_name,
-    price: inventoryItem.sell_price,
+  if (product.fulfilment_type === "stock") {
+    if (product.inventory_item_id) {
+      const { data, error } = await supabaseClient
+        .from("inventory_items")
+        .update({
+          visible_in_shop: true,
+          is_active: true,
+          ...(product.image_url ? { image_url: product.image_url } : {})
+        })
+        .eq("id", product.inventory_item_id)
+        .select("*")
+        .single();
+      if (error) throw error;
+      inventoryItem = data;
+    } else if (product.create_inventory) {
+      const { data, error } = await supabaseClient.rpc("admin_save_inventory_item", {
+        p_inventory_item_id: null,
+        p_product_name: product.name,
+        p_sku: null,
+        p_supplier: "Manual",
+        p_category_id: category?.id || null,
+        p_category: category?.name || product.category,
+        p_description: product.description,
+        p_cost_price: 0,
+        p_sell_price: product.price,
+        p_quantity_on_hand: 0,
+        p_low_stock_threshold: 2,
+        p_need_order_threshold: 0,
+        p_image: product.image_url || product.image || null,
+        p_visible_in_shop: true,
+        p_is_active: true
+      });
+      if (error) throw error;
+      inventoryItem = data;
+    } else {
+      throw new Error("Choose an existing inventory item or tick Create inventory item from this product.");
+    }
+  }
+
+  const payload = {
+    id: product.id,
+    inventory_item_id: inventoryItem?.id || null,
+    category_id: category?.id || null,
+    name: product.name,
+    category: category?.name || product.category,
+    description: product.description || null,
+    price: product.price,
     discount: product.discount,
-    category_id: inventoryItem.category_id,
-    product_categories: category || { id: inventoryItem.category_id, name: product.category },
-    description: inventoryItem.description,
-    image: inventoryItem.image,
-    is_active: inventoryItem.is_active,
-    inventory_items: inventoryItem
-  });
+    image: product.image_url || product.image || null,
+    image_url: product.image_url || product.image || null,
+    is_active: true,
+    visible_in_shop: true,
+    quantity_on_hand: product.fulfilment_type === "stock" ? Number(inventoryItem?.quantity_on_hand || 0) : 0,
+    stock_status: product.fulfilment_type === "stock" ? (inventoryItem?.status || "out_of_stock") : "order_to_sale",
+    fulfilment_type: product.fulfilment_type
+  };
+
+  const { data: savedProduct, error } = await supabaseClient
+    .from("products")
+    .upsert(payload, { onConflict: "id" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
+}
+
+async function uploadOwnerProductImage(file, productId) {
+  if (!file) return "";
+  if (!supabaseClient) throw new Error("Supabase is not configured for image uploads.");
+  if (!/^image\/(jpe?g|png|webp)$/i.test(file.type)) {
+    throw new Error("Product image must be JPG, PNG, or WebP.");
+  }
+  if (file.size > 2 * 1024 * 1024) {
+    throw new Error("Product image must be smaller than 2MB.");
+  }
+
+  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const safeName = slugify(file.name.replace(/\.[^.]+$/, "") || "product-image");
+  const storagePath = `products/${productId}/${Date.now()}-${safeName}.${extension}`;
+  const { error } = await supabaseClient.storage
+    .from("product-images")
+    .upload(storagePath, file, {
+      cacheControl: "31536000",
+      upsert: true,
+      contentType: file.type
+    });
+  if (error) throw error;
+  const { data } = supabaseClient.storage.from("product-images").getPublicUrl(storagePath);
+  return data?.publicUrl || "";
+}
+
+async function loadAdminInventoryLinkItems() {
+  if (!supabaseClient || !isAdminProfile()) return [];
+  const { data, error } = await supabaseClient
+    .from("inventory_items")
+    .select(ADMIN_INVENTORY_LINK_SELECT)
+    .is("archived_at", null)
+    .neq("is_active", false)
+    .order("product_name", { ascending: true });
+  if (error) {
+    console.warn("Could not load inventory link options.", error);
+    return [];
+  }
+  adminInventoryLinkItems = Array.isArray(data) ? data : [];
+  renderOwnerInventoryLinkOptions();
+  return adminInventoryLinkItems;
+}
+
+async function refreshOwnerProductsFromSupabase() {
+  if (!supabaseClient || !isAdminProfile() || !ownerProductsListEl) return [];
+  ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
+  const { data, error } = await supabaseClient
+    .from("products")
+    .select(ADMIN_PRODUCTS_SELECT)
+    .order("name", { ascending: true });
+  if (error) {
+    ownerProductsListEl.innerHTML = `<p class="helper-text">Could not load products: ${escapeHtml(error.message)}</p>`;
+    return [];
+  }
+  const products = (data || []).map((row) => normalizeShopProduct({ ...row, source_row: "products" }));
+  saveProducts(products);
+  renderOwnerProducts();
+  return products;
+}
+
+function renderOwnerInventoryLinkOptions() {
+  if (!ownerProductInventoryLinkEl) return;
+  const current = ownerProductInventoryLinkEl.value;
+  const options = adminInventoryLinkItems
+    .map((item) => {
+      const sku = item.sku ? ` · ${item.sku}` : "";
+      const stock = `${Number(item.quantity_on_hand || 0)} in stock`;
+      return `<option value="${item.id}">${escapeHtml(item.product_name)}${escapeHtml(sku)} · ${escapeHtml(stock)}</option>`;
+    })
+    .join("");
+  ownerProductInventoryLinkEl.innerHTML = `<option value="">Select inventory item</option>${options}`;
+  if (adminInventoryLinkItems.some((item) => item.id === current)) ownerProductInventoryLinkEl.value = current;
+  updateOwnerProductStockOptions();
+}
+
+function updateOwnerProductStockOptions() {
+  const isStock = ownerProductFulfilmentEl?.value === "stock";
+  if (ownerProductStockOptionsEl) ownerProductStockOptionsEl.hidden = !isStock;
+  if (!ownerProductStockSummaryEl) return;
+  if (!isStock) {
+    ownerProductStockSummaryEl.textContent = "Order-to-sale products do not track quantity on hand.";
+    return;
+  }
+  const selected = adminInventoryLinkItems.find((item) => item.id === ownerProductInventoryLinkEl?.value);
+  if (selected) {
+    ownerProductStockSummaryEl.textContent = `${selected.product_name}: ${Number(selected.quantity_on_hand || 0)} in stock, status ${selected.status || "unknown"}.`;
+  } else {
+    ownerProductStockSummaryEl.textContent = "Choose an existing stock item or create one from this product.";
+  }
 }
 
 function getDiscountedPrice(product) {
@@ -1327,6 +1497,7 @@ function getShopDebugMarkup(publicCount, filteredCount) {
 }
 
 function isProductOutOfStock(product) {
+  if (product.fulfilment_type === "order_to_sale") return false;
   if (product.inventory_item_id || product.stock_status) {
     return Number(product.quantity_on_hand || 0) <= 0 || product.stock_status === "out_of_stock";
   }
@@ -1334,11 +1505,12 @@ function isProductOutOfStock(product) {
 }
 
 function getProductStockText(product) {
+  if (product.fulfilment_type === "order_to_sale") return "Available to order";
   if (!(product.inventory_item_id || product.stock_status)) return "Available";
   const quantity = Number(product.quantity_on_hand || 0);
   if (quantity <= 0 || product.stock_status === "out_of_stock") return "Out of stock";
   if (product.stock_status === "low_stock") return `Low stock - ${quantity} left`;
-  if (product.stock_status === "need_to_order") return `Need to order - ${quantity} left`;
+  if (product.stock_status === "need_order" || product.stock_status === "need_to_order") return `Need to order - ${quantity} left`;
   return `${quantity} in stock`;
 }
 
@@ -1369,7 +1541,7 @@ function renderCart() {
 function addToCart(product) {
   const cart = loadCart();
   const existing = cart.find((item) => item.id === product.id);
-  const availableQuantity = Number(product.quantity_on_hand ?? Infinity);
+  const availableQuantity = product.fulfilment_type === "order_to_sale" ? Infinity : Number(product.quantity_on_hand ?? Infinity);
   const nextQuantity = existing ? existing.quantity + 1 : 1;
   if (Number.isFinite(availableQuantity) && nextQuantity > availableQuantity) {
     alert("Not enough stock is available for that product.");
@@ -1387,7 +1559,7 @@ function updateQuantity(productId, action) {
   if (!item) return;
   const products = getCurrentShopProducts();
   const product = products.find((entry) => entry.id === productId);
-  const availableQuantity = Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
+  const availableQuantity = product?.fulfilment_type === "order_to_sale" ? Infinity : Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
   if (action === "increase" && Number.isFinite(availableQuantity) && item.quantity + 1 > availableQuantity) {
     alert("Not enough stock is available for that product.");
     return;
@@ -1403,11 +1575,14 @@ const saveStripeLink = () => safeStorageSet(STRIPE_KEY, stripeInputEl.value.trim
 function renderOwnerProducts() {
   if (!ownerProductsListEl) return;
   const products = loadProducts();
-  ownerProductsListEl.innerHTML = products
+  ownerProductsListEl.innerHTML = products.length ? products
     .map(
-      (p) => `<div class="owner-product-row"><div><strong>${p.name}</strong><p>${p.description || "No description"}</p><p class="owner-meta">Category: ${p.category || "Uncategorized"}</p>${p.image ? `<img src="${p.image}" alt="${p.name}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${p.id}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${p.id}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-remove-btn" data-id="${p.id}">Remove</button></div></div>`
+      (p) => {
+        const isStock = p.fulfilment_type === "stock" || Boolean(p.inventory_item_id);
+        return `<div class="owner-product-row"><div><strong>${escapeHtml(p.name)}</strong><p>${escapeHtml(p.description || "No description")}</p><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""}</p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${p.id}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${p.id}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-remove-btn" data-id="${p.id}">Remove</button></div></div>`;
+      }
     )
-    .join("");
+    .join("") : '<p class="helper-text">No products yet. Add an order-to-sale product or link a stock item from inventory.</p>';
 }
 
 function setOwnerUI() {
@@ -1435,6 +1610,8 @@ function setOwnerUI() {
 
   ownerStatusEl.textContent = `Signed in as ${account.email}. You can add products, categories, upload images, and manage discounts.`;
   renderOwnerProducts();
+  refreshOwnerProductsFromSupabase();
+  loadAdminInventoryLinkItems();
 }
 
 if (productListEl) productListEl.addEventListener("click", (event) => {
@@ -1457,6 +1634,8 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
 });
 
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
+if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.addEventListener("change", updateOwnerProductStockOptions);
+if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.addEventListener("change", updateOwnerProductStockOptions);
 if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
   selectedCategory = getSelectedShopCategory();
   renderProducts();
@@ -1524,22 +1703,24 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
   event.preventDefault();
   const selectedFile = ownerProductImageEl.files[0];
 
-  if (selectedFile) {
-    return alert("Please upload product images from Admin > Inventory > Add Product so they are stored in Supabase Storage.");
-  }
-
   if (!supabaseClient || !isAdminProfile()) {
-    return alert("Please add products from Admin > Inventory > Add Product so they are saved to Supabase.");
+    return alert("Please sign in as an admin before adding products.");
   }
 
+  const productId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  let imageUrl = "";
   const newProduct = {
-    id: `prod-${Date.now()}`,
+    id: productId,
     name: ownerProductNameEl.value.trim(),
     price: Number(ownerProductPriceEl.value),
     discount: Number(ownerProductDiscountEl.value || 0),
     category: getNormalizedCategoryName(ownerProductCategorySelectEl?.value || ""),
     description: ownerProductDescEl.value.trim(),
-    image: ""
+    image: "",
+    image_url: "",
+    fulfilment_type: ownerProductFulfilmentEl?.value === "stock" ? "stock" : "order_to_sale",
+    inventory_item_id: ownerProductInventoryLinkEl?.value || "",
+    create_inventory: Boolean(ownerCreateInventoryEl?.checked)
   };
 
   if (
@@ -1555,6 +1736,11 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
   }
 
   try {
+    if (selectedFile) {
+      imageUrl = await uploadOwnerProductImage(selectedFile, productId);
+      newProduct.image = imageUrl;
+      newProduct.image_url = imageUrl;
+    }
     const savedProduct = await saveAdminProductToSupabase(newProduct);
     if (savedProduct) {
       saveProducts([...loadProducts().filter((product) => product.id !== savedProduct.id), savedProduct]);
@@ -1564,6 +1750,9 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     return;
   }
   ownerAddFormEl.reset();
+  updateOwnerProductStockOptions();
+  await refreshOwnerProductsFromSupabase();
+  await loadAdminInventoryLinkItems();
   renderProducts();
   renderOwnerProducts();
 });
@@ -1596,7 +1785,7 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", async (e
     if (priceInput) updates.price = target.price;
     if (discountInput) updates.discount = target.discount;
     const { error } = await supabaseClient
-      .from("shop_products")
+      .from("products")
       .update(updates)
       .eq("id", target.id);
     if (error) alert(`Could not update Supabase product: ${error.message}`);
@@ -1611,8 +1800,8 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
   const id = button.dataset.id;
   if (supabaseClient && isAdminProfile()) {
     const { error } = await supabaseClient
-      .from("shop_products")
-      .update({ is_active: false })
+      .from("products")
+      .update({ is_active: false, visible_in_shop: false, archived_at: new Date().toISOString() })
       .eq("id", id);
     if (error) {
       alert(`Could not remove Supabase product: ${error.message}`);
