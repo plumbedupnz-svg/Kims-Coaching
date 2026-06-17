@@ -41,6 +41,7 @@
   const PRODUCT_IMAGE_TARGET_QUALITY = 0.82;
   const PRODUCT_IMAGE_TARGET_BYTES = 300 * 1024;
   const DELETE_BLOCKED_MESSAGE = "This item has stock history and cannot be permanently deleted. Use Archive instead.";
+  const showInventoryDebug = new URLSearchParams(window.location.search).get("debug") === "inventory";
 
   let inventoryItems = [];
   let productCategories = [];
@@ -208,7 +209,7 @@
       projectRef,
       filters: getCurrentFilters()
     };
-    console.info("[Kim's Coaching inventory]", lastInventoryDebug);
+    if (showInventoryDebug) console.info("[Kim's Coaching inventory]", lastInventoryDebug);
   }
 
   function getInventoryDebugText() {
@@ -486,6 +487,7 @@
 
   function renderInventoryList() {
     if (!inventoryListEl) return;
+    if (inventoryListMessageEl?.textContent === DELETE_BLOCKED_MESSAGE) setMessage(inventoryListMessageEl, "");
     updateInventoryDebug({
       returnedRows: inventoryItems.length,
       ...getInventoryFilterCounts()
@@ -494,8 +496,8 @@
     if (!items.length) {
       const hasInventory = inventoryItems.length > 0;
       renderEmpty(inventoryListEl, hasInventory
-        ? `No stock items match the current filters. Choose All categories or adjust the archived filter. ${getInventoryDebugText()}`
-        : `No inventory items found. Add a product or check that your admin account can select inventory_items. ${getInventoryDebugText()}`);
+        ? "No stock items match the current filters. Choose All categories or adjust the archived filter."
+        : "No inventory items found. Add a product or check that your admin account can select inventory_items.");
       return;
     }
 
@@ -534,7 +536,6 @@
           </div>
         `).join("")}
       </div>
-      <p class="helper-text">${escapeHtml(getInventoryDebugText())}</p>
     `;
   }
 
