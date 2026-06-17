@@ -1369,14 +1369,15 @@
             ? DELETE_BLOCKED_MESSAGE
             : error.message;
           alert(message);
-          setMessage(inventoryListMessageEl, message, "error");
+          if (message === DELETE_BLOCKED_MESSAGE) setMessage(inventoryListMessageEl, "");
+          else setMessage(inventoryListMessageEl, message, "error");
           await loadInventory();
           button.disabled = false;
           return;
         }
         if (data === false) {
           alert(DELETE_BLOCKED_MESSAGE);
-          setMessage(inventoryListMessageEl, DELETE_BLOCKED_MESSAGE, "error");
+          setMessage(inventoryListMessageEl, "");
           await loadInventory();
           button.disabled = false;
           return;
