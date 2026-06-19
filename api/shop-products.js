@@ -43,11 +43,9 @@ module.exports = async function handler(request, response) {
       ),
       fetchRows(
         "products",
-        "id,inventory_item_id,category,category_id,name,description,price,discount,image,image_url,is_active,visible_in_shop,quantity_on_hand,stock_status,archived_at,fulfilment_type",
+        "id,name,description,price,discount,image_url,is_active",
         {
-          visible_in_shop: "eq.true",
           is_active: "eq.true",
-          archived_at: "is.null",
           order: "name.asc"
         }
       )
@@ -56,15 +54,12 @@ module.exports = async function handler(request, response) {
     const productRows = productResult.status === "fulfilled"
       ? productResult.value
       : [];
-    if (productResult.status === "rejected" && !/inventory_item_id|fulfilment_type|image_url|does not exist|PGRST|42703/i.test(productResult.reason?.message || "")) {
+    if (productResult.status === "rejected" && !/products\\.|does not exist|PGRST|42703/i.test(productResult.reason?.message || "")) {
       throw productResult.reason;
     }
-    const productInventoryIds = new Set(productRows.map((row) => String(row.inventory_item_id || "")).filter(Boolean));
     const products = [
       ...productRows.map((row) => ({ ...row, source_row: "products" })),
-      ...inventoryResult.value
-        .filter((row) => !productInventoryIds.has(String(row.id)))
-        .map((row) => ({ ...row, source_row: "inventory_items" }))
+      ...inventoryResult.value.map((row) => ({ ...row, source_row: "inventory_items" }))
     ];
     response.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=3600");
     response.status(200).json({ products });

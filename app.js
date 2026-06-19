@@ -106,8 +106,8 @@ const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
-const PUBLIC_PRODUCTS_SELECT = "id,inventory_item_id,category,category_id,name,description,price,discount,image,image_url,is_active,visible_in_shop,quantity_on_hand,stock_status,archived_at,fulfilment_type";
-const ADMIN_PRODUCTS_SELECT = "id,inventory_item_id,category,category_id,name,description,price,discount,image,image_url,is_active,visible_in_shop,quantity_on_hand,stock_status,archived_at,fulfilment_type";
+const PUBLIC_PRODUCTS_SELECT = "id,name,description,price,discount,image_url,is_active";
+const ADMIN_PRODUCTS_SELECT = "id,name,description,price,discount,image_url,is_active";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -352,25 +352,21 @@ async function fetchPublicInventoryProductsRest() {
       order: "product_name.asc"
     }),
     fetchRestRows("products", PUBLIC_PRODUCTS_SELECT, {
-      visible_in_shop: "eq.true",
       is_active: "eq.true",
-      archived_at: "is.null",
       order: "name.asc"
     })
   ]);
 
-  const productSchemaMissing = productResult.error && /inventory_item_id|fulfilment_type|image_url|does not exist|PGRST|42703/i.test(productResult.error.message || "");
+  const productSchemaMissing = productResult.error && /products\\.|does not exist|PGRST|42703/i.test(productResult.error.message || "");
   if (productSchemaMissing) {
-    console.warn("Products fulfilment columns are not available yet. Run the product fulfilment migration to enable order-to-sale products.", productResult.error);
+    console.warn("Products table columns are unavailable; loading stock inventory products only.", productResult.error);
   }
   const errors = [inventoryResult.error, productSchemaMissing ? null : productResult.error].filter(Boolean);
   const productRows = productSchemaMissing ? [] : (productResult.data || []);
-  const productInventoryIds = new Set(productRows.map((row) => String(row.inventory_item_id || "")).filter(Boolean));
-  const inventoryRows = (inventoryResult.data || []).filter((row) => !productInventoryIds.has(String(row.id)));
   return {
     data: [
       ...productRows.map((row) => ({ ...row, source_row: "products" })),
-      ...inventoryRows.map((row) => ({ ...row, source_row: "inventory_items" }))
+      ...(inventoryResult.data || []).map((row) => ({ ...row, source_row: "inventory_items" }))
     ],
     error: errors[0] || null
   };
@@ -640,29 +636,22 @@ async function saveAdminProductToSupabase(product) {
     } else {
       throw new Error("Choose an existing inventory item or tick Create inventory item from this product.");
     }
+    return normalizeInventoryShopProduct({ ...inventoryItem, source_row: "inventory_items" });
   }
 
   const payload = {
-    id: product.id,
-    inventory_item_id: inventoryItem?.id || null,
-    category_id: category?.id || null,
     name: product.name,
-    category: category?.name || product.category,
     description: product.description || null,
     price: product.price,
     discount: product.discount,
-    image: product.image_url || product.image || null,
     image_url: product.image_url || product.image || null,
-    is_active: true,
-    visible_in_shop: true,
-    quantity_on_hand: product.fulfilment_type === "stock" ? Number(inventoryItem?.quantity_on_hand || 0) : 0,
-    stock_status: product.fulfilment_type === "stock" ? (inventoryItem?.status || "out_of_stock") : "order_to_sale",
-    fulfilment_type: product.fulfilment_type
+    is_active: true
   };
+  if (currentUser?.id) payload.created_by = currentUser.id;
 
   const { data: savedProduct, error } = await supabaseClient
     .from("products")
-    .upsert(payload, { onConflict: "id" })
+    .insert(payload)
     .select("*")
     .single();
   if (error) throw error;
@@ -1801,7 +1790,7 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
   if (supabaseClient && isAdminProfile()) {
     const { error } = await supabaseClient
       .from("products")
-      .update({ is_active: false, visible_in_shop: false, archived_at: new Date().toISOString() })
+      .update({ is_active: false })
       .eq("id", id);
     if (error) {
       alert(`Could not remove Supabase product: ${error.message}`);
