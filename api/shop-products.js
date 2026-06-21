@@ -29,6 +29,21 @@ module.exports = async function handler(request, response) {
     return Array.isArray(rows) ? rows : [];
   };
 
+  const fetchProductRows = async () => {
+    const params = {
+      is_active: "eq.true",
+      order: "name.asc"
+    };
+    const fullSelect = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+    try {
+      return await fetchRows("products", fullSelect, params);
+    } catch (error) {
+      if (!/column|does not exist|PGRST|42703/i.test(error.message || "")) throw error;
+      console.warn("Products table has not been fully migrated; using minimal shop product fields.", error);
+      return fetchRows("products", "id,name,description,price,discount,image_url,is_active", params);
+    }
+  };
+
   try {
     const [inventoryResult, productResult] = await Promise.allSettled([
       fetchRows(
@@ -41,14 +56,7 @@ module.exports = async function handler(request, response) {
           order: "product_name.asc"
         }
       ),
-      fetchRows(
-        "products",
-        "id,name,description,price,discount,image_url,is_active",
-        {
-          is_active: "eq.true",
-          order: "name.asc"
-        }
-      )
+      fetchProductRows()
     ]);
     if (inventoryResult.status === "rejected") throw inventoryResult.reason;
     const productRows = productResult.status === "fulfilled"
@@ -57,6 +65,10 @@ module.exports = async function handler(request, response) {
     if (productResult.status === "rejected" && !/products\\.|does not exist|PGRST|42703/i.test(productResult.reason?.message || "")) {
       throw productResult.reason;
     }
+    console.info("[Kim Shop API] products rows returned from Supabase", {
+      count: productRows.length,
+      sample: productRows.slice(0, 5)
+    });
     const products = [
       ...productRows.map((row) => ({ ...row, source_row: "products" })),
       ...inventoryResult.value.map((row) => ({ ...row, source_row: "inventory_items" }))
