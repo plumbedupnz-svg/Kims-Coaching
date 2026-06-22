@@ -11,6 +11,7 @@
 
   let categories = [];
   let lastSelectedFilterCategory = categoryFilterEl?.value || "all";
+  let categoriesReady = false;
 
   function normalizeCategory(value) {
     return String(value || "").trim().replace(/\s+/g, " ");
@@ -122,12 +123,26 @@
     renderPublicCategoryFilter(preferredFilterValue);
   }
 
+  function renderCategoryLoadingState() {
+    if (categorySelectEl) {
+      categorySelectEl.innerHTML = '<option value="">Loading categories...</option>';
+      categorySelectEl.disabled = true;
+    }
+    if (categoryFilterEl) {
+      categoryFilterEl.innerHTML = '<option value="all">All categories</option>';
+      categoryFilterEl.value = "all";
+    }
+  }
+
   async function refreshCategoryControls(preferredFilterValue) {
     try {
       await loadCategories();
+      categoriesReady = true;
       renderAllCategoryControls(preferredFilterValue);
+      if (categorySelectEl) categorySelectEl.disabled = false;
     } catch (error) {
       console.warn("Could not refresh product categories.", error);
+      categoriesReady = true;
     } finally {
       window.dispatchEvent(new CustomEvent("kims:categories-ready", {
         detail: {
@@ -142,6 +157,7 @@
   window.KimsProductCategories = {
     refresh: refreshCategoryControls,
     getAll: () => [...categories],
+    isReady: () => categoriesReady,
     getName: getCategoryName,
     getIdByName: getCategoryIdByName,
     save: async (categoryName) => {
@@ -163,7 +179,7 @@
     lastSelectedFilterCategory = event.target.value;
   }, true);
 
-  renderAllCategoryControls();
+  renderCategoryLoadingState();
   refreshCategoryControls();
   categorySelectEl?.addEventListener("focus", () => refreshCategoryControls());
   categoryFilterEl?.addEventListener("focus", () => refreshCategoryControls(lastSelectedFilterCategory));

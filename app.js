@@ -738,7 +738,7 @@ async function loadAdminInventoryLinkItems() {
 
 async function refreshOwnerProductsFromSupabase() {
   if (!supabaseClient || !isAdminProfile() || !ownerProductsListEl) return [];
-  ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
+  if (ownerProductsListEl) ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
   let { data, error } = await supabaseClient
     .from("products")
     .select(ADMIN_PRODUCTS_SELECT)
@@ -756,7 +756,9 @@ async function refreshOwnerProductsFromSupabase() {
     ownerProductsListEl.innerHTML = `<p class="helper-text">Could not load products: ${escapeHtml(error.message)}</p>`;
     return [];
   }
-  const products = (data || []).map((row) => normalizeShopProduct({ ...row, source_row: "products" }));
+  const products = (data || [])
+    .map((row) => normalizeShopProduct({ ...row, source_row: "products" }))
+    .filter(isVisibleProductRecord);
   saveProducts(products);
   renderOwnerProducts();
   return products;
@@ -802,13 +804,18 @@ function getDiscountedPrice(product) {
 }
 
 function loadProducts() {
-  if (Array.isArray(legacyProductsInMemory)) return legacyProductsInMemory;
+  if (Array.isArray(legacyProductsInMemory)) return legacyProductsInMemory.filter(isVisibleProductRecord);
+  if (supabaseClient && (isAdminPage || isShopPage)) return [];
   return [...defaultProducts];
 }
 
 const saveProducts = (products) => {
-  legacyProductsInMemory = Array.isArray(products) ? products : [];
+  legacyProductsInMemory = Array.isArray(products) ? products.filter(isVisibleProductRecord) : [];
 };
+
+function isVisibleProductRecord(product = {}) {
+  return product.is_active !== false && !product.archived_at;
+}
 
 function getStorableImage(image) {
   if (!image) return "";
@@ -1297,9 +1304,15 @@ function getAppliedPromoPercent() {
   if (!appliedCode || !promo.code) return 0;
   return appliedCode === promo.code.toLowerCase() ? Number(promo.percent || 0) : 0;
 }
-function getCategoryList(products) {
+function productCategoriesAreReady() {
+  return !window.KimsProductCategories || window.KimsProductCategories.isReady?.() === true;
+}
+
+function getCategoryList(products, options = {}) {
   const sourceCategories = window.KimsProductCategories?.getAll?.().map((category) => category.name) || [];
   if (sourceCategories.length) return [...new Set(sourceCategories)].sort((a,b)=>a.localeCompare(b));
+  if (window.KimsProductCategories) return [];
+  if (!options.allowProductFallback) return [];
   const productCategories = products.map((p) => (p.category?.trim() || "Uncategorized"));
   return [...new Set(productCategories)].sort((a,b)=>a.localeCompare(b));
 }
@@ -1328,18 +1341,24 @@ function upsertCategoryOption(categoryName) {
 
 function renderOwnerCategorySelect(products) {
   if (!ownerProductCategorySelectEl) return;
+  if (window.KimsProductCategories && !productCategoriesAreReady()) {
+    ownerProductCategorySelectEl.innerHTML = '<option value="">Loading categories...</option>';
+    ownerProductCategorySelectEl.disabled = true;
+    return;
+  }
   const categories = getCategoryList(products);
   const current = ownerProductCategorySelectEl.value;
 
   ownerProductCategorySelectEl.innerHTML = '<option value="">Select category</option>';
   categories.forEach((cat) => upsertCategoryOption(cat));
+  ownerProductCategorySelectEl.disabled = false;
 
   const canKeepCurrent = categories.some((cat) => cat.toLowerCase() === current.toLowerCase());
   ownerProductCategorySelectEl.value = canKeepCurrent ? current : "";
 }
 function renderCategoryFilter(products) {
   if (!categoryFilterEl) return;
-  const categories = getCategoryList(products);
+  const categories = getCategoryList(products, { allowProductFallback: true });
   const requestedCategory = normalizeSelectedCategory(selectedCategory);
   const options = ["<option value=\"all\">All categories</option>", ...categories.map((cat)=>`<option value=\"${cat}\">${cat}</option>`)].join("");
   categoryFilterEl.innerHTML = options;
@@ -1644,7 +1663,7 @@ function setOwnerUI() {
   }
 
   ownerStatusEl.textContent = `Signed in as ${account.email}. You can add products, categories, upload images, and manage discounts.`;
-  renderOwnerProducts();
+  if (ownerProductsListEl) ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
   refreshOwnerProductsFromSupabase();
   loadAdminInventoryLinkItems();
 }
@@ -1833,20 +1852,36 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
   const button = event.target.closest(".owner-remove-btn");
   if (!button) return;
   const id = button.dataset.id;
+  button.disabled = true;
+  button.textContent = "Removing...";
   if (supabaseClient && isAdminProfile()) {
-    const { error } = await supabaseClient
+    let { error } = await supabaseClient
       .from("products")
-      .update({ is_active: false })
+      .update({
+        is_active: false,
+        visible_in_shop: false,
+        archived_at: new Date().toISOString()
+      })
       .eq("id", id);
+    if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+      console.warn("Products table is missing archive columns; falling back to is_active=false.", error);
+      const fallbackResult = await supabaseClient
+        .from("products")
+        .update({ is_active: false })
+        .eq("id", id);
+      error = fallbackResult.error;
+    }
     if (error) {
       alert(`Could not remove Supabase product: ${error.message}`);
+      button.disabled = false;
+      button.textContent = "Remove";
       return;
     }
   }
   saveProducts(loadProducts().filter((p) => p.id !== id));
   saveCart(loadCart().filter((item) => item.id !== id));
   renderProducts();
-  renderOwnerProducts();
+  await refreshOwnerProductsFromSupabase();
   renderCart();
 });
 
