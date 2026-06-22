@@ -39,8 +39,14 @@ module.exports = async function handler(request, response) {
       return await fetchRows("products", fullSelect, params);
     } catch (error) {
       if (!/column|does not exist|PGRST|42703/i.test(error.message || "")) throw error;
-      console.warn("Products table has not been fully migrated; using minimal shop product fields.", error);
-      return fetchRows("products", "id,name,description,price,discount,image_url,is_active", params);
+      console.warn("Products table has not been fully migrated; using category-safe shop product fields.", error);
+      try {
+        return await fetchRows("products", "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at", params);
+      } catch (fallbackError) {
+        if (!/column|does not exist|PGRST|42703/i.test(fallbackError.message || "")) throw fallbackError;
+        console.warn("Products table is missing category fields; using minimal shop product fields.", fallbackError);
+        return fetchRows("products", "id,name,description,price,discount,image_url,is_active", params);
+      }
     }
   };
 
