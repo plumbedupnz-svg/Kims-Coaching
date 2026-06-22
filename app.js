@@ -38,6 +38,9 @@ const ownerProductStockOptionsEl = document.querySelector("[data-product-stock-o
 const ownerProductInventoryLinkEl = document.querySelector("[data-product-inventory-link]");
 const ownerCreateInventoryEl = document.querySelector("[data-product-create-inventory]");
 const ownerProductStockSummaryEl = document.querySelector("[data-product-stock-summary]");
+const ownerProductFormTitleEl = document.querySelector("[data-product-form-title]");
+const ownerProductSubmitEl = document.querySelector("[data-product-submit]");
+const ownerProductCancelEditEl = document.querySelector("[data-product-cancel-edit]");
 const categoryFilterEl = document.getElementById("category-filter");
 const ownerProductCategorySelectEl = document.getElementById("owner-product-category");
 const ownerNewCategoryEl = document.getElementById("owner-new-category");
@@ -102,6 +105,7 @@ let publicShopProducts = null;
 let initialShopRenderComplete = false;
 let legacyProductsInMemory = null;
 let adminInventoryLinkItems = [];
+let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
@@ -613,6 +617,48 @@ async function saveAdminProductToSupabase(product) {
   if (!supabaseClient || !isAdminProfile()) return null;
   const category = await window.KimsProductCategories?.save(product.category);
   let inventoryItem = null;
+  const isEditingProduct = Boolean(product.editing_product_id);
+  const productRowId = product.editing_product_id || product.id;
+
+  const basePayload = {
+    name: product.name,
+    description: product.description || null,
+    price: product.price,
+    discount: product.discount,
+    image_url: product.image_url || product.image || null,
+    is_active: true
+  };
+  if (currentUser?.id) basePayload.created_by = currentUser.id;
+
+  const productPayload = {
+    ...basePayload,
+    category: category?.name || product.category,
+    category_id: category?.id || null,
+    fulfilment_type: product.fulfilment_type === "stock" ? "stock" : "order_to_sale",
+    inventory_item_id: product.fulfilment_type === "stock" ? product.inventory_item_id || null : null,
+    quantity_on_hand: product.fulfilment_type === "stock" ? Number(product.quantity_on_hand || 0) : 0,
+    stock_status: product.fulfilment_type === "stock" ? product.stock_status || "in_stock" : "order_to_sale",
+    visible_in_shop: true,
+    archived_at: null
+  };
+
+  async function saveProductRow(payload, fallbackPayload) {
+    const query = isEditingProduct
+      ? supabaseClient.from("products").update(payload).eq("id", productRowId)
+      : supabaseClient.from("products").insert(payload);
+    let { data: savedProduct, error } = await query.select("*").single();
+    if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+      console.warn("Products table is missing fulfilment/category columns; saving product with minimal fields.", error);
+      const fallbackQuery = isEditingProduct
+        ? supabaseClient.from("products").update(fallbackPayload).eq("id", productRowId)
+        : supabaseClient.from("products").insert(fallbackPayload);
+      const fallbackResult = await fallbackQuery.select("*").single();
+      savedProduct = fallbackResult.data;
+      error = fallbackResult.error;
+    }
+    if (error) throw error;
+    return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
+  }
 
   if (product.fulfilment_type === "stock") {
     if (product.inventory_item_id) {
@@ -628,6 +674,8 @@ async function saveAdminProductToSupabase(product) {
         .single();
       if (error) throw error;
       inventoryItem = data;
+      productPayload.quantity_on_hand = Number(inventoryItem.quantity_on_hand || 0);
+      productPayload.stock_status = inventoryItem.status || productPayload.stock_status;
     } else if (product.create_inventory) {
       const { data, error } = await supabaseClient.rpc("admin_save_inventory_item", {
         p_inventory_item_id: null,
@@ -648,50 +696,15 @@ async function saveAdminProductToSupabase(product) {
       });
       if (error) throw error;
       inventoryItem = data;
+      productPayload.inventory_item_id = inventoryItem.id || null;
+      productPayload.quantity_on_hand = Number(inventoryItem.quantity_on_hand || 0);
+      productPayload.stock_status = inventoryItem.status || "in_stock";
     } else {
       throw new Error("Choose an existing inventory item or tick Create inventory item from this product.");
     }
-    return normalizeInventoryShopProduct({ ...inventoryItem, source_row: "inventory_items" });
   }
 
-  const basePayload = {
-    name: product.name,
-    description: product.description || null,
-    price: product.price,
-    discount: product.discount,
-    image_url: product.image_url || product.image || null,
-    is_active: true
-  };
-  if (currentUser?.id) basePayload.created_by = currentUser.id;
-
-  const payload = {
-    ...basePayload,
-    category: category?.name || product.category,
-    category_id: category?.id || null,
-    fulfilment_type: "order_to_sale",
-    inventory_item_id: null,
-    quantity_on_hand: 0,
-    stock_status: "order_to_sale",
-    visible_in_shop: true
-  };
-
-  let { data: savedProduct, error } = await supabaseClient
-    .from("products")
-    .insert(payload)
-    .select("*")
-    .single();
-  if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
-    console.warn("Products table is missing fulfilment/category columns; saving product with minimal fields.", error);
-    const fallbackResult = await supabaseClient
-      .from("products")
-      .insert(basePayload)
-      .select("*")
-      .single();
-    savedProduct = fallbackResult.data;
-    error = fallbackResult.error;
-  }
-  if (error) throw error;
-  return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
+  return saveProductRow(productPayload, basePayload);
 }
 
 async function uploadOwnerProductImage(file, productId) {
@@ -1632,6 +1645,38 @@ function updateQuantity(productId, action) {
 const loadStripeLink = () => (stripeInputEl.value = safeStorageGet(STRIPE_KEY, ""));
 const saveStripeLink = () => safeStorageSet(STRIPE_KEY, stripeInputEl.value.trim());
 
+function setProductFormMode(mode = "add") {
+  const editing = mode === "edit";
+  if (ownerProductFormTitleEl) ownerProductFormTitleEl.textContent = editing ? "Edit Product" : "Add Product";
+  if (ownerProductSubmitEl) ownerProductSubmitEl.textContent = editing ? "Save Product" : "Add Product";
+  if (ownerProductCancelEditEl) ownerProductCancelEditEl.hidden = !editing;
+}
+
+function resetProductFormMode() {
+  editingProductId = "";
+  ownerAddFormEl?.reset();
+  setProductFormMode("add");
+  updateOwnerProductStockOptions();
+}
+
+function editOwnerProduct(productId) {
+  const product = loadProducts().find((item) => item.id === productId);
+  if (!product || !ownerAddFormEl) return;
+  editingProductId = product.id;
+  setProductFormMode("edit");
+  ownerProductNameEl.value = product.name || "";
+  ownerProductPriceEl.value = Number(product.price || 0).toFixed(2);
+  ownerProductDiscountEl.value = Number(product.discount || 0).toFixed(2);
+  upsertCategoryOption(product.category || "");
+  ownerProductCategorySelectEl.value = product.category || "";
+  ownerProductDescEl.value = product.description || "";
+  if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.value = product.fulfilment_type === "stock" ? "stock" : "order_to_sale";
+  if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.value = product.inventory_item_id || "";
+  if (ownerCreateInventoryEl) ownerCreateInventoryEl.checked = false;
+  updateOwnerProductStockOptions();
+  ownerAddFormEl.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderOwnerProducts() {
   if (!ownerProductsListEl) return;
   const products = loadProducts();
@@ -1639,7 +1684,10 @@ function renderOwnerProducts() {
     .map(
       (p) => {
         const isStock = p.fulfilment_type === "stock" || Boolean(p.inventory_item_id);
-        return `<div class="owner-product-row"><div><strong>${escapeHtml(p.name)}</strong><p>${escapeHtml(p.description || "No description")}</p><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""}</p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${p.id}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${p.id}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-remove-btn" data-id="${p.id}">Remove</button></div></div>`;
+        const description = p.description || "No description";
+        const showDescriptionToggle = description.length > 220;
+        const descriptionId = `owner-product-description-${String(p.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+        return `<div class="owner-product-row"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""}</p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
       }
     )
     .join("") : '<p class="helper-text">No products yet. Add an order-to-sale product or link a stock item from inventory.</p>';
@@ -1777,17 +1825,19 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     return alert("Please sign in as an admin before adding products.");
   }
 
-  const productId = crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const existingProduct = editingProductId ? loadProducts().find((product) => product.id === editingProductId) : null;
+  const productId = editingProductId || crypto.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   let imageUrl = "";
   const newProduct = {
     id: productId,
+    editing_product_id: editingProductId,
     name: ownerProductNameEl.value.trim(),
     price: Number(ownerProductPriceEl.value),
     discount: Number(ownerProductDiscountEl.value || 0),
     category: getNormalizedCategoryName(ownerProductCategorySelectEl?.value || ""),
     description: ownerProductDescEl.value.trim(),
-    image: "",
-    image_url: "",
+    image: existingProduct?.image || "",
+    image_url: existingProduct?.image_url || existingProduct?.image || "",
     fulfilment_type: ownerProductFulfilmentEl?.value === "stock" ? "stock" : "order_to_sale",
     inventory_item_id: ownerProductInventoryLinkEl?.value || "",
     create_inventory: Boolean(ownerCreateInventoryEl?.checked)
@@ -1819,13 +1869,15 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     alert(`Product could not be saved to Supabase: ${error.message}`);
     return;
   }
-  ownerAddFormEl.reset();
+  resetProductFormMode();
   updateOwnerProductStockOptions();
   await refreshOwnerProductsFromSupabase();
   await loadAdminInventoryLinkItems();
   renderProducts();
   renderOwnerProducts();
 });
+
+if (ownerProductCancelEditEl) ownerProductCancelEditEl.addEventListener("click", resetProductFormMode);
 
 if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", async (event) => {
   const priceInput = event.target.closest(".owner-price-input");
@@ -1865,6 +1917,22 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", async (e
 });
 
 if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (event) => {
+  const descriptionToggle = event.target.closest("[data-owner-description-toggle]");
+  if (descriptionToggle) {
+    const description = document.getElementById(descriptionToggle.getAttribute("aria-controls"));
+    const expanded = descriptionToggle.getAttribute("aria-expanded") === "true";
+    if (description) description.classList.toggle("is-collapsed", expanded);
+    descriptionToggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+    descriptionToggle.textContent = expanded ? "Show more" : "Show less";
+    return;
+  }
+
+  const editButton = event.target.closest(".owner-edit-btn");
+  if (editButton) {
+    editOwnerProduct(editButton.dataset.id);
+    return;
+  }
+
   const button = event.target.closest(".owner-remove-btn");
   if (!button) return;
   const id = button.dataset.id;

@@ -428,6 +428,16 @@ textarea { resize: vertical; min-height: 120px; }
 .owner-products { display: grid; gap: 0.8rem; }
 .owner-product-row { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; background: #fff; gap: 0.8rem; }
 .owner-product-row p { margin: 0; }
+.owner-product-info { display: grid; gap: 0.35rem; min-width: 0; }
+.owner-product-description-wrap { display: grid; gap: 0.35rem; }
+.owner-product-description { line-height: 1.5; color: var(--muted); }
+.owner-product-description.is-collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.owner-description-toggle { font-size: 0.85rem; }
 .owner-row-actions { display: grid; gap: 0.4rem; width: 180px; }
 .category-add-row { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; align-items: end; }
 .product-stock-options { display: grid; gap: 0.6rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }

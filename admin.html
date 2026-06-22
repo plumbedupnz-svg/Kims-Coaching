@@ -98,7 +98,7 @@
             <section class="admin-section" data-admin-section="products" hidden>
               <div class="admin-panel-grid">
                 <form id="owner-add-form" class="owner-add-form">
-                  <h3>Add Product</h3>
+                  <h3 data-product-form-title>Add Product</h3>
                   <p class="helper-text">Products are items or services customers can buy. Link to inventory only when stock is physically held.</p>
                   <label for="owner-product-name">Product name</label>
                   <input id="owner-product-name" type="text" placeholder="Product name" required />
@@ -112,8 +112,8 @@
                     <input id="owner-new-category" type="text" placeholder="Add new category" />
                     <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
                   </div>
-                  <label for="owner-product-desc">Short description</label>
-                  <input id="owner-product-desc" type="text" placeholder="Short description" />
+                  <label for="owner-product-desc">Product description</label>
+                  <textarea id="owner-product-desc" placeholder="Product description"></textarea>
                   <label for="owner-product-fulfilment">Product fulfilment type</label>
                   <select id="owner-product-fulfilment" data-product-fulfilment-type>
                     <option value="order_to_sale">Order-to-sale / no inventory tracking</option>
@@ -132,7 +132,8 @@
                   </div>
                   <label for="owner-product-image">Product image</label>
                   <input id="owner-product-image" type="file" accept="image/*" />
-                  <button type="submit" class="btn btn-primary">Add Product</button>
+                  <button type="submit" class="btn btn-primary" data-product-submit>Add Product</button>
+                  <button type="button" class="btn btn-secondary" data-product-cancel-edit hidden>Cancel Edit</button>
                 </form>
                 <div class="owner-products" id="owner-products-list"></div>
               </div>
