@@ -106,8 +106,9 @@ const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
-const PUBLIC_PRODUCTS_SELECT = "id,name,description,price,discount,image_url,is_active";
-const ADMIN_PRODUCTS_SELECT = "id,name,description,price,discount,image_url,is_active";
+const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,description,price,discount,image_url,is_active";
+const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -259,14 +260,14 @@ function logShopFilterState(stage, details = {}) {
 }
 
 async function loadPublicInventoryProducts() {
-  const filters = "inventory_items: visible_in_shop=true,is_active=true,archived_at=null; products: visible_in_shop=true,is_active=true,archived_at=null";
+  const filters = "inventory_items: visible_in_shop=true,is_active=true,archived_at=null; products: is_active=true";
   const queryStart = performance.now();
   const result = await fetchPublicInventoryProductsRest();
 
   const productQueryMs = Math.round(performance.now() - queryStart);
 
   shopLoadDebug = {
-    source: "inventory_items",
+    source: "products + inventory_items",
     rowsReturned: Array.isArray(result.data) ? result.data.length : 0,
     rowsAfterFilters: Array.isArray(result.data) ? result.data.length : 0,
     rowsSentToRenderer: 0,
@@ -344,7 +345,7 @@ async function fetchPublicInventoryProductsRest() {
     }
   };
 
-  const [inventoryResult, productResult] = await Promise.all([
+  const [inventoryResult, initialProductResult] = await Promise.all([
     fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, {
       visible_in_shop: "eq.true",
       is_active: "eq.true",
@@ -357,12 +358,26 @@ async function fetchPublicInventoryProductsRest() {
     })
   ]);
 
+  let productResult = initialProductResult;
+  const productSchemaMismatch = productResult.error && /column|does not exist|PGRST|42703/i.test(productResult.error.message || "");
+  if (productSchemaMismatch) {
+    console.warn("Products table has not been fully migrated; falling back to minimal product shop fields.", productResult.error);
+    productResult = await fetchRestRows("products", PUBLIC_PRODUCTS_FALLBACK_SELECT, {
+      is_active: "eq.true",
+      order: "name.asc"
+    });
+  }
+
   const productSchemaMissing = productResult.error && /products\\.|does not exist|PGRST|42703/i.test(productResult.error.message || "");
   if (productSchemaMissing) {
     console.warn("Products table columns are unavailable; loading stock inventory products only.", productResult.error);
   }
   const errors = [inventoryResult.error, productSchemaMissing ? null : productResult.error].filter(Boolean);
   const productRows = productSchemaMissing ? [] : (productResult.data || []);
+  console.info("[Kim Shop] products rows returned from Supabase", {
+    count: productRows.length,
+    sample: productRows.slice(0, 5)
+  });
   return {
     data: [
       ...productRows.map((row) => ({ ...row, source_row: "products" })),
@@ -639,7 +654,7 @@ async function saveAdminProductToSupabase(product) {
     return normalizeInventoryShopProduct({ ...inventoryItem, source_row: "inventory_items" });
   }
 
-  const payload = {
+  const basePayload = {
     name: product.name,
     description: product.description || null,
     price: product.price,
@@ -647,13 +662,34 @@ async function saveAdminProductToSupabase(product) {
     image_url: product.image_url || product.image || null,
     is_active: true
   };
-  if (currentUser?.id) payload.created_by = currentUser.id;
+  if (currentUser?.id) basePayload.created_by = currentUser.id;
 
-  const { data: savedProduct, error } = await supabaseClient
+  const payload = {
+    ...basePayload,
+    category: category?.name || product.category,
+    category_id: category?.id || null,
+    fulfilment_type: "order_to_sale",
+    inventory_item_id: null,
+    quantity_on_hand: 0,
+    stock_status: "order_to_sale",
+    visible_in_shop: true
+  };
+
+  let { data: savedProduct, error } = await supabaseClient
     .from("products")
     .insert(payload)
     .select("*")
     .single();
+  if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+    console.warn("Products table is missing fulfilment/category columns; saving product with minimal fields.", error);
+    const fallbackResult = await supabaseClient
+      .from("products")
+      .insert(basePayload)
+      .select("*")
+      .single();
+    savedProduct = fallbackResult.data;
+    error = fallbackResult.error;
+  }
   if (error) throw error;
   return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
 }
@@ -703,10 +739,19 @@ async function loadAdminInventoryLinkItems() {
 async function refreshOwnerProductsFromSupabase() {
   if (!supabaseClient || !isAdminProfile() || !ownerProductsListEl) return [];
   ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
-  const { data, error } = await supabaseClient
+  let { data, error } = await supabaseClient
     .from("products")
     .select(ADMIN_PRODUCTS_SELECT)
     .order("name", { ascending: true });
+  if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+    console.warn("Products table is missing newer admin product columns; loading minimal product fields.", error);
+    const fallbackResult = await supabaseClient
+      .from("products")
+      .select(PUBLIC_PRODUCTS_FALLBACK_SELECT)
+      .order("name", { ascending: true });
+    data = fallbackResult.data;
+    error = fallbackResult.error;
+  }
   if (error) {
     ownerProductsListEl.innerHTML = `<p class="helper-text">Could not load products: ${escapeHtml(error.message)}</p>`;
     return [];
@@ -1341,6 +1386,7 @@ function renderProducts() {
   const publicProducts = products.filter((product) => {
     const outOfStock = isProductOutOfStock(product);
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
+    if (product.source_row === "products") return product.is_active !== false;
     return product.visible_in_shop === true && product.is_active !== false && !product.archived_at;
   });
   logShopFilterState("products before filtering", {
