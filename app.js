@@ -1465,15 +1465,21 @@ function renderProducts() {
       const stockText = getProductStockText(p);
       const imageLoading = index < 4 ? "eager" : "lazy";
       const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
+      const description = p.description || "Product description";
+      const showDescriptionToggle = description.length > 260;
+      const descriptionId = `product-description-${String(p.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
       return `
-        <article class="product-card" data-id="${p.id}" data-name="${p.name}" data-price="${discounted}">
+        <article class="product-card" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" data-price="${discounted}">
           <div class="product-image-wrap">
-            ${isImageUrl(p.image) ? `<img src="${p.image}" alt="${p.name}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
+            ${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
           </div>
-          <p class="owner-meta">${p.category || "Uncategorized"}</p>
-          <h3>${p.name}</h3>
-          <p>${p.description || "Product description"}</p>
-          <p class="owner-meta">${stockText}</p>
+          <p class="owner-meta">${escapeHtml(p.category || "Uncategorized")}</p>
+          <h3>${escapeHtml(p.name)}</h3>
+          <div class="product-description-wrap">
+            <p class="product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>
+            ${showDescriptionToggle ? `<button class="product-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-description-toggle>Show more</button>` : ""}
+          </div>
+          <p class="owner-meta">${escapeHtml(stockText)}</p>
           <div class="price-wrap">
             ${hasDiscount ? `<p class="old-price">${money(Number(p.price))}</p>` : ""}
             <p class="price">${money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(p.discount)}%</span>` : ""}</p>
@@ -1669,6 +1675,16 @@ function setOwnerUI() {
 }
 
 if (productListEl) productListEl.addEventListener("click", (event) => {
+  const descriptionToggle = event.target.closest("[data-description-toggle]");
+  if (descriptionToggle) {
+    const description = document.getElementById(descriptionToggle.getAttribute("aria-controls"));
+    const expanded = descriptionToggle.getAttribute("aria-expanded") === "true";
+    if (description) description.classList.toggle("is-collapsed", expanded);
+    descriptionToggle.setAttribute("aria-expanded", expanded ? "false" : "true");
+    descriptionToggle.textContent = expanded ? "Show more" : "Show less";
+    return;
+  }
+
   const button = event.target.closest(".add-to-cart");
   if (!button) return;
   const card = button.closest(".product-card");
