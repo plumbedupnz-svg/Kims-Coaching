@@ -111,7 +111,8 @@ const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
-const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,description,price,discount,image_url,is_active";
+const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
+const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
 const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
@@ -370,6 +371,13 @@ async function fetchPublicInventoryProductsRest() {
       is_active: "eq.true",
       order: "name.asc"
     });
+    if (productResult.error && /column|does not exist|PGRST|42703/i.test(productResult.error.message || "")) {
+      console.warn("Products table is missing category fields; falling back to minimal product shop fields.", productResult.error);
+      productResult = await fetchRestRows("products", PUBLIC_PRODUCTS_MINIMAL_SELECT, {
+        is_active: "eq.true",
+        order: "name.asc"
+      });
+    }
   }
 
   const productSchemaMissing = productResult.error && /products\\.|does not exist|PGRST|42703/i.test(productResult.error.message || "");
@@ -649,12 +657,29 @@ async function saveAdminProductToSupabase(product) {
     let { data: savedProduct, error } = await query.select("*").single();
     if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
       console.warn("Products table is missing fulfilment/category columns; saving product with minimal fields.", error);
+      const categoryFallbackPayload = {
+        ...fallbackPayload,
+        category: category?.name || product.category,
+        category_id: category?.id || null,
+        fulfilment_type: product.fulfilment_type === "stock" ? "stock" : "order_to_sale",
+        visible_in_shop: true,
+        archived_at: null
+      };
       const fallbackQuery = isEditingProduct
-        ? supabaseClient.from("products").update(fallbackPayload).eq("id", productRowId)
-        : supabaseClient.from("products").insert(fallbackPayload);
+        ? supabaseClient.from("products").update(categoryFallbackPayload).eq("id", productRowId)
+        : supabaseClient.from("products").insert(categoryFallbackPayload);
       const fallbackResult = await fallbackQuery.select("*").single();
       savedProduct = fallbackResult.data;
       error = fallbackResult.error;
+      if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+        console.warn("Products table is missing category columns; saving product with minimal fields.", error);
+        const minimalQuery = isEditingProduct
+          ? supabaseClient.from("products").update(fallbackPayload).eq("id", productRowId)
+          : supabaseClient.from("products").insert(fallbackPayload);
+        const minimalResult = await minimalQuery.select("*").single();
+        savedProduct = minimalResult.data;
+        error = minimalResult.error;
+      }
     }
     if (error) throw error;
     return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
@@ -764,6 +789,15 @@ async function refreshOwnerProductsFromSupabase() {
       .order("name", { ascending: true });
     data = fallbackResult.data;
     error = fallbackResult.error;
+    if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
+      console.warn("Products table is missing category fields; loading minimal product fields.", error);
+      const minimalResult = await supabaseClient
+        .from("products")
+        .select(PUBLIC_PRODUCTS_MINIMAL_SELECT)
+        .order("name", { ascending: true });
+      data = minimalResult.data;
+      error = minimalResult.error;
+    }
   }
   if (error) {
     ownerProductsListEl.innerHTML = `<p class="helper-text">Could not load products: ${escapeHtml(error.message)}</p>`;
