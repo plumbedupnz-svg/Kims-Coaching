@@ -354,6 +354,27 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .product-image-wrap { margin-bottom: 0.7rem; }
 .product-image { width: 100%; height: 180px; object-fit: contain; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
 .product-image-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 0.9rem; }
+.product-description-wrap { display: grid; gap: 0.45rem; margin: 0.35rem 0 0.55rem; }
+.product-description { margin: 0; line-height: 1.55; color: var(--muted); }
+.product-description.is-collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.product-description-toggle {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 0;
+  font: inherit;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.product-description-toggle:hover { color: var(--brand); }
 .owner-thumb { margin-top: 0.5rem; width: 90px; height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
 
 .btn {
