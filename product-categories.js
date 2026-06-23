@@ -12,6 +12,9 @@
   let categories = [];
   let lastSelectedFilterCategory = categoryFilterEl?.value || "all";
   let categoriesReady = false;
+  let categoriesLoading = false;
+  let categoriesError = "";
+  let categoryLoadPromise = null;
 
   function normalizeCategory(value) {
     return String(value || "").trim().replace(/\s+/g, " ");
@@ -55,7 +58,14 @@
     return data;
   }
 
-  async function loadCategories() {
+  async function loadCategories({ force = false } = {}) {
+    if (!force && categoriesReady) return categories;
+    if (categoryLoadPromise) return categoryLoadPromise;
+
+    categoriesLoading = true;
+    categoriesError = "";
+
+    categoryLoadPromise = (async () => {
     if (!supabaseClient) {
       categories = defaultCategories.map((name) => ({ id: "", name }));
       return categories;
@@ -68,7 +78,8 @@
 
     if (error) {
       console.warn("Could not load product categories from Supabase.", error.message);
-      categories = defaultCategories.map((name) => ({ id: "", name }));
+      categoriesError = "Could not load categories";
+      if (!categoriesReady) categories = [];
       return categories;
     }
 
@@ -80,6 +91,14 @@
 
     categories = getUniqueCategories(data);
     return categories;
+    })();
+
+    try {
+      return await categoryLoadPromise;
+    } finally {
+      categoryLoadPromise = null;
+      categoriesLoading = false;
+    }
   }
 
   function getCategoryName(value) {
@@ -98,6 +117,12 @@
   function renderCategoryOptions() {
     if (!categorySelectEl) return;
     const currentName = getCategoryName(categorySelectEl.value);
+    if (categoriesError && !categories.length) {
+      categorySelectEl.innerHTML = '<option value="">Could not load categories</option>';
+      categorySelectEl.disabled = false;
+      return;
+    }
+
     categorySelectEl.innerHTML = '<option value="">Select category</option>' + categories
       .map((category) => `<option value="${escapeAttribute(category.name)}" data-category-id="${escapeAttribute(category.id)}">${escapeAttribute(category.name)}</option>`)
       .join("");
@@ -109,6 +134,12 @@
   function renderPublicCategoryFilter(preferredValue = lastSelectedFilterCategory) {
     if (!categoryFilterEl) return;
     const currentName = preferredValue === "all" ? "all" : getCategoryName(preferredValue);
+    if (categoriesError && !categories.length) {
+      categoryFilterEl.innerHTML = '<option value="all">Could not load categories</option>';
+      categoryFilterEl.value = "all";
+      return;
+    }
+
     categoryFilterEl.innerHTML = [
       '<option value="all">All categories</option>',
       ...categories.map((category) => `<option value="${escapeAttribute(category.name)}">${escapeAttribute(category.name)}</option>`)
@@ -124,6 +155,11 @@
   }
 
   function renderCategoryLoadingState() {
+    if (categoriesReady || categories.length) {
+      renderAllCategoryControls(lastSelectedFilterCategory);
+      return;
+    }
+
     if (categorySelectEl) {
       categorySelectEl.innerHTML = '<option value="">Loading categories...</option>';
       categorySelectEl.disabled = true;
@@ -134,9 +170,10 @@
     }
   }
 
-  async function refreshCategoryControls(preferredFilterValue) {
+  async function refreshCategoryControls(preferredFilterValue, options = {}) {
     try {
-      await loadCategories();
+      if (!categoriesReady && !categories.length) renderCategoryLoadingState();
+      await loadCategories(options);
       categoriesReady = true;
       renderAllCategoryControls(preferredFilterValue);
       if (categorySelectEl) categorySelectEl.disabled = false;
@@ -158,11 +195,12 @@
     refresh: refreshCategoryControls,
     getAll: () => [...categories],
     isReady: () => categoriesReady,
+    getError: () => categoriesError,
     getName: getCategoryName,
     getIdByName: getCategoryIdByName,
     save: async (categoryName) => {
       const saved = await saveCategory(categoryName);
-      await refreshCategoryControls(lastSelectedFilterCategory);
+      await refreshCategoryControls(lastSelectedFilterCategory, { force: true });
       return saved;
     }
   };
@@ -181,6 +219,4 @@
 
   renderCategoryLoadingState();
   refreshCategoryControls();
-  categorySelectEl?.addEventListener("focus", () => refreshCategoryControls());
-  categoryFilterEl?.addEventListener("focus", () => refreshCategoryControls(lastSelectedFilterCategory));
 })();

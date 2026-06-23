@@ -1399,13 +1399,27 @@ function renderOwnerCategorySelect(products) {
   }
   const categories = getCategoryList(products);
   const current = ownerProductCategorySelectEl.value;
+  const categoryError = window.KimsProductCategories?.getError?.();
+
+  if (categoryError && !categories.length) {
+    ownerProductCategorySelectEl.innerHTML = '<option value="">Could not load categories</option>';
+    ownerProductCategorySelectEl.disabled = false;
+    return;
+  }
 
   ownerProductCategorySelectEl.innerHTML = '<option value="">Select category</option>';
   categories.forEach((cat) => upsertCategoryOption(cat));
   ownerProductCategorySelectEl.disabled = false;
 
   const canKeepCurrent = categories.some((cat) => cat.toLowerCase() === current.toLowerCase());
-  ownerProductCategorySelectEl.value = canKeepCurrent ? current : "";
+  if (canKeepCurrent) {
+    ownerProductCategorySelectEl.value = current;
+  } else if (current) {
+    upsertCategoryOption(current);
+    ownerProductCategorySelectEl.value = current;
+  } else {
+    ownerProductCategorySelectEl.value = "";
+  }
 }
 function renderCategoryFilter(products) {
   if (!categoryFilterEl) return;

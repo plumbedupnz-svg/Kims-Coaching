@@ -45,6 +45,10 @@
 
   let inventoryItems = [];
   let productCategories = [];
+  let productCategoriesLoaded = false;
+  let productCategoriesLoading = false;
+  let productCategoriesError = "";
+  let productCategoriesPromise = null;
   let pendingInvoice = null;
   let invoiceReviewItems = [];
   let lastInventoryDebug = {
@@ -244,19 +248,45 @@
   function renderCategoryControls() {
     const currentFilter = categoryFilterEl?.value || "all";
     const currentFormCategory = productCategoryEl?.value || "";
+    const categoryOptions = productCategories
+      .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
+      .join("");
 
     if (categoryFilterEl) {
-      categoryFilterEl.innerHTML = '<option value="all">All categories</option>' + productCategories
-        .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
-        .join("");
-      categoryFilterEl.value = productCategories.some((category) => category.id === currentFilter) ? currentFilter : "all";
+      if (productCategoriesLoading && !productCategoriesLoaded && !productCategories.length) {
+        categoryFilterEl.innerHTML = '<option value="all">Loading categories...</option>';
+        categoryFilterEl.value = "all";
+      } else if (productCategoriesError && !productCategories.length) {
+        categoryFilterEl.innerHTML = '<option value="all">Could not load categories</option>';
+        categoryFilterEl.value = "all";
+      } else {
+        const fallback = currentFilter !== "all" && !productCategories.some((category) => category.id === currentFilter)
+          ? `<option value="${escapeHtml(currentFilter)}">Selected category</option>`
+          : "";
+        categoryFilterEl.innerHTML = '<option value="all">All categories</option>' + fallback + categoryOptions;
+        categoryFilterEl.value = currentFilter === "all" || fallback || productCategories.some((category) => category.id === currentFilter)
+          ? currentFilter
+          : "all";
+      }
     }
 
     if (productCategoryEl) {
-      productCategoryEl.innerHTML = '<option value="">Select category</option>' + productCategories
-        .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
-        .join("");
-      productCategoryEl.value = productCategories.some((category) => category.id === currentFormCategory) ? currentFormCategory : "";
+      if (productCategoriesLoading && !productCategoriesLoaded && !productCategories.length) {
+        productCategoryEl.innerHTML = '<option value="">Loading categories...</option>';
+        productCategoryEl.disabled = true;
+      } else if (productCategoriesError && !productCategories.length) {
+        productCategoryEl.innerHTML = '<option value="">Could not load categories</option>';
+        productCategoryEl.disabled = false;
+      } else {
+        const fallback = currentFormCategory && !productCategories.some((category) => category.id === currentFormCategory)
+          ? `<option value="${escapeHtml(currentFormCategory)}">Selected category</option>`
+          : "";
+        productCategoryEl.innerHTML = '<option value="">Select category</option>' + fallback + categoryOptions;
+        productCategoryEl.value = currentFormCategory && (fallback || productCategories.some((category) => category.id === currentFormCategory))
+          ? currentFormCategory
+          : "";
+        productCategoryEl.disabled = false;
+      }
     }
   }
 
@@ -288,21 +318,38 @@
   }
 
   async function loadProductCategories() {
-    if (!client) return;
-    const { data, error } = await client
-      .from("product_categories")
-      .select("id,name")
-      .order("name", { ascending: true });
+    if (!client) return productCategories;
+    if (productCategoriesLoaded) return productCategories;
+    if (productCategoriesPromise) return productCategoriesPromise;
 
-    if (error) {
-      console.warn("Could not load product categories.", error.message);
-      productCategories = [];
-      renderCategoryControls();
-      return;
-    }
-
-    productCategories = data || [];
+    productCategoriesLoading = true;
+    productCategoriesError = "";
     renderCategoryControls();
+
+    productCategoriesPromise = (async () => {
+      const { data, error } = await client
+        .from("product_categories")
+        .select("id,name")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.warn("Could not load product categories.", error.message);
+        productCategoriesError = "Could not load categories";
+        return productCategories;
+      }
+
+      productCategories = data || [];
+      productCategoriesLoaded = true;
+      return productCategories;
+    })();
+
+    try {
+      return await productCategoriesPromise;
+    } finally {
+      productCategoriesLoading = false;
+      productCategoriesPromise = null;
+      renderCategoryControls();
+    }
   }
 
   async function loadInventory() {
