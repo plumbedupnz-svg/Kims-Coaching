@@ -724,8 +724,12 @@ async function saveAdminProductToSupabase(product) {
       productPayload.inventory_item_id = inventoryItem.id || null;
       productPayload.quantity_on_hand = Number(inventoryItem.quantity_on_hand || 0);
       productPayload.stock_status = inventoryItem.status || "in_stock";
-    } else {
+    } else if (!isEditingProduct) {
       throw new Error("Choose an existing inventory item or tick Create inventory item from this product.");
+    } else {
+      productPayload.inventory_item_id = null;
+      productPayload.quantity_on_hand = 0;
+      productPayload.stock_status = "out_of_stock";
     }
   }
 
@@ -1704,7 +1708,8 @@ function editOwnerProduct(productId) {
   upsertCategoryOption(product.category || "");
   ownerProductCategorySelectEl.value = product.category || "";
   ownerProductDescEl.value = product.description || "";
-  if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.value = product.fulfilment_type === "stock" ? "stock" : "order_to_sale";
+  const hasInventoryLink = Boolean(product.inventory_item_id);
+  if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.value = product.fulfilment_type === "stock" && hasInventoryLink ? "stock" : "order_to_sale";
   if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.value = product.inventory_item_id || "";
   if (ownerCreateInventoryEl) ownerCreateInventoryEl.checked = false;
   updateOwnerProductStockOptions();
