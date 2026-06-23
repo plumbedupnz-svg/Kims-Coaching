@@ -1145,11 +1145,12 @@ async function updatePassword(formData) {
 
 function renderAccountNavigation() {
   const account = activeAccount();
+  const isAdmin = isAdminProfile(currentProfile);
   publicAuthEls.forEach((item) => {
     item.hidden = Boolean(account);
   });
   privateAuthEls.forEach((item) => {
-    item.hidden = !account;
+    item.hidden = !account || isAdmin;
     if (account) item.href = getAccountDestination(currentProfile);
   });
   signOutEls.forEach((button) => {

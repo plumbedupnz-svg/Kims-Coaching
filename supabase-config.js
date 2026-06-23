@@ -25,6 +25,7 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
 
   async function updateAdminLink() {
     const adminLink = nav.querySelector("[data-admin-link]");
+    const accountLink = nav.querySelector("[data-auth-private]");
     if (!adminLink || !window.supabase) return;
     const settings = window.KIMS_SUPABASE || {};
     if (!settings.url || !settings.anonKey) return;
@@ -34,11 +35,14 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
     const user = data?.session?.user;
     if (!user) {
       adminLink.hidden = true;
+      if (accountLink) accountLink.hidden = true;
       return;
     }
 
     const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
-    adminLink.hidden = profile?.role !== "admin";
+    const isAdmin = profile?.role === "admin";
+    adminLink.hidden = !isAdmin;
+    if (accountLink) accountLink.hidden = isAdmin;
   }
 
   updateAdminLink();
