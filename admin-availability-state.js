@@ -113,6 +113,8 @@
     const startTime = formData.get("start_time");
     const endTime = formData.get("end_time");
     const isAvailable = formData.get("is_available") === "true";
+    const lessonTypeId = formData.get("lesson_type_id") || null;
+    const capacity = Math.max(1, Number(formData.get("capacity") || 1));
     const recurrenceLabel = (formData.get("recurrence_label") || "").trim();
     const recurringWeekly = formData.get("recurring_weekly") === "on";
     const repeatWeeks = recurringWeekly ? Math.min(Math.max(Number(formData.get("repeat_weeks") || 1), 1), 52) : 1;
@@ -134,6 +136,8 @@
       start_time: addWeeks(start, index).toISOString(),
       end_time: addWeeks(end, index).toISOString(),
       is_available: isAvailable,
+      lesson_type_id: lessonTypeId,
+      capacity,
       created_by: state.user.id,
       recurrence_group_id: recurrenceGroupId,
       recurrence_label: recurrenceLabel,
@@ -149,6 +153,8 @@
     formEl.elements.end_time.value = formatTimeInput(slot.end_time);
     const hasInvalidStart = !formEl.elements.start_time.value || !isHalfHourStart(slot.start_time);
     formEl.elements.is_available.value = String(slot.is_available);
+    if (formEl.elements.lesson_type_id) formEl.elements.lesson_type_id.value = slot.lesson_type_id || "";
+    if (formEl.elements.capacity) formEl.elements.capacity.value = slot.capacity || 1;
     formEl.elements.recurrence_label.value = slot.recurrence_label || "";
     formEl.elements.recurring_weekly.checked = false;
     formEl.elements.repeat_weeks.value = "1";

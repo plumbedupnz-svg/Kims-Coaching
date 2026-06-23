@@ -15,12 +15,16 @@
   const authRequiredEl = document.querySelector("[data-auth-required]");
   const myBookingsEl = document.querySelector("[data-my-bookings]");
   const durationSelectEl = document.querySelector("[data-duration-select]");
+  const bundleSelectEl = document.querySelector("[data-bundle-select]");
+  const paymentOptionEl = document.querySelector("[data-payment-option]");
+  const priceSummaryEl = document.querySelector("[data-booking-price-summary]");
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
-  const durationOptions = [30, 60, 90, 120];
+  const durationOptions = [30, 45, 60, 90, 120];
   const state = {
     user: null,
     profile: null,
     lessonType: null,
+    bundles: [],
     selectedSlot: null,
     selectedDuration: null,
     weekStart: getMonday(new Date()),
@@ -71,6 +75,40 @@
   function getAvailableDurations(slot) {
     const maxDuration = getMaxDurationMinutes(slot);
     return durationOptions.filter((duration) => duration <= maxDuration);
+  }
+
+  function money(value) {
+    return `$${Number(value || 0).toFixed(2)}`;
+  }
+
+  function getSlotLesson(slot = state.selectedSlot) {
+    return {
+      id: slot?.lesson_type_id || state.lessonType?.id || "",
+      name: slot?.lesson_type_name || state.lessonType?.name || "Private Lesson",
+      price: Number(slot?.lesson_type_price ?? state.lessonType?.price ?? 0),
+      duration: Number(slot?.lesson_type_duration ?? state.lessonType?.duration ?? 0)
+    };
+  }
+
+  function getSelectedBundle() {
+    const bundleId = bundleSelectEl?.value || "";
+    return state.bundles.find((bundle) => bundle.id === bundleId) || null;
+  }
+
+  function getBookingTotal() {
+    const lesson = getSlotLesson();
+    const bundle = getSelectedBundle();
+    const lessonCount = bundle ? Number(bundle.lesson_count || 1) : 1;
+    const discount = bundle ? Number(bundle.discount_percent || 0) : 0;
+    const subtotal = lesson.price * lessonCount;
+    return {
+      lesson,
+      bundle,
+      lessonCount,
+      discount,
+      subtotal,
+      total: Math.max(0, subtotal * (1 - discount / 100))
+    };
   }
 
   function isHalfHourStart(value) {
@@ -135,6 +173,24 @@
     return state.lessonType;
   }
 
+  async function loadBundles() {
+    if (!client) return [];
+    const { data, error } = await client
+      .from("lesson_bundles")
+      .select("id,name,lesson_type_id,lesson_count,discount_percent,description,is_active")
+      .eq("is_active", true)
+      .order("lesson_count", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load lesson bundles.", error.message);
+      state.bundles = [];
+      return [];
+    }
+
+    state.bundles = data || [];
+    return state.bundles;
+  }
+
   async function loadAvailableSlots() {
     if (!calendarEl) return;
     if (!client) {
@@ -163,7 +219,13 @@
       end_time: slot.end_time,
       duration: slot.duration || getDurationMinutes(slot),
       max_duration_minutes: slot.max_duration_minutes || getDurationMinutes(slot),
-      lesson_type_id: slot.lesson_type_id
+      lesson_type_id: slot.lesson_type_id,
+      lesson_type_name: slot.lesson_type_name,
+      lesson_type_price: slot.lesson_type_price,
+      lesson_type_duration: slot.lesson_type_duration,
+      capacity: slot.capacity,
+      booked_count: slot.booked_count,
+      spaces_remaining: slot.spaces_remaining
     })));
     renderCalendar();
   }
@@ -171,7 +233,7 @@
   async function loadAvailableSlotsFallback(weekStartIso, weekEndIso) {
     const { data, error } = await client
       .from("availability")
-      .select("*")
+      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity)")
       .eq("is_available", true)
       .gte("start_time", weekStartIso)
       .lt("start_time", weekEndIso)
@@ -193,7 +255,13 @@
             ...availability,
             start_time: cursor.toISOString(),
             max_duration_minutes: maxDuration,
-            duration: Math.min(60, maxDuration)
+            duration: Math.min(60, maxDuration),
+            lesson_type_id: availability.lesson_type_id,
+            lesson_type_name: availability.lesson_type?.name,
+            lesson_type_price: availability.lesson_type?.price,
+            lesson_type_duration: availability.lesson_type?.duration,
+            capacity: availability.capacity || availability.lesson_type?.capacity || 1,
+            spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1
           });
         }
       }
@@ -223,7 +291,7 @@
       const slotButtons = daySlots.map((slot) => `
         <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
           ${formatTime(slot.start_time)}
-          <span>${formatTime(slot.start_time)} start · up to ${getMaxDurationMinutes(slot)} min</span>
+          <span>${escapeHtml(slot.lesson_type_name || "Private Lesson")} · up to ${getMaxDurationMinutes(slot)} min${slot.spaces_remaining ? ` · ${Number(slot.spaces_remaining)} spot${Number(slot.spaces_remaining) === 1 ? "" : "s"}` : ""}</span>
         </button>
       `).join("");
 
@@ -270,6 +338,32 @@
     durationSelectEl.value = preferredDuration ? String(preferredDuration) : "";
   }
 
+  function renderBundleOptions() {
+    if (!bundleSelectEl) return;
+    const lesson = getSlotLesson();
+    const current = bundleSelectEl.value;
+    const matchingBundles = state.bundles.filter((bundle) => !bundle.lesson_type_id || bundle.lesson_type_id === lesson.id);
+    bundleSelectEl.innerHTML = [
+      '<option value="">Single lesson</option>',
+      ...matchingBundles.map((bundle) => `<option value="${escapeHtml(bundle.id)}">${escapeHtml(bundle.name)} · ${Number(bundle.lesson_count || 0)} lessons · ${Number(bundle.discount_percent || 0)}% off</option>`)
+    ].join("");
+    if (matchingBundles.some((bundle) => bundle.id === current)) bundleSelectEl.value = current;
+  }
+
+  function renderPriceSummary() {
+    if (!priceSummaryEl) return;
+    if (!state.selectedSlot) {
+      priceSummaryEl.textContent = "";
+      return;
+    }
+
+    const total = getBookingTotal();
+    const paymentText = paymentOptionEl?.value === "pay_now" ? "Pay now selected" : "Pay later selected";
+    priceSummaryEl.textContent = total.bundle
+      ? `${total.bundle.name}: ${total.lessonCount} lessons, ${total.discount}% off. Total ${money(total.total)}. ${paymentText}.`
+      : `${total.lesson.name}: ${money(total.lesson.price)}. ${paymentText}.`;
+  }
+
   function selectSlot(slotKey) {
     state.selectedSlot = state.slots.find((slot) => getSlotKey(slot) === slotKey);
     if (!state.selectedSlot) return;
@@ -286,6 +380,8 @@
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
     renderDurationOptions();
+    renderBundleOptions();
+    renderPriceSummary();
     prefillBookingForm();
     renderCalendar();
   }
@@ -331,6 +427,7 @@
       return;
     }
 
+    const bookingTotal = getBookingTotal();
     const payload = {
       user_id: state.user.id,
       lesson_type_id: state.selectedSlot.lesson_type_id || state.lessonType.id,
@@ -345,7 +442,12 @@
       notes: buildNotes(formData),
       start_time: state.selectedSlot.start_time,
       end_time: bookingEndTime,
-      duration_minutes: selectedDuration
+      duration_minutes: selectedDuration,
+      payment_option: formData.get("payment_option") || "pay_later",
+      bundle_id: formData.get("bundle_id") || null,
+      bundle_lessons_count: bookingTotal.bundle ? bookingTotal.lessonCount : null,
+      bundle_discount_percent: bookingTotal.bundle ? bookingTotal.discount : null,
+      total_price: bookingTotal.total
     };
 
     const emailTraceId = createEmailTraceId();
@@ -361,7 +463,7 @@
     const submitButton = bookingFormEl.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
 
-    const result = await client.rpc("create_private_lesson_booking", {
+    let result = await client.rpc("create_private_lesson_booking", {
       p_availability_id: payload.availability_id,
       p_start_time: payload.start_time,
       p_lesson_type_id: payload.lesson_type_id,
@@ -372,8 +474,30 @@
       p_customer_email: payload.customer_email,
       p_mobile: payload.mobile,
       p_player_level: payload.player_level,
-      p_notes: payload.notes
+      p_notes: payload.notes,
+      p_payment_option: payload.payment_option,
+      p_bundle_id: payload.bundle_id,
+      p_bundle_lessons_count: payload.bundle_lessons_count,
+      p_bundle_discount_percent: payload.bundle_discount_percent,
+      p_total_price: payload.total_price
     });
+
+    if (result.error && /function .*create_private_lesson_booking|schema cache|PGRST202/i.test(result.error.message || result.error.code || "")) {
+      console.warn("New booking RPC is not installed yet; retrying with legacy booking parameters.");
+      result = await client.rpc("create_private_lesson_booking", {
+        p_availability_id: payload.availability_id,
+        p_start_time: payload.start_time,
+        p_lesson_type_id: payload.lesson_type_id,
+        p_duration_minutes: payload.duration_minutes,
+        p_customer_name: payload.customer_name,
+        p_parent_name: payload.parent_name,
+        p_player_name: payload.player_name,
+        p_customer_email: payload.customer_email,
+        p_mobile: payload.mobile,
+        p_player_level: payload.player_level,
+        p_notes: payload.notes
+      });
+    }
 
     if (submitButton) submitButton.disabled = false;
 
@@ -410,6 +534,9 @@
       startTime: payload.start_time,
       endTime: payload.end_time,
       durationMinutes: payload.duration_minutes,
+      paymentOption: payload.payment_option,
+      totalPrice: payload.total_price,
+      bundleName: bookingTotal.bundle?.name || "",
       notes: formData.get("notes")?.trim() || ""
     };
     console.info("[Kim's Coaching booking email] notification dispatch starting", {
@@ -430,6 +557,7 @@
       <strong>Your private lesson request has been booked.</strong>
       <p>${formatDate(payload.start_time, { weekday: "long", month: "long", day: "numeric" })}</p>
       <p>${formatTime(payload.start_time)} · ${payload.duration_minutes} minutes</p>
+      <p>${payload.payment_option === "pay_now" ? "Pay now" : "Pay later"} · ${money(payload.total_price)}</p>
       <p>Player: ${escapeHtml(payload.player_name)}</p>
     `;
     sessionStorage.setItem("kims_last_booking_confirmation", JSON.stringify({
@@ -437,6 +565,9 @@
       endTime: payload.end_time,
       duration: payload.duration_minutes,
       playerName: payload.player_name,
+      paymentOption: payload.payment_option,
+      totalPrice: payload.total_price,
+      bundleName: bookingTotal.bundle?.name || "",
       emailStatus
     }));
     state.selectedSlot = null;
@@ -494,6 +625,7 @@
   async function initBookingPage() {
     await refreshSession();
     await loadPrivateLessonType();
+    await loadBundles();
     await loadAvailableSlots();
     prefillBookingForm();
   }
@@ -522,7 +654,11 @@
     if (state.selectedSlot && state.selectedDuration) {
       selectedSlotCopyEl.textContent = `${formatTime(state.selectedSlot.start_time)} start · ${state.selectedDuration} minutes`;
     }
+    renderPriceSummary();
   });
+
+  if (bundleSelectEl) bundleSelectEl.addEventListener("change", renderPriceSummary);
+  if (paymentOptionEl) paymentOptionEl.addEventListener("change", renderPriceSummary);
 
   if (bookingFormEl) bookingFormEl.addEventListener("submit", createBooking);
 

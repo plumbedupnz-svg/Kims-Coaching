@@ -84,6 +84,20 @@
                 </select>
               </label>
               <label>
+                Payment option
+                <select name="payment_option" data-payment-option required>
+                  <option value="pay_later">Pay later</option>
+                  <option value="pay_now">Pay now</option>
+                </select>
+              </label>
+              <label>
+                Coaching bundle
+                <select name="bundle_id" data-bundle-select>
+                  <option value="">Single lesson</option>
+                </select>
+              </label>
+              <p class="helper-text" data-booking-price-summary></p>
+              <label>
                 Player name
                 <input type="text" name="player_name" required />
               </label>

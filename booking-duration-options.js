@@ -146,5 +146,6 @@
   new MutationObserver(syncDurationOptions).observe(calendarEl, { childList: true, subtree: true, attributes: true, attributeFilter: ["class"] });
   durationSelectEl.addEventListener("focus", syncDurationOptions);
   durationSelectEl.addEventListener("click", syncDurationOptions);
-  formEl.addEventListener("submit", handleExpandedDurationBooking, true);
+  // The main booking flow now supports 45 and 60 minute bookings plus payment/bundle fields.
+  // Keep this helper for duration option hydration only, and let booking.js handle submits.
 })();
