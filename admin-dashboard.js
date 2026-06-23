@@ -70,7 +70,7 @@
   function renderBookings(target, bookings = [], compact = false) {
     if (!target) return;
     if (!bookings.length) {
-      renderEmpty(target, "No private lesson bookings yet.");
+      renderEmpty(target, "No coaching bookings yet.");
       return;
     }
 

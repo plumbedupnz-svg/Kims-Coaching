@@ -72,8 +72,8 @@
       : "";
     const bundleCopy = booking.bundleName ? `<p>Bundle: ${escapeHtml(booking.bundleName)}</p>` : "";
     confirmationEl.innerHTML = `
-      <strong>Your private lesson request has been booked.</strong>
-      <p>Date: ${startTime ? formatter.format(startTime) : "Private lesson"}</p>
+      <strong>Your coaching booking has been booked.</strong>
+      <p>Date: ${startTime ? formatter.format(startTime) : "Coaching"}</p>
       <p>Start time: ${startTime ? timeFormatter.format(startTime) : ""}</p>
       <p>Duration: ${escapeHtml(booking.duration || "")} minutes</p>
       ${paymentCopy}

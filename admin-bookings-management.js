@@ -147,7 +147,7 @@
   function renderBookings() {
     state.rendering = true;
     if (!state.bookings.length) {
-      list.innerHTML = '<p class="helper-text">No private lesson bookings yet.</p>';
+      list.innerHTML = '<p class="helper-text">No coaching bookings yet.</p>';
       state.rendering = false;
       return;
     }

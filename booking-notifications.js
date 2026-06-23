@@ -7,7 +7,7 @@
     });
     const emailPayload = {
       ...payload,
-      title: `Private lesson with ${payload.playerName || "player"}`,
+      title: `Coaching with ${payload.playerName || "player"}`,
       startTime: payload.startTime || payload.dateTime,
       endTime: payload.endTime,
       description: payload.notes || ""
@@ -50,7 +50,7 @@
     return [
       "BEGIN:VCALENDAR",
       "VERSION:2.0",
-      "PRODID:-//Kim Jones Coaching//Private Lessons//EN",
+      "PRODID:-//Kim Jones Coaching//Coaching//EN",
       "BEGIN:VEVENT",
       `UID:${window.crypto?.randomUUID?.() || Date.now()}@kimjonescoaching`,
       `DTSTAMP:${formatDate(new Date())}`,
@@ -86,7 +86,7 @@
       relatedType: "waitlist",
       customerName: email || "Website visitor",
       email,
-      notes: "Customer clicked the private lesson waitlist/request-a-time link."
+      notes: "Customer clicked the coaching waitlist/request-a-time link."
     };
     await Promise.allSettled([
       window.KimsEmailService.sendWaitlistNotification(payload),

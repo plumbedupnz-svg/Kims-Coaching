@@ -71,16 +71,33 @@
 }
 
 .compact-time-grid .slot-button {
-  min-height: 48px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.7rem 0.5rem;
+  min-height: 74px;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 0.12rem;
+  padding: 0.65rem 0.5rem;
   text-align: center;
 }
 
-.compact-time-grid .slot-button span {
-  display: none;
+.compact-time-grid .slot-lesson-type {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-size: 0.78rem;
+  line-height: 1.15;
+}
+
+.compact-time-grid .slot-time {
+  display: block;
+  font-size: 1rem;
+  line-height: 1.1;
+}
+
+.compact-time-grid .slot-meta {
+  display: block;
+  font-size: 0.7rem;
+  line-height: 1.15;
 }
 
 @media (max-width: 760px) {

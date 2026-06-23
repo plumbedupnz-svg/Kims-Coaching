@@ -1,7 +1,8 @@
 alter table public.lesson_types
 add column if not exists description text,
 add column if not exists capacity integer not null default 1,
-add column if not exists is_active boolean not null default true;
+add column if not exists is_active boolean not null default true,
+add column if not exists created_at timestamptz not null default now();
 
 alter table public.availability
 add column if not exists lesson_type_id uuid references public.lesson_types(id) on delete set null,

@@ -50,7 +50,7 @@
       .limit(1)
       .maybeSingle();
 
-    if (error || !data?.id) throw new Error("Private lesson type is not configured yet.");
+    if (error || !data?.id) throw new Error("Coaching type is not configured yet.");
     return data.id;
   }
 
@@ -61,7 +61,7 @@
   function buildNotes(formData) {
     const rawNotes = formData.get("notes")?.trim() || "";
     return [
-      "Private lesson booking",
+      "Coaching booking",
       `Player: ${formData.get("player_name")?.trim() || ""}`,
       `Parent: ${formData.get("parent_name")?.trim() || ""}`,
       `Email: ${formData.get("email")?.trim() || ""}`,
@@ -99,7 +99,7 @@
     const endTime = getBookingEndTime(startTime, selectedDuration);
     const submitButton = formEl.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
-    setStatus(`Saving your ${selectedDuration} minute private lesson booking...`, "neutral");
+    setStatus(`Saving your ${selectedDuration} minute coaching booking...`, "neutral");
 
     const result = await client.rpc("create_private_lesson_booking", {
       p_availability_id: availabilityId,

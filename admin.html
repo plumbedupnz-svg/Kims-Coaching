@@ -22,7 +22,7 @@
         </button>
         <div class="nav-links" id="primary-nav" data-nav-links>
           <a href="index.html">Home</a>
-          <a href="booking.html">Book Private Lesson</a>
+          <a href="booking.html">Book Coaching</a>
           <a href="shop.html">Shop</a>
           <a href="account.html" data-auth-private hidden>My Account</a>
           <a href="admin.html" data-admin-link aria-current="page">Admin</a>
@@ -69,7 +69,7 @@
                 <section class="admin-primary">
                   <form class="availability-form" data-lesson-type-form>
                     <div class="availability-form-head">
-                      <div><h2>Lesson types</h2><p class="helper-text">Create the coaching options customers can book, such as private lessons, squad training, or specific clinics.</p></div>
+                      <div><h2>Lesson types</h2><p class="helper-text">Create the coaching options customers can book, such as coachings, squad training, or specific clinics.</p></div>
                     </div>
                     <input type="hidden" name="lesson_type_id" />
                     <div class="availability-grid">
@@ -97,7 +97,7 @@
                       <label>Date<input type="date" name="slot_date" required /></label>
                       <label>Start time<select name="start_time" data-time-select required><option value="">Select start time</option></select></label>
                       <label>End time<select name="end_time" data-time-select required><option value="">Select end time</option></select></label>
-                      <label>Lesson type<select name="lesson_type_id" data-availability-lesson-type><option value="">Private Lesson</option></select></label>
+                      <label>Lesson type<select name="lesson_type_id" data-availability-lesson-type><option value="">Coaching</option></select></label>
                       <label>Capacity<input type="number" name="capacity" min="1" step="1" value="1" /></label>
                       <label>Slot type<select name="is_available" required><option value="true">Available for lessons</option><option value="false">Blocked out</option></select></label>
                       <label class="availability-repeat"><span>Repeat weekly</span><input type="checkbox" name="recurring_weekly" data-recurring-weekly /></label>
