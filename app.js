@@ -2,6 +2,7 @@ const CART_KEY = "kims_cart";
 const STRIPE_KEY = "kims_stripe_link";
 const PROMO_SETTINGS_KEY = "kims_promo_settings";
 const APPLIED_PROMO_CODE_KEY = "kims_applied_promo_code";
+const HOMEPAGE_PHOTO_SETTING_KEY = "homepage_photo";
 
 const defaultProducts = [
   { id: "agility-kit", name: "Speed Agility Kit", price: 59.99, discount: 0, category: "Training", description: "Cones, ladder, and bands for movement sessions.", image: "" },
@@ -49,6 +50,14 @@ const ownerPromoFormEl = document.getElementById("owner-promo-form");
 const ownerPromoCodeEl = document.getElementById("owner-promo-code");
 const ownerPromoPercentEl = document.getElementById("owner-promo-percent");
 const ownerPromoStatusEl = document.getElementById("owner-promo-status");
+const homepagePhotoImgEl = document.querySelector("[data-homepage-photo]");
+const homepagePhotoPlaceholderEl = document.querySelector("[data-homepage-photo-placeholder]");
+const homepagePhotoFormEl = document.querySelector("[data-homepage-photo-form]");
+const homepagePhotoInputEl = document.querySelector("[data-homepage-photo-input]");
+const homepagePhotoPreviewEl = document.querySelector("[data-homepage-photo-preview]");
+const homepagePhotoPreviewEmptyEl = document.querySelector("[data-homepage-photo-preview-empty]");
+const homepagePhotoMessageEl = document.querySelector("[data-homepage-photo-message]");
+const removeHomepagePhotoEl = document.querySelector("[data-remove-homepage-photo]");
 const authFormEl = document.querySelector("[data-auth-form]");
 const authMessageEl = document.querySelector("[data-auth-message]");
 const authTitleEl = document.querySelector("[data-auth-title]");
@@ -759,6 +768,131 @@ async function uploadOwnerProductImage(file, productId) {
   if (error) throw error;
   const { data } = supabaseClient.storage.from("product-images").getPublicUrl(storagePath);
   return data?.publicUrl || "";
+}
+
+function setHomepagePhotoMessage(message, tone = "neutral") {
+  if (!homepagePhotoMessageEl) return;
+  homepagePhotoMessageEl.textContent = message;
+  homepagePhotoMessageEl.dataset.tone = tone;
+}
+
+function applyHomepagePhoto(url = "") {
+  const imageUrl = isImageUrl(url) ? url : "";
+
+  if (homepagePhotoImgEl) {
+    homepagePhotoImgEl.src = imageUrl;
+    homepagePhotoImgEl.hidden = !imageUrl;
+  }
+  if (homepagePhotoPlaceholderEl) homepagePhotoPlaceholderEl.hidden = Boolean(imageUrl);
+
+  if (homepagePhotoPreviewEl) {
+    homepagePhotoPreviewEl.src = imageUrl;
+    homepagePhotoPreviewEl.hidden = !imageUrl;
+  }
+  if (homepagePhotoPreviewEmptyEl) homepagePhotoPreviewEmptyEl.hidden = Boolean(imageUrl);
+}
+
+async function loadHomepagePhotoSetting({ showAdminMessage = false } = {}) {
+  if (!supabaseClient || (!homepagePhotoImgEl && !homepagePhotoFormEl)) return null;
+
+  const { data, error } = await supabaseClient
+    .from("site_settings")
+    .select("value")
+    .eq("setting_key", HOMEPAGE_PHOTO_SETTING_KEY)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Could not load homepage photo setting.", error.message);
+    if (showAdminMessage) setHomepagePhotoMessage(`Could not load front page photo setting: ${error.message}`, "error");
+    return null;
+  }
+
+  const setting = data?.value || {};
+  applyHomepagePhoto(setting.image_url || "");
+  if (showAdminMessage) setHomepagePhotoMessage(setting.image_url ? "Current front page photo loaded." : "No front page photo selected.", "neutral");
+  return setting;
+}
+
+async function saveHomepagePhotoSetting(value) {
+  if (!supabaseClient) throw new Error("Supabase is not configured.");
+  const { error } = await supabaseClient
+    .from("site_settings")
+    .upsert({
+      setting_key: HOMEPAGE_PHOTO_SETTING_KEY,
+      value,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "setting_key" });
+
+  if (error) throw error;
+}
+
+async function uploadHomepagePhoto(file) {
+  if (!file) throw new Error("Choose a photo before saving.");
+  if (!supabaseClient) throw new Error("Supabase is not configured for image uploads.");
+  if (!/^image\/(jpe?g|png|webp)$/i.test(file.type)) {
+    throw new Error("Front page photo must be JPG, PNG, or WebP.");
+  }
+  if (file.size > 3 * 1024 * 1024) {
+    throw new Error("Front page photo must be smaller than 3MB.");
+  }
+
+  const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+  const safeName = slugify(file.name.replace(/\.[^.]+$/, "") || "front-page-photo");
+  const storagePath = `site/homepage/${Date.now()}-${safeName}.${extension}`;
+  const { error } = await supabaseClient.storage
+    .from("product-images")
+    .upload(storagePath, file, {
+      cacheControl: "31536000",
+      upsert: true,
+      contentType: file.type
+    });
+  if (error) throw error;
+
+  const { data } = supabaseClient.storage.from("product-images").getPublicUrl(storagePath);
+  return { image_url: data?.publicUrl || "", storage_path: storagePath };
+}
+
+async function handleHomepagePhotoSave(event) {
+  event.preventDefault();
+  if (!isAdminProfile()) {
+    setHomepagePhotoMessage("Only admin users can update the front page photo.", "error");
+    return;
+  }
+
+  try {
+    setHomepagePhotoMessage("Uploading front page photo...", "neutral");
+    const uploaded = await uploadHomepagePhoto(homepagePhotoInputEl?.files?.[0]);
+    await saveHomepagePhotoSetting(uploaded);
+    applyHomepagePhoto(uploaded.image_url);
+    if (homepagePhotoInputEl) homepagePhotoInputEl.value = "";
+    setHomepagePhotoMessage("Front page photo saved.", "success");
+  } catch (error) {
+    console.error("Could not save homepage photo.", error);
+    setHomepagePhotoMessage(`Could not save front page photo: ${error.message}`, "error");
+  }
+}
+
+async function handleHomepagePhotoRemove() {
+  if (!isAdminProfile()) {
+    setHomepagePhotoMessage("Only admin users can remove the front page photo.", "error");
+    return;
+  }
+
+  try {
+    setHomepagePhotoMessage("Removing front page photo...", "neutral");
+    const current = await loadHomepagePhotoSetting();
+    if (current?.storage_path) {
+      const { error } = await supabaseClient.storage.from("product-images").remove([current.storage_path]);
+      if (error) console.warn("Could not remove homepage photo from Storage.", error.message);
+    }
+    await saveHomepagePhotoSetting({ image_url: "", storage_path: "" });
+    applyHomepagePhoto("");
+    if (homepagePhotoInputEl) homepagePhotoInputEl.value = "";
+    setHomepagePhotoMessage("Front page photo removed.", "success");
+  } catch (error) {
+    console.error("Could not remove homepage photo.", error);
+    setHomepagePhotoMessage(`Could not remove front page photo: ${error.message}`, "error");
+  }
 }
 
 async function loadAdminInventoryLinkItems() {
@@ -1805,6 +1939,8 @@ if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
   renderCart();
 });
 
+if (homepagePhotoFormEl) homepagePhotoFormEl.addEventListener("submit", handleHomepagePhotoSave);
+if (removeHomepagePhotoEl) removeHomepagePhotoEl.addEventListener("click", handleHomepagePhotoRemove);
 if (stripeInputEl) stripeInputEl.addEventListener("change", saveStripeLink);
 if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.addEventListener("change", updateOwnerProductStockOptions);
 if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.addEventListener("change", updateOwnerProductStockOptions);
@@ -2093,6 +2229,8 @@ async function init() {
     if (!supabaseClient && authMessageEl) {
       showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
     }
+
+    await loadHomepagePhotoSetting({ showAdminMessage: Boolean(homepagePhotoFormEl) });
 
     if (isShopPage) {
       await renderInitialShopProducts();
