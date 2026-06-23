@@ -115,7 +115,7 @@
       </dialog>
       <dialog class="admin-modal" data-booking-delete-modal>
         <form class="owner-add-form admin-modal-card" method="dialog">
-          <div><p class="eyebrow">Delete</p><h3>Delete booking?</h3><p class="helper-text">This permanently removes the booking record.</p></div>
+          <div><p class="eyebrow">Delete</p><h3>Delete booking?</h3><p class="helper-text">This permanently removes the booking record and makes the lesson time available again.</p></div>
           <input type="hidden" name="booking_id" />
           <div class="availability-actions">
             <button class="btn btn-secondary" type="button" data-close-booking-delete>Keep booking</button>
@@ -247,7 +247,9 @@
   }
 
   async function cancelBooking(id) {
-    const { error } = await client.from("bookings").update({ booking_status: "cancelled" }).eq("id", id);
+    const { error } = await client.rpc("admin_cancel_booking_and_restore_availability", {
+      p_booking_id: id
+    });
     if (error) throw error;
     await loadBookings();
   }
@@ -263,8 +265,10 @@
     const modal = document.querySelector("[data-booking-delete-modal]");
     const id = modal.querySelector("input[name='booking_id']").value;
     try {
-      setMessage("[data-booking-delete-message]", "Deleting booking...");
-      const { error } = await client.from("bookings").delete().eq("id", id);
+      setMessage("[data-booking-delete-message]", "Deleting booking and reopening the lesson time...");
+      const { error } = await client.rpc("admin_delete_booking_and_restore_availability", {
+        p_booking_id: id
+      });
       if (error) throw error;
       closeDialog(modal);
       await loadBookings();
