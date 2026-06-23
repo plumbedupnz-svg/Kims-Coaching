@@ -162,6 +162,7 @@
             <strong>${escapeHtml(booking.player_name || "Player")}</strong>
             <p>${formatDateTime(start)}${end ? ` - ${formatDateTime(end)}` : ""}</p>
             ${booking.customer_email ? `<p>${escapeHtml(booking.customer_email)}</p>` : ""}
+            <p>${booking.payment_option === "pay_now" ? "Pay now" : "Pay later"}${booking.total_price !== undefined ? ` · $${Number(booking.total_price || 0).toFixed(2)}` : ""}${booking.bundle_lessons_count ? ` · ${Number(booking.bundle_lessons_count)} lesson bundle` : ""}</p>
           </div>
           <div class="booking-row-side">
             <span class="status-pill ${className}">${escapeHtml(label)}</span>

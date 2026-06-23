@@ -9,10 +9,14 @@
       return;
     }
 
+    const lessonTypes = window.KimsLessonTypes || [];
     listEl.innerHTML = state.slots.map((slot) => {
       const statusClass = slot.is_available ? "available" : "blocked";
       const statusText = slot.is_available ? "Available" : "Blocked";
       const label = admin.escapeHtml(slot.recurrence_label || "");
+      const lessonType = lessonTypes.find((lesson) => lesson.id === slot.lesson_type_id);
+      const lessonLabel = lessonType?.name || "Private Lesson";
+      const capacity = Number(slot.capacity || lessonType?.capacity || 1);
       const seriesButton = slot.recurrence_group_id
         ? `<button class="btn btn-secondary" type="button" data-availability-action="delete-series" data-series-id="${slot.recurrence_group_id}">Delete series</button>`
         : "";
@@ -22,6 +26,7 @@
           <div class="availability-row-main">
             <span class="status-pill ${statusClass}">${statusText}</span>
             <h3>${admin.formatDateTime(slot.start_time)} - ${admin.formatTimeInput(slot.end_time)}</h3>
+            <p>${admin.escapeHtml(lessonLabel)} · ${capacity} spot${capacity === 1 ? "" : "s"}</p>
             ${label ? `<p>${label}</p>` : ""}
             ${slot.recurrence_group_id ? '<p class="owner-meta">Weekly recurring slot</p>' : ""}
           </div>
@@ -146,5 +151,6 @@
   listEl.addEventListener("click", handleAction);
   if (admin.cancelEditEl) admin.cancelEditEl.addEventListener("click", admin.resetForm);
   if (admin.recurringEl) admin.recurringEl.addEventListener("change", admin.setRepeatControls);
+  window.addEventListener("kims:lesson-types-ready", renderSlots);
   initAvailability();
 })();

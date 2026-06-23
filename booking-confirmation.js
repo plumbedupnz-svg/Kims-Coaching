@@ -67,11 +67,17 @@
           ? "Calendar invite pending/test mode."
           : "Calendar invite generated."
       : "Calendar invite pending.";
+    const paymentCopy = booking.paymentOption
+      ? `<p>Payment: ${booking.paymentOption === "pay_now" ? "Pay now" : "Pay later"}${booking.totalPrice !== undefined ? ` · $${Number(booking.totalPrice || 0).toFixed(2)}` : ""}</p>`
+      : "";
+    const bundleCopy = booking.bundleName ? `<p>Bundle: ${escapeHtml(booking.bundleName)}</p>` : "";
     confirmationEl.innerHTML = `
       <strong>Your private lesson request has been booked.</strong>
       <p>Date: ${startTime ? formatter.format(startTime) : "Private lesson"}</p>
       <p>Start time: ${startTime ? timeFormatter.format(startTime) : ""}</p>
       <p>Duration: ${escapeHtml(booking.duration || "")} minutes</p>
+      ${paymentCopy}
+      ${bundleCopy}
       <p>Player: ${escapeHtml(booking.playerName || "")}</p>
       <p>Coach: Kim Jones</p>
       <p>${escapeHtml(emailCopy)}</p>
