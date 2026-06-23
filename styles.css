@@ -145,6 +145,15 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.1em;
+  overflow: hidden;
+  position: relative;
+}
+.kim-photo-placeholder img {
+  width: 100%;
+  height: 100%;
+  min-height: 430px;
+  object-fit: cover;
+  display: block;
 }
 .photo-caption { display: grid; gap: 0.1rem; padding: 1rem 0.3rem 0.15rem; }
 .photo-caption span { color: var(--muted); font-size: 0.94rem; }
@@ -425,6 +434,23 @@ textarea { resize: vertical; min-height: 120px; }
 .owner-wrap { display: grid; gap: 1rem; }
 .owner-add-form, .owner-products { padding: 1rem; }
 .owner-add-form { display: grid; gap: 0.6rem; }
+.homepage-photo-preview {
+  min-height: 190px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(39, 173, 255, 0.38);
+  border-radius: 12px;
+  background: #f8fbff;
+  color: var(--muted);
+  font-weight: 700;
+  overflow: hidden;
+}
+.homepage-photo-preview img {
+  width: 100%;
+  height: 220px;
+  object-fit: cover;
+  display: block;
+}
 .owner-products { display: grid; gap: 0.8rem; }
 .owner-product-row { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; background: #fff; gap: 0.8rem; }
 .owner-product-row p { margin: 0; }
