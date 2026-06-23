@@ -52,7 +52,7 @@
 
     if (availabilityLessonTypeEl) {
       const current = availabilityLessonTypeEl.value;
-      availabilityLessonTypeEl.innerHTML = `<option value="">Private Lesson</option>${options}`;
+      availabilityLessonTypeEl.innerHTML = `<option value="">Coaching</option>${options}`;
       if (activeLessonTypes.some((lesson) => lesson.id === current)) availabilityLessonTypeEl.value = current;
     }
 

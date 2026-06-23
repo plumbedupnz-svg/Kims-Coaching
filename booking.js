@@ -84,7 +84,7 @@
   function getSlotLesson(slot = state.selectedSlot) {
     return {
       id: slot?.lesson_type_id || state.lessonType?.id || "",
-      name: slot?.lesson_type_name || state.lessonType?.name || "Private Lesson",
+      name: slot?.lesson_type_name || state.lessonType?.name || "Coaching",
       price: Number(slot?.lesson_type_price ?? state.lessonType?.price ?? 0),
       duration: Number(slot?.lesson_type_duration ?? state.lessonType?.duration ?? 0)
     };
@@ -168,7 +168,7 @@
       .limit(1)
       .maybeSingle();
 
-    if (error) console.error("Could not load private lesson type", error);
+    if (error) console.error("Could not load coaching type", error);
     state.lessonType = data || null;
     return state.lessonType;
   }
@@ -240,7 +240,7 @@
       .order("start_time", { ascending: true });
 
     if (error) {
-      calendarEl.innerHTML = '<div class="booking-empty">Could not load private lesson times.</div>';
+      calendarEl.innerHTML = '<div class="booking-empty">Could not load coaching times.</div>';
       return;
     }
 
@@ -288,12 +288,18 @@
 
     calendarEl.innerHTML = days.map((day) => {
       const daySlots = slotsByDay.get(day.toDateString()) || [];
-      const slotButtons = daySlots.map((slot) => `
+      const slotButtons = daySlots.map((slot) => {
+        const lesson = getSlotLesson(slot);
+        const spots = Number(slot.spaces_remaining || slot.capacity || 0);
+        const spotText = spots ? ` · ${spots} spot${spots === 1 ? "" : "s"}` : "";
+        return `
         <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
-          ${formatTime(slot.start_time)}
-          <span>${escapeHtml(slot.lesson_type_name || "Private Lesson")} · up to ${getMaxDurationMinutes(slot)} min${slot.spaces_remaining ? ` · ${Number(slot.spaces_remaining)} spot${Number(slot.spaces_remaining) === 1 ? "" : "s"}` : ""}</span>
+          <span class="slot-lesson-type">${escapeHtml(lesson.name)}</span>
+          <strong class="slot-time">${formatTime(slot.start_time)}</strong>
+          <span class="slot-meta">Up to ${getMaxDurationMinutes(slot)} min${spotText}</span>
         </button>
-      `).join("");
+      `;
+      }).join("");
 
       return `
         <section class="booking-day">
@@ -374,8 +380,9 @@
       return;
     }
 
-    selectedSlotTitleEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })}`;
-    selectedSlotCopyEl.textContent = `${formatTime(state.selectedSlot.start_time)} start · choose your lesson duration`;
+    const lesson = getSlotLesson(state.selectedSlot);
+    selectedSlotTitleEl.textContent = `${lesson.name}`;
+    selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start · choose your lesson duration`;
     if (authRequiredEl) authRequiredEl.hidden = Boolean(state.user);
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
@@ -389,7 +396,7 @@
   function buildNotes(formData) {
     const rawNotes = formData.get("notes")?.trim() || "";
     return [
-      `Private lesson booking`,
+      `Coaching booking`,
       `Player: ${formData.get("player_name")?.trim() || ""}`,
       `Parent: ${formData.get("parent_name")?.trim() || ""}`,
       `Email: ${formData.get("email")?.trim() || ""}`,
@@ -402,8 +409,8 @@
   async function createBooking(event) {
     event.preventDefault();
     if (!client || !state.user || !state.selectedSlot) return;
-    if (!state.lessonType) {
-      setStatus("Private lesson type is not configured yet.", "error");
+    if (!state.selectedSlot.lesson_type_id && !state.lessonType?.id) {
+      setStatus("Lesson type is not configured yet.", "error");
       return;
     }
     if (!isHalfHourStart(state.selectedSlot.start_time)) {
@@ -459,7 +466,7 @@
       startTime: payload.start_time,
       endTime: payload.end_time
     });
-    setStatus("Saving your private lesson booking...", "neutral");
+    setStatus("Saving your coaching booking...", "neutral");
     const submitButton = bookingFormEl.querySelector("button[type='submit']");
     if (submitButton) submitButton.disabled = true;
 
@@ -508,7 +515,7 @@
         code: result.error.code
       });
       const message = result.error.code === "23505"
-        ? "That time has just been booked. Please choose another private lesson time."
+        ? "That time has just been booked. Please choose another coaching time."
         : result.error.message;
       setStatus(message, "error");
       await loadAvailableSlots();
@@ -554,7 +561,8 @@
     bookingFormEl.hidden = true;
     bookingSuccessEl.hidden = false;
     bookingSuccessEl.innerHTML = `
-      <strong>Your private lesson request has been booked.</strong>
+      <strong>Your coaching booking has been booked.</strong>
+      <p>${escapeHtml(bookingTotal.lesson.name)}</p>
       <p>${formatDate(payload.start_time, { weekday: "long", month: "long", day: "numeric" })}</p>
       <p>${formatTime(payload.start_time)} · ${payload.duration_minutes} minutes</p>
       <p>${payload.payment_option === "pay_now" ? "Pay now" : "Pay later"} · ${money(payload.total_price)}</p>
@@ -580,7 +588,7 @@
     if (!myBookingsEl || !client) return;
     await refreshSession();
     if (!state.user) {
-      myBookingsEl.innerHTML = '<p class="helper-text">Log in to view your private lesson bookings.</p>';
+      myBookingsEl.innerHTML = '<p class="helper-text">Log in to view your coaching bookings.</p>';
       return;
     }
 
@@ -598,7 +606,7 @@
     }
 
     if (!data?.length) {
-      myBookingsEl.innerHTML = '<p class="helper-text">No private lesson bookings yet.</p>';
+      myBookingsEl.innerHTML = '<p class="helper-text">No coaching bookings yet.</p>';
       return;
     }
 
@@ -610,7 +618,8 @@
       return `
         <article class="booking-list-item">
           <h4>${escapeHtml(playerName)}</h4>
-          <p>${startTime ? formatDate(startTime, { weekday: "short", month: "short", day: "numeric" }) : "Private lesson"}</p>
+          <p>${escapeHtml(booking.lesson_type?.name || "Coaching")}</p>
+          <p>${startTime ? formatDate(startTime, { weekday: "short", month: "short", day: "numeric" }) : "Coaching"}</p>
           <p>${startTime ? formatTime(startTime) : ""}${duration ? ` · ${duration} min` : ""}</p>
           <p>Status: ${escapeHtml(booking.booking_status)}</p>
         </article>
@@ -652,7 +661,7 @@
   if (durationSelectEl) durationSelectEl.addEventListener("change", () => {
     state.selectedDuration = Number(durationSelectEl.value) || null;
     if (state.selectedSlot && state.selectedDuration) {
-      selectedSlotCopyEl.textContent = `${formatTime(state.selectedSlot.start_time)} start · ${state.selectedDuration} minutes`;
+      selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start · ${state.selectedDuration} minutes`;
     }
     renderPriceSummary();
   });

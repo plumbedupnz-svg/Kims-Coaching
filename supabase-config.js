@@ -13,7 +13,7 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
 
   nav.innerHTML = `
     <a href="index.html"${currentAttr("index.html")}>Home</a>
-    <a href="booking.html"${currentAttr("booking.html")}>Book Private Lesson</a>
+    <a href="booking.html"${currentAttr("booking.html")}>Book Coaching</a>
     <a href="shop.html"${currentAttr("shop.html")}>Shop</a>
     <a href="index.html#about">About</a>
     <a href="index.html#programmes">Programmes</a>

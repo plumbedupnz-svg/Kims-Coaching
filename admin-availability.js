@@ -15,7 +15,7 @@
       const statusText = slot.is_available ? "Available" : "Blocked";
       const label = admin.escapeHtml(slot.recurrence_label || "");
       const lessonType = lessonTypes.find((lesson) => lesson.id === slot.lesson_type_id);
-      const lessonLabel = lessonType?.name || "Private Lesson";
+      const lessonLabel = lessonType?.name || "Coaching";
       const capacity = Number(slot.capacity || lessonType?.capacity || 1);
       const seriesButton = slot.recurrence_group_id
         ? `<button class="btn btn-secondary" type="button" data-availability-action="delete-series" data-series-id="${slot.recurrence_group_id}">Delete series</button>`
