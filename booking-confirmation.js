@@ -71,6 +71,8 @@
       ? `<p>Payment: ${booking.paymentOption === "pay_now" ? "Pay now" : "Pay later"}${booking.totalPrice !== undefined ? ` · $${Number(booking.totalPrice || 0).toFixed(2)}` : ""}</p>`
       : "";
     const bundleCopy = booking.bundleName ? `<p>Bundle: ${escapeHtml(booking.bundleName)}</p>` : "";
+    const clubCopy = booking.clubName ? `<p>Club: ${escapeHtml(booking.clubName)}</p>` : "";
+    const coachCopy = booking.coachName ? `<p>Coach: ${escapeHtml(booking.coachName)}</p>` : "<p>Coach: Kim Jones</p>";
     confirmationEl.innerHTML = `
       <strong>Your coaching booking has been booked.</strong>
       <p>Date: ${startTime ? formatter.format(startTime) : "Coaching"}</p>
@@ -78,8 +80,9 @@
       <p>Duration: ${escapeHtml(booking.duration || "")} minutes</p>
       ${paymentCopy}
       ${bundleCopy}
+      ${clubCopy}
       <p>Player: ${escapeHtml(booking.playerName || "")}</p>
-      <p>Coach: Kim Jones</p>
+      ${coachCopy}
       <p>${escapeHtml(emailCopy)}</p>
       ${adminCopy}
       ${traceCopy}

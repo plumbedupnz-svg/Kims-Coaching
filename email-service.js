@@ -77,7 +77,7 @@
       `DTSTAMP:${formatIcsDate(new Date())}`,
       `DTSTART:${formatIcsDate(startTime)}`,
       `DTEND:${formatIcsDate(endTime)}`,
-      `SUMMARY:${escapeIcsText(title || "Private tennis lesson")}`,
+      `SUMMARY:${escapeIcsText(title || "Coaching session")}`,
       `DESCRIPTION:${escapeIcsText(description || "")}`,
       `LOCATION:${escapeIcsText(location)}`,
       "END:VEVENT",
@@ -91,7 +91,7 @@
       ...payload,
       ics: generateICSInvite({
         ...payload,
-        title: payload.title || `Private lesson with ${payload.playerName || "player"}`,
+        title: payload.title || `Coaching with ${payload.playerName || "player"}`,
         description: payload.description || payload.notes || ""
       })
     };

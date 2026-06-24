@@ -10,6 +10,7 @@
     }
 
     const lessonTypes = window.KimsLessonTypes || [];
+    const coachingSettings = window.KimsCoachingSettings || { clubs: [], coaches: [] };
     listEl.innerHTML = state.slots.map((slot) => {
       const statusClass = slot.is_available ? "available" : "blocked";
       const statusText = slot.is_available ? "Available" : "Blocked";
@@ -17,6 +18,9 @@
       const lessonType = lessonTypes.find((lesson) => lesson.id === slot.lesson_type_id);
       const lessonLabel = lessonType?.name || "Coaching";
       const capacity = Number(slot.capacity || lessonType?.capacity || 1);
+      const club = coachingSettings.clubs.find((item) => item.id === slot.club_id);
+      const coach = coachingSettings.coaches.find((item) => item.id === slot.coach_id);
+      const context = [club?.name, coach?.display_name ? `Coach ${coach.display_name}` : ""].filter(Boolean).join(" · ");
       const seriesButton = slot.recurrence_group_id
         ? `<button class="btn btn-secondary" type="button" data-availability-action="delete-series" data-series-id="${slot.recurrence_group_id}">Delete series</button>`
         : "";
@@ -27,6 +31,7 @@
             <span class="status-pill ${statusClass}">${statusText}</span>
             <h3>${admin.formatDateTime(slot.start_time)} - ${admin.formatTimeInput(slot.end_time)}</h3>
             <p>${admin.escapeHtml(lessonLabel)} · ${capacity} spot${capacity === 1 ? "" : "s"}</p>
+            ${context ? `<p>${admin.escapeHtml(context)}</p>` : ""}
             ${label ? `<p>${label}</p>` : ""}
             ${slot.recurrence_group_id ? '<p class="owner-meta">Weekly recurring slot</p>' : ""}
           </div>
@@ -152,5 +157,6 @@
   if (admin.cancelEditEl) admin.cancelEditEl.addEventListener("click", admin.resetForm);
   if (admin.recurringEl) admin.recurringEl.addEventListener("change", admin.setRepeatControls);
   window.addEventListener("kims:lesson-types-ready", renderSlots);
+  window.addEventListener("kims:coaching-settings-ready", renderSlots);
   initAvailability();
 })();

@@ -83,6 +83,8 @@
           <div>
             <strong>${escapeHtml(playerName)}</strong>
             <p>${formatDate(slot.start_time)}${slot.end_time && !compact ? ` - ${formatDate(slot.end_time)}` : ""}</p>
+            ${booking.club?.name ? `<p>${escapeHtml(booking.club.name)}</p>` : ""}
+            ${booking.coach?.display_name ? `<p>Coach ${escapeHtml(booking.coach.display_name)}</p>` : ""}
             ${booking.customer_email && !compact ? `<p>${escapeHtml(booking.customer_email)}</p>` : ""}
           </div>
           <span class="status-pill available">${escapeHtml(status)}</span>
@@ -159,7 +161,7 @@
       waitlistResult
     ] = await Promise.all([
       client.from("availability").select("id", { count: "exact", head: true }).eq("is_available", true),
-      client.from("bookings").select("*, availability:availability_id(start_time,end_time)").in("booking_status", ["pending", "confirmed"]).order("created_at", { ascending: false }).limit(50),
+      client.from("bookings").select("*, availability:availability_id(start_time,end_time), club:club_id(name), coach:coach_id(display_name)").in("booking_status", ["pending", "confirmed"]).order("created_at", { ascending: false }).limit(50),
       client.from("profiles").select("*").order("created_at", { ascending: false }).limit(100),
       client.from("waitlist").select("*").limit(100)
     ]);

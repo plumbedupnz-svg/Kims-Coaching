@@ -9,6 +9,9 @@
   const lessonTypeMessageEl = document.querySelector("[data-lesson-type-message]");
   const clearLessonTypeEl = document.querySelector("[data-clear-lesson-type]");
   const availabilityLessonTypeEl = document.querySelector("[data-availability-lesson-type]");
+  const quickLessonTypeNameEl = document.querySelector("[data-quick-lesson-type-name]");
+  const quickLessonTypeAddEl = document.querySelector("[data-add-quick-lesson-type]");
+  const quickLessonTypeMessageEl = document.querySelector("[data-quick-lesson-type-message]");
   const bundleFormEl = document.querySelector("[data-bundle-form]");
   const bundleListEl = document.querySelector("[data-bundle-list]");
   const bundleMessageEl = document.querySelector("[data-bundle-message]");
@@ -52,7 +55,7 @@
 
     if (availabilityLessonTypeEl) {
       const current = availabilityLessonTypeEl.value;
-      availabilityLessonTypeEl.innerHTML = `<option value="">Coaching</option>${options}`;
+      availabilityLessonTypeEl.innerHTML = `<option value="">Select lesson type</option>${options}`;
       if (activeLessonTypes.some((lesson) => lesson.id === current)) availabilityLessonTypeEl.value = current;
     }
 
@@ -195,6 +198,53 @@
     await loadLessonTypes();
   }
 
+  async function addQuickLessonType() {
+    const name = quickLessonTypeNameEl?.value?.trim() || "";
+    if (!name) {
+      setMessage(quickLessonTypeMessageEl, "Enter a lesson type name.", "error");
+      quickLessonTypeNameEl?.focus();
+      return;
+    }
+
+    quickLessonTypeAddEl.disabled = true;
+    setMessage(quickLessonTypeMessageEl, "Saving lesson type...");
+
+    const { data: existing, error: existingError } = await client
+      .from("lesson_types")
+      .select("id,name")
+      .ilike("name", name)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingError) {
+      quickLessonTypeAddEl.disabled = false;
+      setMessage(quickLessonTypeMessageEl, `Could not check lesson types: ${existingError.message}`, "error");
+      return;
+    }
+
+    let lessonTypeId = existing?.id || "";
+    if (!lessonTypeId) {
+      const { data, error } = await client
+        .from("lesson_types")
+        .insert({ name, duration: 60, price: 0, capacity: 1, description: "", is_active: true })
+        .select("id")
+        .single();
+
+      if (error) {
+        quickLessonTypeAddEl.disabled = false;
+        setMessage(quickLessonTypeMessageEl, `Could not save lesson type: ${error.message}`, "error");
+        return;
+      }
+      lessonTypeId = data.id;
+    }
+
+    await loadLessonTypes();
+    availabilityLessonTypeEl.value = lessonTypeId;
+    quickLessonTypeNameEl.value = "";
+    quickLessonTypeAddEl.disabled = false;
+    setMessage(quickLessonTypeMessageEl, existing ? "Existing lesson type selected." : "Lesson type saved and selected.", "success");
+  }
+
   async function saveBundle(event) {
     event.preventDefault();
     const formData = new FormData(bundleFormEl);
@@ -285,6 +335,12 @@
   lessonTypeFormEl?.addEventListener("submit", saveLessonType);
   clearLessonTypeEl?.addEventListener("click", resetLessonTypeForm);
   lessonTypeListEl?.addEventListener("click", handleLessonTypeAction);
+  quickLessonTypeAddEl?.addEventListener("click", addQuickLessonType);
+  quickLessonTypeNameEl?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addQuickLessonType();
+  });
   bundleFormEl?.addEventListener("submit", saveBundle);
   clearBundleEl?.addEventListener("click", resetBundleForm);
   bundleListEl?.addEventListener("click", handleBundleAction);

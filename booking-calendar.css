@@ -12,6 +12,17 @@
   align-items: center;
 }
 .booking-week-title { margin: 0; text-align: center; font-size: clamp(1.1rem, 2vw, 1.45rem); }
+.booking-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.booking-filters label { color: var(--text); font-size: 0.82rem; font-weight: 750; }
+.booking-filters select { margin-top: 0.3rem; }
 .booking-calendar {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -62,6 +73,12 @@
   font-size: 0.82rem;
   font-weight: 650;
   margin-top: 0.15rem;
+}
+.slot-context {
+  color: var(--text);
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-top: 0.2rem;
 }
 .booking-empty {
   padding: 1rem;
@@ -118,6 +135,7 @@
 
 @media (max-width: 760px) {
   .booking-toolbar { grid-template-columns: 1fr; }
+  .booking-filters { grid-template-columns: 1fr; }
   .booking-week-title { text-align: left; }
   .booking-calendar { grid-template-columns: 1fr; }
   .booking-day { min-height: auto; }

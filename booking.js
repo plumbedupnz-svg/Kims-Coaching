@@ -18,6 +18,9 @@
   const bundleSelectEl = document.querySelector("[data-bundle-select]");
   const paymentOptionEl = document.querySelector("[data-payment-option]");
   const priceSummaryEl = document.querySelector("[data-booking-price-summary]");
+  const lessonFilterEl = document.querySelector("[data-booking-lesson-filter]");
+  const clubFilterEl = document.querySelector("[data-booking-club-filter]");
+  const coachFilterEl = document.querySelector("[data-booking-coach-filter]");
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 45, 60, 90, 120];
   const state = {
@@ -225,19 +228,38 @@
       lesson_type_duration: slot.lesson_type_duration,
       capacity: slot.capacity,
       booked_count: slot.booked_count,
-      spaces_remaining: slot.spaces_remaining
+      spaces_remaining: slot.spaces_remaining,
+      club_id: slot.club_id,
+      club_name: slot.club_name,
+      club_address: slot.club_address,
+      coach_id: slot.coach_id,
+      coach_name: slot.coach_name
     })));
+    renderFilterOptions();
     renderCalendar();
   }
 
   async function loadAvailableSlotsFallback(weekStartIso, weekEndIso) {
-    const { data, error } = await client
+    let { data, error } = await client
       .from("availability")
-      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity)")
+      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity), club:club_id(id,name,address), coach:coach_id(id,display_name)")
       .eq("is_available", true)
       .gte("start_time", weekStartIso)
       .lt("start_time", weekEndIso)
       .order("start_time", { ascending: true });
+
+    if (error && /club_id|coach_id|relationship|schema cache/i.test(error.message || "")) {
+      console.warn("Club/coach booking columns are not installed yet; loading legacy availability.");
+      const legacyResult = await client
+        .from("availability")
+        .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity)")
+        .eq("is_available", true)
+        .gte("start_time", weekStartIso)
+        .lt("start_time", weekEndIso)
+        .order("start_time", { ascending: true });
+      data = legacyResult.data;
+      error = legacyResult.error;
+    }
 
     if (error) {
       calendarEl.innerHTML = '<div class="booking-empty">Could not load coaching times.</div>';
@@ -261,14 +283,55 @@
             lesson_type_price: availability.lesson_type?.price,
             lesson_type_duration: availability.lesson_type?.duration,
             capacity: availability.capacity || availability.lesson_type?.capacity || 1,
-            spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1
+            spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1,
+            club_id: availability.club_id,
+            club_name: availability.club?.name,
+            club_address: availability.club?.address,
+            coach_id: availability.coach_id,
+            coach_name: availability.coach?.display_name
           });
         }
       }
     });
 
     state.slots = onlyValidStartSlots(expandedSlots);
+    renderFilterOptions();
     renderCalendar();
+  }
+
+  function populateFilter(select, items, placeholder) {
+    if (!select) return;
+    const current = select.value || "all";
+    select.innerHTML = [
+      `<option value="all">${escapeHtml(placeholder)}</option>`,
+      ...items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
+    ].join("");
+    if (current === "all" || items.some((item) => item.id === current)) select.value = current;
+  }
+
+  function uniqueFilterItems(idKey, nameKey) {
+    const unique = new Map();
+    state.slots.forEach((slot) => {
+      if (slot[idKey] && slot[nameKey]) unique.set(slot[idKey], { id: slot[idKey], name: slot[nameKey] });
+    });
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function renderFilterOptions() {
+    populateFilter(lessonFilterEl, uniqueFilterItems("lesson_type_id", "lesson_type_name"), "All lesson types");
+    populateFilter(clubFilterEl, uniqueFilterItems("club_id", "club_name"), "All clubs");
+    populateFilter(coachFilterEl, uniqueFilterItems("coach_id", "coach_name"), "All coaches");
+  }
+
+  function getFilteredSlots() {
+    const lessonId = lessonFilterEl?.value || "all";
+    const clubId = clubFilterEl?.value || "all";
+    const coachId = coachFilterEl?.value || "all";
+    return state.slots.filter((slot) => (
+      (lessonId === "all" || slot.lesson_type_id === lessonId)
+      && (clubId === "all" || slot.club_id === clubId)
+      && (coachId === "all" || slot.coach_id === coachId)
+    ));
   }
 
   function renderCalendar() {
@@ -277,13 +340,14 @@
     weekTitleEl.textContent = `${formatDate(state.weekStart, { month: "short", day: "numeric" })} - ${formatDate(weekEnd, { month: "short", day: "numeric" })}`;
 
     const days = Array.from({ length: 7 }, (_item, index) => addDays(state.weekStart, index));
+    const visibleSlots = getFilteredSlots();
     const slotsByDay = new Map();
-    state.slots.forEach((slot) => {
+    visibleSlots.forEach((slot) => {
       const key = new Date(slot.start_time).toDateString();
       slotsByDay.set(key, [...(slotsByDay.get(key) || []), slot]);
     });
 
-    const hasSlots = state.slots.length > 0;
+    const hasSlots = visibleSlots.length > 0;
     if (emptyEl) emptyEl.hidden = hasSlots;
 
     calendarEl.innerHTML = days.map((day) => {
@@ -292,11 +356,13 @@
         const lesson = getSlotLesson(slot);
         const spots = Number(slot.spaces_remaining || slot.capacity || 0);
         const spotText = spots ? ` · ${spots} spot${spots === 1 ? "" : "s"}` : "";
+        const contextText = [slot.club_name, slot.coach_name ? `Coach ${slot.coach_name}` : ""].filter(Boolean).join(" · ");
         return `
         <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
           <span class="slot-lesson-type">${escapeHtml(lesson.name)}</span>
           <strong class="slot-time">${formatTime(slot.start_time)}</strong>
           <span class="slot-meta">Up to ${getMaxDurationMinutes(slot)} min${spotText}</span>
+          ${contextText ? `<span class="slot-context">${escapeHtml(contextText)}</span>` : ""}
         </button>
       `;
       }).join("");
@@ -382,7 +448,8 @@
 
     const lesson = getSlotLesson(state.selectedSlot);
     selectedSlotTitleEl.textContent = `${lesson.name}`;
-    selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start · choose your lesson duration`;
+    const context = [state.selectedSlot.club_name, state.selectedSlot.coach_name ? `Coach ${state.selectedSlot.coach_name}` : ""].filter(Boolean).join(" · ");
+    selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start${context ? ` · ${context}` : ""} · choose your lesson duration`;
     if (authRequiredEl) authRequiredEl.hidden = Boolean(state.user);
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
@@ -439,6 +506,8 @@
       user_id: state.user.id,
       lesson_type_id: state.selectedSlot.lesson_type_id || state.lessonType.id,
       availability_id: state.selectedSlot.id,
+      club_id: state.selectedSlot.club_id || null,
+      coach_id: state.selectedSlot.coach_id || null,
       booking_status: "confirmed",
       customer_name: formData.get("parent_name")?.trim(),
       player_name: formData.get("player_name")?.trim(),
@@ -486,7 +555,9 @@
       p_bundle_id: payload.bundle_id,
       p_bundle_lessons_count: payload.bundle_lessons_count,
       p_bundle_discount_percent: payload.bundle_discount_percent,
-      p_total_price: payload.total_price
+      p_total_price: payload.total_price,
+      p_club_id: payload.club_id,
+      p_coach_id: payload.coach_id
     });
 
     if (result.error && /function .*create_private_lesson_booking|schema cache|PGRST202/i.test(result.error.message || result.error.code || "")) {
@@ -541,9 +612,13 @@
       startTime: payload.start_time,
       endTime: payload.end_time,
       durationMinutes: payload.duration_minutes,
+      lessonTypeName: bookingTotal.lesson.name,
       paymentOption: payload.payment_option,
       totalPrice: payload.total_price,
       bundleName: bookingTotal.bundle?.name || "",
+      clubName: state.selectedSlot.club_name || "",
+      coachName: state.selectedSlot.coach_name || "",
+      location: state.selectedSlot.club_name || state.selectedSlot.club_address || "Kim Jones Coaching",
       notes: formData.get("notes")?.trim() || ""
     };
     console.info("[Kim's Coaching booking email] notification dispatch starting", {
@@ -563,6 +638,8 @@
     bookingSuccessEl.innerHTML = `
       <strong>Your coaching booking has been booked.</strong>
       <p>${escapeHtml(bookingTotal.lesson.name)}</p>
+      ${state.selectedSlot.club_name ? `<p>Club: ${escapeHtml(state.selectedSlot.club_name)}</p>` : ""}
+      ${state.selectedSlot.coach_name ? `<p>Coach: ${escapeHtml(state.selectedSlot.coach_name)}</p>` : ""}
       <p>${formatDate(payload.start_time, { weekday: "long", month: "long", day: "numeric" })}</p>
       <p>${formatTime(payload.start_time)} · ${payload.duration_minutes} minutes</p>
       <p>${payload.payment_option === "pay_now" ? "Pay now" : "Pay later"} · ${money(payload.total_price)}</p>
@@ -576,6 +653,8 @@
       paymentOption: payload.payment_option,
       totalPrice: payload.total_price,
       bundleName: bookingTotal.bundle?.name || "",
+      clubName: state.selectedSlot.club_name || "",
+      coachName: state.selectedSlot.coach_name || "",
       emailStatus
     }));
     state.selectedSlot = null;
@@ -594,7 +673,7 @@
 
     const { data, error } = await client
       .from("bookings")
-      .select("*, availability:availability_id(start_time,end_time), lesson_type:lesson_type_id(name,duration)")
+      .select("*, availability:availability_id(start_time,end_time), lesson_type:lesson_type_id(name,duration), club:club_id(name,address), coach:coach_id(display_name)")
       .eq("user_id", state.user.id)
       .in("booking_status", ["pending", "confirmed"])
       .order("created_at", { ascending: false })
@@ -619,6 +698,8 @@
         <article class="booking-list-item">
           <h4>${escapeHtml(playerName)}</h4>
           <p>${escapeHtml(booking.lesson_type?.name || "Coaching")}</p>
+          ${booking.club?.name ? `<p>${escapeHtml(booking.club.name)}</p>` : ""}
+          ${booking.coach?.display_name ? `<p>Coach ${escapeHtml(booking.coach.display_name)}</p>` : ""}
           <p>${startTime ? formatDate(startTime, { weekday: "short", month: "short", day: "numeric" }) : "Coaching"}</p>
           <p>${startTime ? formatTime(startTime) : ""}${duration ? ` · ${duration} min` : ""}</p>
           <p>Status: ${escapeHtml(booking.booking_status)}</p>
@@ -668,6 +749,10 @@
 
   if (bundleSelectEl) bundleSelectEl.addEventListener("change", renderPriceSummary);
   if (paymentOptionEl) paymentOptionEl.addEventListener("change", renderPriceSummary);
+  [lessonFilterEl, clubFilterEl, coachFilterEl].forEach((filter) => filter?.addEventListener("change", () => {
+    state.selectedSlot = null;
+    renderCalendar();
+  }));
 
   if (bookingFormEl) bookingFormEl.addEventListener("submit", createBooking);
 
