@@ -25,9 +25,10 @@ function safeError(error) {
 
 function normalizeProvider(value = "") {
   const provider = String(value || "disabled").toLowerCase();
-  if (provider === "outlook") return "outlook_smtp";
-  if (provider === "test") return "disabled";
-  return provider;
+  if (provider === "disabled" || provider === "test" || !provider) return "disabled";
+  // Resend is the project's only live provider. Legacy saved provider values
+  // are intentionally routed through Resend so an old row cannot revive SMTP.
+  return "resend";
 }
 
 function normalizeSupabaseRestUrl(url = "") {
@@ -103,7 +104,7 @@ function getFallbackSettings() {
     ...defaultEmailSettings,
     provider,
     from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
-    from_email: process.env.EMAIL_FROM_ADDRESS || process.env.SMTP_USERNAME || defaultEmailSettings.from_email,
+    from_email: process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.from_email,
     reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
     enabled: provider !== "disabled"
   };
@@ -220,9 +221,6 @@ function renderText(type, payload = {}) {
 }
 
 function getMissingEnv(provider) {
-  if (provider === "outlook_smtp") {
-    return ["SMTP_USERNAME", "SMTP_PASSWORD"].filter((key) => !process.env[key]);
-  }
   if (provider === "resend") {
     return ["RESEND_API_KEY"].filter((key) => !process.env[key]);
   }
@@ -438,6 +436,12 @@ function attachLogContext(logs, type, payload, provider) {
 }
 
 async function sendWithResend(message, settings) {
+  console.info("[Kim's Coaching email] Resend send attempted", {
+    traceId: message.traceId,
+    recipients: message.to,
+    subject: message.subject,
+    hasIcs: Boolean(message.ics)
+  });
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: {
@@ -456,92 +460,16 @@ async function sendWithResend(message, settings) {
     })
   });
 
-  if (!response.ok) throw new Error(`Resend returned ${response.status}`);
-  return response.json();
-}
-
-async function sendWithSmtp(message) {
-  const nodemailer = require("nodemailer");
-  const host = process.env.SMTP_HOST || "smtp.office365.com";
-  const port = Number(process.env.SMTP_PORT || 587);
-  console.info("[Kim's Coaching email] SMTP transport create starting", {
+  const result = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const detail = result?.message || result?.error?.message || `HTTP ${response.status}`;
+    throw new Error(`Resend returned ${response.status}: ${detail}`);
+  }
+  console.info("[Kim's Coaching email] Resend response returned", {
     traceId: message.traceId,
-    host,
-    port,
-    secure: false,
-    requireTLS: true,
-    hasUsername: Boolean(process.env.SMTP_USERNAME),
-    hasPassword: Boolean(process.env.SMTP_PASSWORD),
-    recipients: message.to.length
+    messageId: result?.id || ""
   });
-  const transporter = nodemailer.createTransport({
-    host,
-    port,
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: process.env.SMTP_USERNAME,
-      pass: process.env.SMTP_PASSWORD
-    }
-  });
-  console.info("[Kim's Coaching email] SMTP transport created", {
-    traceId: message.traceId,
-    host,
-    port,
-    recipients: message.to
-  });
-
-  console.info("[Kim's Coaching email] SMTP send attempted", {
-    traceId: message.traceId,
-    subject: message.subject,
-    recipients: message.to,
-    hasIcs: Boolean(message.ics)
-  });
-  const smtpResponse = await transporter.sendMail({
-    from: fromHeader(message.settings),
-    to: message.to,
-    replyTo: message.settings.reply_to_email,
-    subject: message.subject,
-    text: message.text,
-    attachments: message.ics
-      ? [{ filename: "coaching-booking.ics", content: message.ics, contentType: "text/calendar; method=REQUEST" }]
-      : []
-  });
-  console.info("[Kim's Coaching email] SMTP response returned", {
-    traceId: message.traceId,
-    accepted: smtpResponse.accepted || [],
-    rejected: smtpResponse.rejected || [],
-    response: smtpResponse.response || "",
-    messageId: smtpResponse.messageId || ""
-  });
-  return smtpResponse;
-}
-
-async function verifySmtpConnection() {
-  const nodemailer = require("nodemailer");
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || "smtp.office365.com",
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: false,
-    requireTLS: true,
-    auth: {
-      user: process.env.SMTP_USERNAME,
-      pass: process.env.SMTP_PASSWORD
-    }
-  });
-  await transporter.verify();
-}
-
-function getSmtpStatus(provider) {
-  const missing = getMissingEnv(provider);
-  return {
-    configured: missing.length === 0,
-    missing,
-    host: process.env.SMTP_HOST || "smtp.office365.com",
-    port: Number(process.env.SMTP_PORT || 587),
-    hasUsername: Boolean(process.env.SMTP_USERNAME),
-    hasPassword: Boolean(process.env.SMTP_PASSWORD)
-  };
+  return result;
 }
 
 async function getLastNotificationLog(authToken = "") {
@@ -635,20 +563,24 @@ async function buildDiagnostics({ includeConnectionTest = false, authToken = "" 
       hasServiceRoleKey: Boolean(serviceRoleKey),
       hasAnonKey: Boolean(anonKey)
     },
-    smtp: getSmtpStatus(provider),
     resend: {
       configured: provider !== "resend" || missingEnv.length === 0,
-      hasApiKey: Boolean(process.env.RESEND_API_KEY)
+      hasApiKey: Boolean(process.env.RESEND_API_KEY),
+      missing: missingEnv
+    },
+    authEmail: {
+      provider: "Resend SMTP",
+      verification: "Verify in Supabase Dashboard > Authentication > Email > SMTP Settings"
     },
     lastLog: await getLastNotificationLog(authToken),
     connectionTest: null
   };
 
   if (includeConnectionTest) {
-    if (provider !== "outlook_smtp") {
+    if (!settings.enabled || provider === "disabled") {
       diagnostics.connectionTest = {
         status: "skipped",
-        error: "SMTP connection test is only available for Outlook SMTP."
+        error: "Enable Resend before sending a test email."
       };
     } else if (missingEnv.length) {
       diagnostics.connectionTest = {
@@ -657,11 +589,18 @@ async function buildDiagnostics({ includeConnectionTest = false, authToken = "" 
       };
     } else {
       try {
-        await verifySmtpConnection();
-        diagnostics.connectionTest = { status: "success", error: "" };
+        const recipient = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
+        const response = await sendWithResend({
+          traceId: `resend-test-${Date.now()}`,
+          to: [recipient],
+          subject: "Kim Jones Coaching Resend test",
+          text: "Resend is configured for Kim Jones Coaching application emails.",
+          ics: ""
+        }, settings);
+        diagnostics.connectionTest = { status: "success", error: "", messageId: response?.id || "" };
       } catch (error) {
         diagnostics.connectionTest = { status: "failed", error: safeError(error) };
-        console.error("SMTP connection test failed", { message: safeError(error) });
+        console.error("Resend test email failed", { message: safeError(error) });
       }
     }
   }
@@ -687,7 +626,7 @@ module.exports = async function handler(req, res) {
   }
 
   const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
-  if (body.action === "test_smtp") {
+  if (body.action === "test_resend" || body.action === "test_smtp") {
     const adminCheck = await requireAdminForDiagnostics(req);
     if (!adminCheck.ok) {
       res.status(adminCheck.status).json({ error: adminCheck.error });
@@ -711,8 +650,7 @@ module.exports = async function handler(req, res) {
       type,
       provider,
       recipients: to,
-      hasSmtpUsername: Boolean(process.env.SMTP_USERNAME),
-      hasSmtpPassword: Boolean(process.env.SMTP_PASSWORD),
+      hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
       hasSupabaseUrl: Boolean(getSupabaseConfig().restUrl),
       hasServiceRoleKey: Boolean(getSupabaseConfig().serviceRoleKey),
       hasAnonKey: Boolean(getSupabaseConfig().anonKey)
@@ -753,8 +691,7 @@ module.exports = async function handler(req, res) {
       recipients: to,
       relatedType: payload.relatedType || null,
       relatedId: payload.relatedId || null,
-      hasSmtpUsername: Boolean(process.env.SMTP_USERNAME),
-      hasSmtpPassword: Boolean(process.env.SMTP_PASSWORD)
+      hasResendApiKey: Boolean(process.env.RESEND_API_KEY)
     });
     logs = attachLogContext(logs, type, payload, provider);
 
@@ -789,22 +726,8 @@ module.exports = async function handler(req, res) {
       ics: payload.ics || ""
     };
 
-    if (provider === "resend") {
-      console.info("[Kim's Coaching email] sending email through Resend", { traceId, type, recipients: to });
-      await sendWithResend(message, settings);
-    } else if (provider === "outlook_smtp") {
-      await sendWithSmtp(message);
-    } else if (provider === "sendgrid" || provider === "mailgun") {
-      const placeholderMessage = `${provider} is a placeholder provider. Configure Outlook SMTP or Resend to send live emails.`;
-      await finalizeLogs(logs, "failed", placeholderMessage);
-      res.status(200).json({ sent: false, status: "failed", provider, error: placeholderMessage, traceId, logIds: getLogIds(logs) });
-      return;
-    } else {
-      const unknownMessage = `Unknown email provider: ${provider}`;
-      await finalizeLogs(logs, "failed", unknownMessage);
-      res.status(200).json({ sent: false, status: "failed", provider, error: unknownMessage, traceId, logIds: getLogIds(logs) });
-      return;
-    }
+    console.info("[Kim's Coaching email] sending email through Resend", { traceId, type, recipients: to });
+    await sendWithResend(message, settings);
 
     await finalizeLogs(logs, "sent");
     console.info("[Kim's Coaching email] email send succeeded", { traceId, type, provider, recipients: to, logIds: getLogIds(logs) });

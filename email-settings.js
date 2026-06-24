@@ -3,7 +3,7 @@
   const messageEl = document.querySelector("[data-email-settings-message]");
   const diagnosticsListEl = document.querySelector("[data-email-diagnostics-list]");
   const diagnosticsMessageEl = document.querySelector("[data-email-diagnostics-message]");
-  const smtpTestButton = document.querySelector("[data-email-test-smtp]");
+  const resendTestButton = document.querySelector("[data-email-test-resend]");
   const refreshDiagnosticsButton = document.querySelector("[data-email-refresh-diagnostics]");
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
@@ -46,20 +46,18 @@
 
   function renderDiagnostics(data = {}) {
     if (!diagnosticsListEl) return;
-    const smtp = data.smtp || {};
+    const resend = data.resend || {};
     const logging = data.supabaseLogging || {};
     const lastLog = data.lastLog || {};
-    const missing = smtp.missing?.length ? smtp.missing.join(", ") : "None";
+    const missing = resend.missing?.length ? resend.missing.join(", ") : "None";
     diagnosticsListEl.innerHTML = [
       renderDiagnosticRow("Current mode", data.mode || "Unknown"),
       renderDiagnosticRow("Provider detected", data.provider || "Unknown"),
       renderDiagnosticRow("Provider enabled", yesNo(data.settingsEnabled)),
-      renderDiagnosticRow("SMTP configured", yesNo(smtp.configured)),
-      renderDiagnosticRow("SMTP host", smtp.host || ""),
-      renderDiagnosticRow("SMTP port", smtp.port ? String(smtp.port) : ""),
-      renderDiagnosticRow("SMTP username set", yesNo(smtp.hasUsername)),
-      renderDiagnosticRow("SMTP password set", yesNo(smtp.hasPassword)),
-      renderDiagnosticRow("Missing SMTP/env vars", missing),
+      renderDiagnosticRow("Resend configured", yesNo(resend.configured)),
+      renderDiagnosticRow("Resend API key set", yesNo(resend.hasApiKey)),
+      renderDiagnosticRow("Missing Resend/env vars", missing),
+      renderDiagnosticRow("Supabase Auth email", data.authEmail?.verification || "Verify Resend SMTP in Supabase Dashboard"),
       renderDiagnosticRow("Notification logging configured", yesNo(logging.configured)),
       renderDiagnosticRow("Last email attempt", lastLog.created_at ? `${lastLog.notification_type || "email"} · ${lastLog.status || ""} · ${lastLog.created_at}` : "No attempts logged"),
       renderDiagnosticRow("Last email error", lastLog.error_message || data.settingsError || "None")
@@ -89,36 +87,36 @@
     }
   }
 
-  async function testSmtpConnection() {
-    if (!smtpTestButton) return;
+  async function testResendConnection() {
+    if (!resendTestButton) return;
     if (!(await ensureAdminSession())) {
       setDiagnosticsMessage("Diagnostics could not confirm your admin session. Sign out and back in, then try again.", "error");
       return;
     }
-    smtpTestButton.disabled = true;
+    resendTestButton.disabled = true;
     if (refreshDiagnosticsButton) refreshDiagnosticsButton.disabled = true;
-    setDiagnosticsMessage("Testing SMTP connection...", "neutral");
+    setDiagnosticsMessage("Sending a Resend test email...", "neutral");
     try {
       const response = await fetch("/api/send-email", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(await getAdminAuthHeaders()) },
-        body: JSON.stringify({ action: "test_smtp" })
+        body: JSON.stringify({ action: "test_resend" })
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || `SMTP test returned ${response.status}`);
+      if (!response.ok) throw new Error(data.error || `Resend test returned ${response.status}`);
       renderDiagnostics(data);
       const test = data.connectionTest || {};
       if (test.status === "success") {
-        setDiagnosticsMessage("SMTP connection test passed.", "success");
+        setDiagnosticsMessage("Resend test email sent successfully.", "success");
       } else if (test.status === "skipped") {
-        setDiagnosticsMessage(test.error || "SMTP test skipped.", "neutral");
+        setDiagnosticsMessage(test.error || "Resend test skipped.", "neutral");
       } else {
-        setDiagnosticsMessage(normalizeDiagnosticsError(test.error || "SMTP connection test failed."), "error");
+        setDiagnosticsMessage(normalizeDiagnosticsError(test.error || "Resend test email failed."), "error");
       }
     } catch (error) {
-      setDiagnosticsMessage(normalizeDiagnosticsError(error?.message || "SMTP connection test failed."), "error");
+      setDiagnosticsMessage(normalizeDiagnosticsError(error?.message || "Resend test email failed."), "error");
     } finally {
-      smtpTestButton.disabled = false;
+      resendTestButton.disabled = false;
       if (refreshDiagnosticsButton) refreshDiagnosticsButton.disabled = false;
     }
   }
@@ -132,7 +130,7 @@
 
   function applySettings(data = {}) {
     if (!formEl) return;
-    formEl.elements.provider.value = data.provider || "disabled";
+    formEl.elements.provider.value = data.enabled ? "resend" : "disabled";
     formEl.elements.from_name.value = data.from_name || "Kim Jones Coaching";
     formEl.elements.from_email.value = data.from_email || "kimjonescoaching@outlook.com";
     formEl.elements.reply_to_email.value = data.reply_to_email || "kimjonescoaching@outlook.com";
@@ -197,7 +195,7 @@
 
     const formData = new FormData(formEl);
     const payload = {
-      provider: formData.get("provider") || "disabled",
+      provider: formData.get("provider") === "disabled" ? "disabled" : "resend",
       from_name: formData.get("from_name")?.trim() || "Kim Jones Coaching",
       from_email: formData.get("from_email")?.trim() || "kimjonescoaching@outlook.com",
       reply_to_email: formData.get("reply_to_email")?.trim() || "kimjonescoaching@outlook.com",
@@ -219,12 +217,12 @@
 
     settingsId = data.id;
     applySettings(data);
-    setMessage("Email settings saved. Add real secrets in Vercel environment variables before enabling live sending.", "success");
+    setMessage("Email settings saved. All enabled application emails use Resend.", "success");
     await loadDiagnostics();
   }
 
   formEl?.addEventListener("submit", saveSettings);
-  smtpTestButton?.addEventListener("click", testSmtpConnection);
+  resendTestButton?.addEventListener("click", testResendConnection);
   refreshDiagnosticsButton?.addEventListener("click", loadDiagnostics);
   loadSettings();
 })();
