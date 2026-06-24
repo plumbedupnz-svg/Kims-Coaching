@@ -411,8 +411,17 @@
 
             <section class="admin-section" data-admin-section="settings" hidden>
               <div class="settings-grid">
-                <div class="admin-list-panel"><h3>Settings</h3><p class="helper-text">Manage shop and admin settings from here.</p></div>
-                <form class="owner-add-form" data-club-form>
+                <div class="settings-workspace-head">
+                  <div><p class="eyebrow">Settings</p><h2>Choose what to manage</h2></div>
+                  <div class="settings-subtabs" role="tablist" aria-label="Settings areas">
+                    <button type="button" data-settings-tab="clubs">Clubs</button>
+                    <button type="button" data-settings-tab="coaches">Coaches</button>
+                    <button type="button" data-settings-tab="promo">Promo Codes</button>
+                    <button type="button" data-settings-tab="photo">Front Page Photo</button>
+                    <button type="button" data-settings-tab="email">Email</button>
+                  </div>
+                </div>
+                <form class="owner-add-form settings-editor" data-settings-panel="clubs" data-club-form>
                   <h3>Club Setup</h3>
                   <p class="helper-text">Save every venue where coaching is held. Clubs become reusable choices on lesson times and customer bookings.</p>
                   <input type="hidden" name="club_id" />
@@ -426,11 +435,11 @@
                   </div>
                   <p class="form-message" data-club-message></p>
                 </form>
-                <div class="admin-list-panel">
+                <div class="admin-list-panel settings-list" data-settings-panel="clubs">
                   <h3>Saved Clubs</h3>
                   <div class="admin-data-list" data-club-list><p class="helper-text">Loading clubs...</p></div>
                 </div>
-                <form class="owner-add-form" data-coach-form>
+                <form class="owner-add-form settings-editor" data-settings-panel="coaches" data-coach-form hidden>
                   <h3>Coach Setup</h3>
                   <p class="helper-text">Create reusable coaches now. Each coach can be linked to a profile/login later without changing bookings or schedules.</p>
                   <input type="hidden" name="coach_id" />
@@ -445,11 +454,11 @@
                   </div>
                   <p class="form-message" data-coach-message></p>
                 </form>
-                <div class="admin-list-panel">
+                <div class="admin-list-panel settings-list" data-settings-panel="coaches" hidden>
                   <h3>Saved Coaches</h3>
                   <div class="admin-data-list" data-coach-list><p class="helper-text">Loading coaches...</p></div>
                 </div>
-                <form id="owner-promo-form" class="owner-add-form">
+                <form id="owner-promo-form" class="owner-add-form settings-panel-wide" data-settings-panel="promo" hidden>
                   <h3>Promo Code Settings</h3>
                   <label for="owner-promo-code">Promo code</label>
                   <input id="owner-promo-code" type="text" placeholder="Promo code (e.g. KIM20)" />
@@ -458,7 +467,7 @@
                   <button type="submit" class="btn btn-primary">Save Promo Settings</button>
                   <p class="helper-text" id="owner-promo-status"></p>
                 </form>
-                <form id="homepage-photo-form" class="owner-add-form" data-homepage-photo-form>
+                <form id="homepage-photo-form" class="owner-add-form settings-panel-wide" data-settings-panel="photo" data-homepage-photo-form hidden>
                   <h3>Front Page Photo</h3>
                   <p class="helper-text">Add or remove the main photo shown on the public home page.</p>
                   <div class="homepage-photo-preview">
@@ -473,7 +482,7 @@
                   </div>
                   <p class="form-message" data-homepage-photo-message></p>
                 </form>
-                <form id="email-settings-form" class="owner-add-form" data-email-settings-form>
+                <form id="email-settings-form" class="owner-add-form settings-panel-wide" data-settings-panel="email" data-email-settings-form hidden>
                   <h3>Email Settings</h3>
                   <div class="settings-help-box">
                     You can update the public sender name, from email, and reply-to email here. SMTP passwords, API keys, host, port, and provider secrets are managed securely in Vercel Environment Variables.
@@ -531,6 +540,7 @@
     <script src="admin-dashboard.js"></script>
     <script src="admin-lessons.js"></script>
     <script src="admin-coaching-settings.js"></script>
+    <script src="admin-settings-tabs.js"></script>
     <script src="admin-bookings-management.js"></script>
     <script src="admin-email-notifications.js"></script>
     <script src="admin-inventory.js"></script>

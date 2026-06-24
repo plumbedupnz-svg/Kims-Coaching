@@ -136,6 +136,69 @@ grant insert, update, delete on public.coaching_clubs, public.coaches to authent
 grant select on public.lesson_types, public.lesson_bundles to anon, authenticated;
 grant insert, update, delete on public.lesson_types, public.lesson_bundles to authenticated;
 
+create or replace function public.next_lesson_start_time(value timestamptz)
+returns timestamptz
+language sql
+immutable
+as $$
+  select to_timestamp(
+    ceil(extract(epoch from value) / 1800.0) * 1800
+  )::timestamptz;
+$$;
+
+create or replace function public.booking_times_overlap(
+  first_start timestamptz,
+  first_end timestamptz,
+  second_start timestamptz,
+  second_end timestamptz
+)
+returns boolean
+language sql
+immutable
+as $$
+  select first_start < second_end
+    and second_start < first_end;
+$$;
+
+create or replace function public.get_public_coaches()
+returns table (
+  coach_id uuid,
+  coach_name text
+)
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select id, display_name
+  from public.coaches
+  where is_active = true
+  order by display_name asc;
+$$;
+
+do $$
+declare
+  active_coach_count integer := 0;
+  default_coach_id uuid;
+begin
+  select count(*)
+  into active_coach_count
+  from public.coaches
+  where is_active = true;
+
+  if active_coach_count = 1 then
+    select id
+    into default_coach_id
+    from public.coaches
+    where is_active = true
+    limit 1;
+
+    update public.availability
+    set coach_id = default_coach_id
+    where coach_id is null;
+  end if;
+end $$;
+
 create or replace function public.admin_restore_booking_availability(
   p_booking_id uuid
 )
@@ -429,7 +492,9 @@ begin
     raise exception 'The selected club does not match this coaching time.';
   end if;
 
-  if p_coach_id is not null and selected_availability.coach_id is distinct from p_coach_id then
+  if selected_availability.coach_id is not null
+    and p_coach_id is distinct from selected_availability.coach_id
+  then
     raise exception 'The selected coach does not match this coaching time.';
   end if;
 
@@ -540,6 +605,7 @@ end;
 $$;
 
 grant execute on function public.get_available_private_lesson_slots(timestamptz, timestamptz) to anon, authenticated;
+grant execute on function public.get_public_coaches() to anon, authenticated;
 grant execute on function public.create_private_lesson_booking(uuid, timestamptz, uuid, integer, text, text, text, text, text, text, text, text, uuid, integer, numeric, numeric, uuid, uuid) to authenticated;
 grant execute on function public.admin_restore_booking_availability(uuid) to authenticated, service_role;
 

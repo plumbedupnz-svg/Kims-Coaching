@@ -28,6 +28,7 @@
     profile: null,
     lessonType: null,
     bundles: [],
+    publicCoaches: [],
     selectedSlot: null,
     selectedDuration: null,
     weekStart: getMonday(new Date()),
@@ -96,6 +97,22 @@
   function getSelectedBundle() {
     const bundleId = bundleSelectEl?.value || "";
     return state.bundles.find((bundle) => bundle.id === bundleId) || null;
+  }
+
+  function getSelectedCoach() {
+    const coachId = coachFilterEl?.value || "all";
+    if (coachId === "all") return null;
+    return state.publicCoaches.find((coach) => coach.id === coachId) || null;
+  }
+
+  function getEffectiveCoach(slot = state.selectedSlot) {
+    if (slot?.coach_id) {
+      return {
+        id: slot.coach_id,
+        name: slot.coach_name || state.publicCoaches.find((coach) => coach.id === slot.coach_id)?.name || ""
+      };
+    }
+    return getSelectedCoach();
   }
 
   function getBookingTotal() {
@@ -192,6 +209,21 @@
 
     state.bundles = data || [];
     return state.bundles;
+  }
+
+  async function loadPublicCoaches() {
+    if (!client) return [];
+    const { data, error } = await client.rpc("get_public_coaches");
+    if (error) {
+      console.warn("Could not load public coaches.", error.message);
+      state.publicCoaches = [];
+      return [];
+    }
+    state.publicCoaches = (data || []).map((coach) => ({
+      id: coach.coach_id,
+      name: coach.coach_name
+    })).filter((coach) => coach.id && coach.name);
+    return state.publicCoaches;
   }
 
   async function loadAvailableSlots() {
@@ -320,7 +352,12 @@
   function renderFilterOptions() {
     populateFilter(lessonFilterEl, uniqueFilterItems("lesson_type_id", "lesson_type_name"), "All lesson types");
     populateFilter(clubFilterEl, uniqueFilterItems("club_id", "club_name"), "All clubs");
-    populateFilter(coachFilterEl, uniqueFilterItems("coach_id", "coach_name"), "All coaches");
+    const slotCoaches = uniqueFilterItems("coach_id", "coach_name");
+    const coaches = new Map(slotCoaches.map((coach) => [coach.id, coach]));
+    state.publicCoaches.forEach((coach) => coaches.set(coach.id, coach));
+    const coachOptions = Array.from(coaches.values()).sort((a, b) => a.name.localeCompare(b.name));
+    populateFilter(coachFilterEl, coachOptions, "All coaches");
+    if (coachFilterEl?.value === "all" && coachOptions.length === 1) coachFilterEl.value = coachOptions[0].id;
   }
 
   function getFilteredSlots() {
@@ -330,7 +367,7 @@
     return state.slots.filter((slot) => (
       (lessonId === "all" || slot.lesson_type_id === lessonId)
       && (clubId === "all" || slot.club_id === clubId)
-      && (coachId === "all" || slot.coach_id === coachId)
+      && (coachId === "all" || !slot.coach_id || slot.coach_id === coachId)
     ));
   }
 
@@ -356,7 +393,8 @@
         const lesson = getSlotLesson(slot);
         const spots = Number(slot.spaces_remaining || slot.capacity || 0);
         const spotText = spots ? ` · ${spots} spot${spots === 1 ? "" : "s"}` : "";
-        const contextText = [slot.club_name, slot.coach_name ? `Coach ${slot.coach_name}` : ""].filter(Boolean).join(" · ");
+        const effectiveCoach = getEffectiveCoach(slot);
+        const contextText = [slot.club_name, effectiveCoach?.name ? `Coach ${effectiveCoach.name}` : ""].filter(Boolean).join(" · ");
         return `
         <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
           <span class="slot-lesson-type">${escapeHtml(lesson.name)}</span>
@@ -448,7 +486,8 @@
 
     const lesson = getSlotLesson(state.selectedSlot);
     selectedSlotTitleEl.textContent = `${lesson.name}`;
-    const context = [state.selectedSlot.club_name, state.selectedSlot.coach_name ? `Coach ${state.selectedSlot.coach_name}` : ""].filter(Boolean).join(" · ");
+    const effectiveCoach = getEffectiveCoach(state.selectedSlot);
+    const context = [state.selectedSlot.club_name, effectiveCoach?.name ? `Coach ${effectiveCoach.name}` : ""].filter(Boolean).join(" · ");
     selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start${context ? ` · ${context}` : ""} · choose your lesson duration`;
     if (authRequiredEl) authRequiredEl.hidden = Boolean(state.user);
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
@@ -502,12 +541,13 @@
     }
 
     const bookingTotal = getBookingTotal();
+    const effectiveCoach = getEffectiveCoach(state.selectedSlot);
     const payload = {
       user_id: state.user.id,
       lesson_type_id: state.selectedSlot.lesson_type_id || state.lessonType.id,
       availability_id: state.selectedSlot.id,
       club_id: state.selectedSlot.club_id || null,
-      coach_id: state.selectedSlot.coach_id || null,
+      coach_id: effectiveCoach?.id || null,
       booking_status: "confirmed",
       customer_name: formData.get("parent_name")?.trim(),
       player_name: formData.get("player_name")?.trim(),
@@ -617,7 +657,7 @@
       totalPrice: payload.total_price,
       bundleName: bookingTotal.bundle?.name || "",
       clubName: state.selectedSlot.club_name || "",
-      coachName: state.selectedSlot.coach_name || "",
+      coachName: effectiveCoach?.name || "",
       location: state.selectedSlot.club_name || state.selectedSlot.club_address || "Kim Jones Coaching",
       notes: formData.get("notes")?.trim() || ""
     };
@@ -639,7 +679,7 @@
       <strong>Your coaching booking has been booked.</strong>
       <p>${escapeHtml(bookingTotal.lesson.name)}</p>
       ${state.selectedSlot.club_name ? `<p>Club: ${escapeHtml(state.selectedSlot.club_name)}</p>` : ""}
-      ${state.selectedSlot.coach_name ? `<p>Coach: ${escapeHtml(state.selectedSlot.coach_name)}</p>` : ""}
+      ${effectiveCoach?.name ? `<p>Coach: ${escapeHtml(effectiveCoach.name)}</p>` : ""}
       <p>${formatDate(payload.start_time, { weekday: "long", month: "long", day: "numeric" })}</p>
       <p>${formatTime(payload.start_time)} · ${payload.duration_minutes} minutes</p>
       <p>${payload.payment_option === "pay_now" ? "Pay now" : "Pay later"} · ${money(payload.total_price)}</p>
@@ -654,7 +694,7 @@
       totalPrice: payload.total_price,
       bundleName: bookingTotal.bundle?.name || "",
       clubName: state.selectedSlot.club_name || "",
-      coachName: state.selectedSlot.coach_name || "",
+      coachName: effectiveCoach?.name || "",
       emailStatus
     }));
     state.selectedSlot = null;
@@ -716,6 +756,7 @@
     await refreshSession();
     await loadPrivateLessonType();
     await loadBundles();
+    await loadPublicCoaches();
     await loadAvailableSlots();
     prefillBookingForm();
   }
