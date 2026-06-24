@@ -136,6 +136,30 @@ grant insert, update, delete on public.coaching_clubs, public.coaches to authent
 grant select on public.lesson_types, public.lesson_bundles to anon, authenticated;
 grant insert, update, delete on public.lesson_types, public.lesson_bundles to authenticated;
 
+create or replace function public.next_lesson_start_time(value timestamptz)
+returns timestamptz
+language sql
+immutable
+as $$
+  select to_timestamp(
+    ceil(extract(epoch from value) / 1800.0) * 1800
+  )::timestamptz;
+$$;
+
+create or replace function public.booking_times_overlap(
+  first_start timestamptz,
+  first_end timestamptz,
+  second_start timestamptz,
+  second_end timestamptz
+)
+returns boolean
+language sql
+immutable
+as $$
+  select first_start < second_end
+    and second_start < first_end;
+$$;
+
 create or replace function public.admin_restore_booking_availability(
   p_booking_id uuid
 )
