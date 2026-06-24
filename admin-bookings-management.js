@@ -105,6 +105,8 @@
             <label>Date<input type="date" name="booking_date" required /></label>
             <label>Start time<input type="time" name="start_time" step="1800" required /></label>
             <label>Duration<select name="duration_minutes" required><option value="30">30 minutes</option><option value="45">45 minutes</option><option value="60">60 minutes</option><option value="90">90 minutes</option><option value="120">120 minutes</option></select></label>
+            <label>Club<select name="club_id" data-booking-edit-club><option value="">Select club</option></select></label>
+            <label>Coach<select name="coach_id" data-booking-edit-coach><option value="">Select coach</option></select></label>
             <label>Player level<select name="player_level"><option value="">Select level</option><option value="Beginner">Beginner</option><option value="Developing">Developing</option><option value="Interclub">Interclub</option><option value="Tournament">Tournament</option></select></label>
             <label>Status<select name="booking_status" required><option value="confirmed">Confirmed</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option><option value="no_show">No Show</option></select></label>
             <label class="availability-wide">Notes<textarea name="notes" rows="4"></textarea></label>
@@ -144,6 +146,28 @@
     target.dataset.tone = tone;
   }
 
+  function populateContextSelects() {
+    const coachingSettings = window.KimsCoachingSettings || { clubs: [], coaches: [] };
+    const clubSelect = document.querySelector("[data-booking-edit-club]");
+    const coachSelect = document.querySelector("[data-booking-edit-coach]");
+    const clubValue = clubSelect?.value || "";
+    const coachValue = coachSelect?.value || "";
+    if (clubSelect) {
+      clubSelect.innerHTML = '<option value="">Select club</option>' + coachingSettings.clubs
+        .filter((club) => club.is_active !== false)
+        .map((club) => `<option value="${escapeHtml(club.id)}">${escapeHtml(club.name)}</option>`)
+        .join("");
+      clubSelect.value = clubValue;
+    }
+    if (coachSelect) {
+      coachSelect.innerHTML = '<option value="">Select coach</option>' + coachingSettings.coaches
+        .filter((coach) => coach.is_active !== false)
+        .map((coach) => `<option value="${escapeHtml(coach.id)}">${escapeHtml(coach.display_name)}</option>`)
+        .join("");
+      coachSelect.value = coachValue;
+    }
+  }
+
   function renderBookings() {
     state.rendering = true;
     if (!state.bookings.length) {
@@ -162,6 +186,8 @@
             <strong>${escapeHtml(booking.player_name || "Player")}</strong>
             <p>${formatDateTime(start)}${end ? ` - ${formatDateTime(end)}` : ""}</p>
             ${booking.customer_email ? `<p>${escapeHtml(booking.customer_email)}</p>` : ""}
+            ${booking.club?.name ? `<p>${escapeHtml(booking.club.name)}</p>` : ""}
+            ${booking.coach?.display_name ? `<p>Coach ${escapeHtml(booking.coach.display_name)}</p>` : ""}
             <p>${booking.payment_option === "pay_now" ? "Pay now" : "Pay later"}${booking.total_price !== undefined ? ` · $${Number(booking.total_price || 0).toFixed(2)}` : ""}${booking.bundle_lessons_count ? ` · ${Number(booking.bundle_lessons_count)} lesson bundle` : ""}</p>
           </div>
           <div class="booking-row-side">
@@ -182,7 +208,7 @@
     if (!client) return;
     const { data, error } = await client
       .from("bookings")
-      .select("*, availability:availability_id(start_time,end_time)")
+      .select("*, availability:availability_id(start_time,end_time), club:club_id(name), coach:coach_id(display_name)")
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) {
@@ -207,6 +233,9 @@
     form.elements.booking_date.value = dateInput(start);
     form.elements.start_time.value = timeInput(start);
     form.elements.duration_minutes.value = String(durationOf(booking));
+    populateContextSelects();
+    form.elements.club_id.value = booking.club_id || "";
+    form.elements.coach_id.value = booking.coach_id || "";
     form.elements.player_level.value = booking.player_level || "";
     form.elements.notes.value = booking.notes || "";
     form.elements.booking_status.value = booking.booking_status || "confirmed";
@@ -231,6 +260,8 @@
       start_time: startTime,
       end_time: endTime,
       duration_minutes: duration,
+      club_id: formData.get("club_id") || null,
+      coach_id: formData.get("coach_id") || null,
       player_level: formData.get("player_level") || "",
       notes: (formData.get("notes") || "").trim(),
       booking_status: formData.get("booking_status")
@@ -293,6 +324,8 @@
   function init() {
     addStyles();
     addModals();
+    populateContextSelects();
+    window.addEventListener("kims:coaching-settings-ready", populateContextSelects);
     list.addEventListener("click", handleAction);
     document.querySelector("[data-booking-edit-form]")?.addEventListener("submit", saveBooking);
     document.querySelector("[data-close-booking-edit]")?.addEventListener("click", () => closeDialog(document.querySelector("[data-booking-edit-modal]")));

@@ -56,7 +56,7 @@
       `DTSTAMP:${formatDate(new Date())}`,
       `DTSTART:${formatDate(startTime)}`,
       `DTEND:${formatDate(endTime)}`,
-      `SUMMARY:${title || "Private tennis lesson"}`,
+      `SUMMARY:${title || "Coaching session"}`,
       `DESCRIPTION:${description || ""}`,
       `LOCATION:${location}`,
       "END:VEVENT",

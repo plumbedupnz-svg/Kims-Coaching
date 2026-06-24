@@ -97,7 +97,14 @@
                       <label>Date<input type="date" name="slot_date" required /></label>
                       <label>Start time<select name="start_time" data-time-select required><option value="">Select start time</option></select></label>
                       <label>End time<select name="end_time" data-time-select required><option value="">Select end time</option></select></label>
-                      <label>Lesson type<select name="lesson_type_id" data-availability-lesson-type><option value="">Coaching</option></select></label>
+                      <label>Lesson type<select name="lesson_type_id" data-availability-lesson-type><option value="">Select lesson type</option></select></label>
+                      <div class="availability-wide category-add-row">
+                        <label>New lesson type<input type="text" data-quick-lesson-type-name placeholder="e.g. Cardio Tennis" /></label>
+                        <button class="btn btn-secondary" type="button" data-add-quick-lesson-type>Add Lesson Type</button>
+                      </div>
+                      <p class="form-message availability-wide" data-quick-lesson-type-message></p>
+                      <label>Club<select name="club_id" data-availability-club><option value="">Select club</option></select></label>
+                      <label>Coach<select name="coach_id" data-availability-coach><option value="">Select coach</option></select></label>
                       <label>Capacity<input type="number" name="capacity" min="1" step="1" value="1" /></label>
                       <label>Slot type<select name="is_available" required><option value="true">Available for lessons</option><option value="false">Blocked out</option></select></label>
                       <label class="availability-repeat"><span>Repeat weekly</span><input type="checkbox" name="recurring_weekly" data-recurring-weekly /></label>
@@ -405,6 +412,43 @@
             <section class="admin-section" data-admin-section="settings" hidden>
               <div class="settings-grid">
                 <div class="admin-list-panel"><h3>Settings</h3><p class="helper-text">Manage shop and admin settings from here.</p></div>
+                <form class="owner-add-form" data-club-form>
+                  <h3>Club Setup</h3>
+                  <p class="helper-text">Save every venue where coaching is held. Clubs become reusable choices on lesson times and customer bookings.</p>
+                  <input type="hidden" name="club_id" />
+                  <label>Club name<input type="text" name="name" placeholder="e.g. Mairangi Bay Tennis Club" required /></label>
+                  <label>Address<input type="text" name="address" placeholder="Street address or court location" /></label>
+                  <label>Notes<textarea name="notes" rows="3" placeholder="Court access or meeting instructions"></textarea></label>
+                  <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                  <div class="admin-action-row">
+                    <button class="btn btn-primary" type="submit">Save Club</button>
+                    <button class="btn btn-secondary" type="button" data-clear-club>Clear</button>
+                  </div>
+                  <p class="form-message" data-club-message></p>
+                </form>
+                <div class="admin-list-panel">
+                  <h3>Saved Clubs</h3>
+                  <div class="admin-data-list" data-club-list><p class="helper-text">Loading clubs...</p></div>
+                </div>
+                <form class="owner-add-form" data-coach-form>
+                  <h3>Coach Setup</h3>
+                  <p class="helper-text">Create reusable coaches now. Each coach can be linked to a profile/login later without changing bookings or schedules.</p>
+                  <input type="hidden" name="coach_id" />
+                  <label>Coach name<input type="text" name="display_name" placeholder="e.g. Kim Jones" required /></label>
+                  <label>Email<input type="email" name="email" placeholder="coach@example.com" /></label>
+                  <label>Mobile<input type="tel" name="mobile" placeholder="+64 21 000 0000" /></label>
+                  <label>Bio or notes<textarea name="bio" rows="3" placeholder="Coaching focus or internal notes"></textarea></label>
+                  <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                  <div class="admin-action-row">
+                    <button class="btn btn-primary" type="submit">Save Coach</button>
+                    <button class="btn btn-secondary" type="button" data-clear-coach>Clear</button>
+                  </div>
+                  <p class="form-message" data-coach-message></p>
+                </form>
+                <div class="admin-list-panel">
+                  <h3>Saved Coaches</h3>
+                  <div class="admin-data-list" data-coach-list><p class="helper-text">Loading coaches...</p></div>
+                </div>
                 <form id="owner-promo-form" class="owner-add-form">
                   <h3>Promo Code Settings</h3>
                   <label for="owner-promo-code">Promo code</label>
@@ -486,6 +530,7 @@
     <script src="email-service.js"></script>
     <script src="admin-dashboard.js"></script>
     <script src="admin-lessons.js"></script>
+    <script src="admin-coaching-settings.js"></script>
     <script src="admin-bookings-management.js"></script>
     <script src="admin-email-notifications.js"></script>
     <script src="admin-inventory.js"></script>

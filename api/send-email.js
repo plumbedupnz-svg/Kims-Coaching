@@ -156,10 +156,12 @@ function renderBookingText(title, payload = {}) {
     "",
     line("Player", payload.playerName || payload.player_name),
     line("Player level", getPlayerLevel(payload)),
+    line("Lesson type", payload.lessonTypeName || payload.lesson_type_name),
     line("Duration", payload.durationMinutes ? `${payload.durationMinutes} minutes` : ""),
     line("Date", formatEmailDate(startTime, { weekday: "long", month: "long", day: "numeric", year: "numeric" })),
     line("Start time", formatEmailDate(startTime, { hour: "numeric", minute: "2-digit" })),
-    line("Coach", "Kim Jones"),
+    line("Club", payload.clubName || payload.club_name),
+    line("Coach", payload.coachName || payload.coach_name || "Kim Jones"),
     line("Customer", payload.customerName || payload.customer_name),
     line("Email", getCustomerEmail(payload)),
     line("Mobile", payload.mobile),
@@ -201,8 +203,8 @@ function renderShopText(title, payload = {}) {
 }
 
 function renderText(type, payload = {}) {
-  if (type === "booking_admin_notification") return renderBookingText("New Kim Jones Coaching private lesson booking", payload);
-  if (type === "booking_customer_confirmation") return renderBookingText("Your private lesson request has been booked", payload);
+  if (type === "booking_admin_notification") return renderBookingText("New Kim Jones Coaching booking", payload);
+  if (type === "booking_customer_confirmation") return renderBookingText("Your coaching booking has been booked", payload);
   if (type === "booking_changed") return renderBookingText("Your Kim Jones Coaching booking has been updated", payload);
   if (type === "booking_cancelled") return renderBookingText("Your Kim Jones Coaching booking has been cancelled", payload);
   if (type === "waitlist_notification") return renderBookingText("New waitlist request", payload);
@@ -449,7 +451,7 @@ async function sendWithResend(message, settings) {
       subject: message.subject,
       text: message.text,
       attachments: message.ics
-        ? [{ filename: "private-lesson.ics", content: Buffer.from(message.ics).toString("base64") }]
+        ? [{ filename: "coaching-booking.ics", content: Buffer.from(message.ics).toString("base64") }]
         : undefined
     })
   });
@@ -502,7 +504,7 @@ async function sendWithSmtp(message) {
     subject: message.subject,
     text: message.text,
     attachments: message.ics
-      ? [{ filename: "private-lesson.ics", content: message.ics, contentType: "text/calendar; method=REQUEST" }]
+      ? [{ filename: "coaching-booking.ics", content: message.ics, contentType: "text/calendar; method=REQUEST" }]
       : []
   });
   console.info("[Kim's Coaching email] SMTP response returned", {
