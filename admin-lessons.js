@@ -98,6 +98,7 @@
         <div class="availability-actions">
           <button class="btn btn-secondary" type="button" data-lesson-type-action="edit" data-id="${escapeHtml(lesson.id)}">Edit</button>
           <button class="btn btn-secondary" type="button" data-lesson-type-action="toggle" data-id="${escapeHtml(lesson.id)}">${lesson.is_active === false ? "Activate" : "Deactivate"}</button>
+          <button class="btn btn-secondary" type="button" data-lesson-type-action="delete" data-id="${escapeHtml(lesson.id)}">Delete</button>
         </div>
       </article>
     `).join("");
@@ -341,6 +342,27 @@
       return;
     }
     const lesson = lessonTypes.find((item) => item.id === id);
+    if (button.dataset.lessonTypeAction === "delete") {
+      if (!lesson) return;
+      const confirmed = window.confirm(`Delete ${lesson.name}? If this lesson type has existing lesson times or bookings, use Deactivate instead.`);
+      if (!confirmed) return;
+      const { error } = await client.from("lesson_types").delete().eq("id", id);
+      if (error) {
+        const blocked = /foreign key|violates|23503|referenced|constraint/i.test(error.message || error.code || "");
+        setMessage(
+          lessonTypeMessageEl,
+          blocked
+            ? "This lesson type is linked to existing lesson times or bookings and cannot be deleted. Use Deactivate instead."
+            : `Could not delete lesson type: ${error.message}`,
+          "error"
+        );
+        return;
+      }
+      if (lessonTypeFormEl?.elements.lesson_type_id?.value === id) resetLessonTypeForm();
+      setMessage(lessonTypeMessageEl, "Lesson type deleted.", "success");
+      await loadLessonTypes();
+      return;
+    }
     const { error } = await client.from("lesson_types").update({ is_active: lesson?.is_active === false }).eq("id", id);
     if (error) setMessage(lessonTypeMessageEl, `Could not update lesson type: ${error.message}`, "error");
     await loadLessonTypes();
