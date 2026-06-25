@@ -265,6 +265,7 @@
 
     await loadLessonTypes();
     availabilityLessonTypeEl.value = lessonTypeId;
+    availabilityLessonTypeEl.dispatchEvent(new Event("change", { bubbles: true }));
     quickLessonTypeNameEl.value = "";
     quickLessonTypeAddEl.disabled = false;
     setMessage(quickLessonTypeMessageEl, existing ? "Existing lesson type selected." : "Lesson type saved and selected.", "success");
