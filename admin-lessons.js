@@ -81,7 +81,8 @@
         <div class="availability-row-main">
           <span class="status-pill ${lesson.is_active === false ? "blocked" : "available"}">${lesson.is_active === false ? "Inactive" : "Active"}</span>
           <h3>${escapeHtml(lesson.name)}</h3>
-          <p>${Number(lesson.duration || 0)} min · ${money(lesson.price)} · capacity ${Number(lesson.capacity || 1)}</p>
+          <p>${Number(lesson.duration || 0)} min · ${money(lesson.price)} · capacity ${Number(lesson.capacity || 1)} · minimum ${Number(lesson.minimum_players || 1)}</p>
+          ${lesson.pay_as_you_go_only ? '<p>Pay as you go only</p>' : ""}
           ${lesson.description ? `<p>${escapeHtml(lesson.description)}</p>` : ""}
         </div>
         <div class="availability-actions">
@@ -119,7 +120,7 @@
     if (!client) return;
     const { data, error } = await client
       .from("lesson_types")
-      .select("id,name,duration,price,description,capacity,is_active")
+      .select("id,name,duration,price,description,capacity,minimum_players,pay_as_you_go_only,is_active")
       .order("name", { ascending: true });
 
     if (error) {
@@ -174,6 +175,8 @@
       duration: Number(formData.get("duration") || 60),
       price: Number(formData.get("price") || 0),
       capacity: Math.max(1, Number(formData.get("capacity") || 1)),
+      minimum_players: Math.max(1, Number(formData.get("minimum_players") || 1)),
+      pay_as_you_go_only: formData.get("pay_as_you_go_only") === "on",
       description: formData.get("description")?.trim() || "",
       is_active: formData.get("is_active") === "on"
     };
@@ -226,7 +229,7 @@
     if (!lessonTypeId) {
       const { data, error } = await client
         .from("lesson_types")
-        .insert({ name, duration: 60, price: 0, capacity: 1, description: "", is_active: true })
+        .insert({ name, duration: 60, price: 0, capacity: 1, minimum_players: 1, pay_as_you_go_only: false, description: "", is_active: true })
         .select("id")
         .single();
 
@@ -286,6 +289,8 @@
     lessonTypeFormEl.elements.duration.value = lesson.duration || 60;
     lessonTypeFormEl.elements.price.value = Number(lesson.price || 0).toFixed(2);
     lessonTypeFormEl.elements.capacity.value = lesson.capacity || 1;
+    lessonTypeFormEl.elements.minimum_players.value = lesson.minimum_players || 1;
+    lessonTypeFormEl.elements.pay_as_you_go_only.checked = lesson.pay_as_you_go_only === true;
     lessonTypeFormEl.elements.description.value = lesson.description || "";
     lessonTypeFormEl.elements.is_active.checked = lesson.is_active !== false;
     lessonTypeFormEl.scrollIntoView({ behavior: "smooth", block: "start" });
