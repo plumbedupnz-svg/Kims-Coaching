@@ -1,6 +1,6 @@
 {
   "private": true,
-  "dependencies": {
-    "nodemailer": "^6.9.14"
+  "scripts": {
+    "test": "node --test"
   }
 }
