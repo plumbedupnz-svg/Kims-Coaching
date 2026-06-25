@@ -1170,6 +1170,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
+      emailRedirectTo: `${window.location.origin}/account.html`,
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -1240,7 +1241,7 @@ async function sendPasswordReset() {
   showAuthMessage("Sending password reset email...", "neutral");
 
   const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-    redirectTo: `${window.location.origin}/account`
+    redirectTo: `${window.location.origin}/account.html`
   });
 
   forgotPasswordEl.disabled = false;
