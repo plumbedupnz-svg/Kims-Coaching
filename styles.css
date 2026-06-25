@@ -480,6 +480,7 @@ textarea { resize: vertical; min-height: 120px; }
 .link-button { border: 0; background: transparent; color: var(--primary-dark); padding: 0; font: inherit; font-weight: 700; cursor: pointer; }
 .link-button:hover { text-decoration: underline; }
 .link-button:disabled { color: var(--muted); cursor: wait; text-decoration: none; }
+.auth-notice { margin: 0.9rem 0 0; padding: 0.85rem 0.95rem; border: 1px solid #cfe3ff; border-radius: 12px; background: #f0f8ff; color: var(--ink) !important; font-weight: 650; line-height: 1.45; }
 .auth-form input:focus, .profile-form input:focus, .profile-form select:focus, .profile-form textarea:focus { outline: 2px solid rgba(39, 173, 255, 0.35); border-color: var(--primary); }
 .muted, .form-message { color: var(--muted); }
 .form-message { min-height: 1.4rem; margin: 0; }
