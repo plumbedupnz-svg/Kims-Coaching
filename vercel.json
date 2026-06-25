@@ -6,6 +6,7 @@
     { "source": "/book-private-lesson", "destination": "/booking.html" },
     { "source": "/booking", "destination": "/booking.html" },
     { "source": "/booking-confirmation", "destination": "/booking-confirmation.html" },
+    { "source": "/email-verified", "destination": "/email-verified.html" },
     { "source": "/shop", "destination": "/shop.html" },
     { "source": "/account", "destination": "/account.html" },
     { "source": "/admin", "destination": "/admin.html" },

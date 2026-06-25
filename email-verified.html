@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Email Verified | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span><span></span><span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links>
+          <a href="index.html">Home</a>
+          <a href="booking.html">Book Coaching</a>
+          <a href="shop.html">Shop</a>
+          <a href="account.html" data-auth-public>Login</a>
+          <a href="account.html" data-auth-private hidden>My Account</a>
+          <a href="admin.html" data-admin-link hidden>Admin</a>
+          <button class="nav-button" type="button" data-sign-out hidden>Sign Out</button>
+        </div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section email-verified-section">
+        <div class="container email-verified-wrap">
+          <article class="dashboard-card email-verified-card" aria-labelledby="email-verified-title">
+            <div class="success-icon" aria-hidden="true">✓</div>
+            <p class="eyebrow">Account Ready</p>
+            <h1 id="email-verified-title">Email Verified!</h1>
+            <p>Your email address has been successfully verified.</p>
+            <p>You can now access your account, book coaching sessions, purchase products and manage your bookings.</p>
+            <p class="form-message" data-email-verified-status role="status" aria-live="polite">Checking your account session...</p>
+            <div class="email-verified-actions">
+              <a class="btn btn-primary" href="account.html" data-email-account-link>Go to My Account</a>
+              <a class="link-button" href="index.html">Return to Home</a>
+            </div>
+          </article>
+
+          <div class="cards three-col email-verified-features" aria-label="Account features">
+            <article class="product-card feature-card">
+              <span class="card-number">01</span>
+              <h3>Book Coaching</h3>
+              <p>Choose from Kim's available coaching times and keep your player details ready.</p>
+              <a class="btn btn-secondary" href="booking.html">Book Coaching</a>
+            </article>
+            <article class="product-card feature-card">
+              <span class="card-number">02</span>
+              <h3>Manage Bookings</h3>
+              <p>Review your upcoming coaching sessions and keep your profile information current.</p>
+              <a class="btn btn-secondary" href="account.html#customer-account">My Bookings</a>
+            </article>
+            <article class="product-card feature-card">
+              <span class="card-number">03</span>
+              <h3>Shop</h3>
+              <p>Browse tennis essentials and purchase products from your coaching account.</p>
+              <a class="btn btn-secondary" href="shop.html">Open Shop</a>
+            </article>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js?v=20260626-email-verified"></script>
+    <script src="app.js?v=20260626-email-verified"></script>
+    <script src="email-verified.js?v=20260626-email-verified"></script>
+  </body>
+</html>

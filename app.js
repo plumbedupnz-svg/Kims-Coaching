@@ -1172,7 +1172,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/account.html`,
+      emailRedirectTo: `${window.location.origin}/email-verified.html`,
       data: {
         first_name: firstName,
         last_name: lastName,
