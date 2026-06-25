@@ -1209,11 +1209,19 @@ async function createAccount(formData) {
 
   if (!data.session) {
     setAuthMode("login");
-    showAuthMessage("Account created. If email verification is required, please check your inbox before logging in.", "success");
+    showAuthMessage("Account created. We have sent a verification email to your inbox. Please verify your email before logging in.", "success");
     return;
   }
 
-  redirectAfterAuth(currentProfile);
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  currentProfile = null;
+  renderAccountNavigation();
+  setAuthMode("login");
+  showAuthMessage(
+    "Account created, but Supabase is currently auto-verifying new accounts. Email verification must be enabled in Supabase before members can access accounts.",
+    "error"
+  );
 }
 
 async function login(formData) {
