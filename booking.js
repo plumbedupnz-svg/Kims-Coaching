@@ -158,7 +158,24 @@
     if (slots?.length && validSlots.length !== slots.length) {
       setStatus(invalidStartMessage, "error");
     }
-    return validSlots.filter((slot) => getMaxDurationMinutes(slot) >= getRequiredDurationMinutes(slot));
+    const groupedSlots = new Map();
+    validSlots.forEach((slot) => {
+      const groupKey = slot.id || slot.availability_id || `${slot.lesson_type_id || "lesson"}|${slot.end_time || ""}`;
+      groupedSlots.set(groupKey, [...(groupedSlots.get(groupKey) || []), slot]);
+    });
+
+    return Array.from(groupedSlots.values()).flatMap((group) => {
+      const sortedGroup = group.sort((first, second) => new Date(first.start_time) - new Date(second.start_time));
+      const blockStart = new Date(sortedGroup[0]?.start_time || "").getTime();
+      return sortedGroup.filter((slot) => {
+        const requiredDuration = getRequiredDurationMinutes(slot);
+        const fitsWindow = getMaxDurationMinutes(slot) >= requiredDuration;
+        if (!fitsWindow) return false;
+        if (!requiredDuration || requiredDuration <= 30 || Number.isNaN(blockStart)) return true;
+        const offsetMinutes = Math.round((new Date(slot.start_time).getTime() - blockStart) / 60000);
+        return offsetMinutes % requiredDuration === 0;
+      });
+    });
   }
 
   function escapeHtml(value = "") {
