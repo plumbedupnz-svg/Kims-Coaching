@@ -1090,6 +1090,22 @@ async function refreshSessionProfile() {
   currentProfile = currentUser ? await loadProfile(currentUser) : null;
 }
 
+async function completeAuthCallbackFromUrl() {
+  if (!supabaseClient || getRouteName() !== "account") return;
+  const code = urlParams.get("code");
+  if (!code) return;
+
+  if (authMessageEl) showAuthMessage("Verifying your email...", "neutral");
+  const { error } = await supabaseClient.auth.exchangeCodeForSession(code);
+  if (error) {
+    console.warn("Could not complete email verification callback.", error.message);
+    if (authMessageEl) showAuthMessage("Email verified. Please log in to continue.", "success");
+    return;
+  }
+
+  history.replaceState(null, "", "/account#customer-account");
+}
+
 function redirectAfterAuth(profile = currentProfile) {
   const destination = getAccountDestination(profile);
   const route = getRouteName();
@@ -1172,7 +1188,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
-      emailRedirectTo: `${window.location.origin}/email-verified.html`,
+      emailRedirectTo: "https://www.kimjonescoaching.co.nz/account#customer-account",
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -2233,6 +2249,7 @@ async function init() {
       showAuthMessage("Supabase is not configured yet. Add supabase-config.js with your project URL and anon key.", "error");
     }
 
+    await completeAuthCallbackFromUrl();
     await loadHomepagePhotoSetting({ showAdminMessage: Boolean(homepagePhotoFormEl) });
 
     if (isShopPage) {
