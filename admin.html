@@ -108,6 +108,7 @@
                       <label>Club<select name="club_id" data-availability-club><option value="">Select club</option></select></label>
                       <label>Coach<select name="coach_id" data-availability-coach><option value="">Select coach</option></select></label>
                       <label>Capacity<input type="number" name="capacity" min="1" step="1" value="1" /></label>
+                      <label>Minimum players required<input type="number" name="minimum_players" min="1" step="1" value="1" /></label>
                       <label>Slot type<select name="is_available" required><option value="true">Available for lessons</option><option value="false">Blocked out</option></select></label>
                       <label class="availability-repeat"><span>Repeat weekly</span><input type="checkbox" name="recurring_weekly" data-recurring-weekly /></label>
                       <label>Number of weeks<input type="number" name="repeat_weeks" min="1" max="52" value="1" data-repeat-weeks /></label>
@@ -531,20 +532,20 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
-    <script src="supabase-config.js"></script>
-    <script src="admin-runtime.js"></script>
-    <script src="product-categories.js"></script>
-    <script src="app.js"></script>
-    <script src="email-settings.js"></script>
-    <script src="email-service.js"></script>
-    <script src="admin-dashboard.js"></script>
-    <script src="admin-lessons.js"></script>
-    <script src="admin-coaching-settings.js"></script>
-    <script src="admin-settings-tabs.js"></script>
-    <script src="admin-bookings-management.js"></script>
-    <script src="admin-email-notifications.js"></script>
-    <script src="admin-inventory.js"></script>
-    <script src="admin-availability-state.js"></script>
-    <script src="admin-availability.js"></script>
+    <script src="supabase-config.js?v=20260626-lesson-rules"></script>
+    <script src="admin-runtime.js?v=20260626-lesson-rules"></script>
+    <script src="product-categories.js?v=20260626-lesson-rules"></script>
+    <script src="app.js?v=20260626-lesson-rules"></script>
+    <script src="email-settings.js?v=20260626-lesson-rules"></script>
+    <script src="email-service.js?v=20260626-lesson-rules"></script>
+    <script src="admin-dashboard.js?v=20260626-lesson-rules"></script>
+    <script src="admin-lessons.js?v=20260626-lesson-rules"></script>
+    <script src="admin-coaching-settings.js?v=20260626-lesson-rules"></script>
+    <script src="admin-settings-tabs.js?v=20260626-lesson-rules"></script>
+    <script src="admin-bookings-management.js?v=20260626-lesson-rules"></script>
+    <script src="admin-email-notifications.js?v=20260626-lesson-rules"></script>
+    <script src="admin-inventory.js?v=20260626-lesson-rules"></script>
+    <script src="admin-availability-state.js?v=20260626-lesson-rules"></script>
+    <script src="admin-availability.js?v=20260626-lesson-rules"></script>
   </body>
 </html>

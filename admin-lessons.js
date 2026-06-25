@@ -20,6 +20,7 @@
 
   if (!lessonTypeFormEl && !bundleFormEl) return;
 
+  const lessonRulesMigration = "supabase/migrations/20260626010000_lesson_type_booking_rules.sql";
   let lessonTypes = [];
   let bundles = [];
   window.KimsLessonTypes = window.KimsLessonTypes || [];
@@ -41,6 +42,15 @@
     if (!target) return;
     target.textContent = message;
     target.dataset.tone = tone;
+  }
+
+  function isLessonRulesSchemaError(error) {
+    return /minimum_players|pay_as_you_go_only|schema cache|PGRST204|42703/i.test(error?.message || error?.code || "");
+  }
+
+  function getLessonRulesSchemaMessage(error) {
+    const detail = error?.message ? ` Supabase said: ${error.message}` : "";
+    return `Lesson type rules are not fully set up in Supabase yet. Run ${lessonRulesMigration} in Supabase SQL Editor, then refresh this page.${detail}`;
   }
 
   function getLessonName(id) {
@@ -125,7 +135,11 @@
 
     if (error) {
       console.warn("Could not load lesson types.", error.message);
-      setMessage(lessonTypeMessageEl, `Could not load lesson types: ${error.message}`, "error");
+      setMessage(
+        lessonTypeMessageEl,
+        isLessonRulesSchemaError(error) ? getLessonRulesSchemaMessage(error) : `Could not load lesson types: ${error.message}`,
+        "error"
+      );
       renderLessonTypeOptions();
       return;
     }
@@ -192,7 +206,11 @@
       : client.from("lesson_types").insert(payload);
     const { error } = await query;
     if (error) {
-      setMessage(lessonTypeMessageEl, `Could not save lesson type: ${error.message}`, "error");
+      setMessage(
+        lessonTypeMessageEl,
+        isLessonRulesSchemaError(error) ? getLessonRulesSchemaMessage(error) : `Could not save lesson type: ${error.message}`,
+        "error"
+      );
       return;
     }
 
@@ -235,7 +253,11 @@
 
       if (error) {
         quickLessonTypeAddEl.disabled = false;
-        setMessage(quickLessonTypeMessageEl, `Could not save lesson type: ${error.message}`, "error");
+        setMessage(
+          quickLessonTypeMessageEl,
+          isLessonRulesSchemaError(error) ? getLessonRulesSchemaMessage(error) : `Could not save lesson type: ${error.message}`,
+          "error"
+        );
         return;
       }
       lessonTypeId = data.id;
