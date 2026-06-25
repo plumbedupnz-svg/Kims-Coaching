@@ -108,6 +108,21 @@
     setMessage("");
   }
 
+  function applyLessonTypeDefaults() {
+    if (!formEl) return;
+    const lessonTypeId = formEl.elements.lesson_type_id?.value;
+    if (!lessonTypeId) return;
+    const lessonType = (window.KimsLessonTypes || []).find((lesson) => lesson.id === lessonTypeId);
+    if (!lessonType) return;
+
+    const lessonCapacity = Math.max(1, Number(lessonType.capacity || 1));
+    const lessonMinimum = Math.max(1, Number(lessonType.minimum_players || 1));
+    const safeCapacity = Math.max(lessonCapacity, lessonMinimum);
+
+    if (formEl.elements.capacity) formEl.elements.capacity.value = safeCapacity;
+    if (formEl.elements.minimum_players) formEl.elements.minimum_players.value = lessonMinimum;
+  }
+
   function getPayloads(formData) {
     const slotDate = formData.get("slot_date");
     const startTime = formData.get("start_time");
@@ -193,7 +208,9 @@
     resetForm,
     getPayloads,
     fillForm,
+    applyLessonTypeDefaults,
     isAdmin
   };
   populateTimeSelectors();
+  formEl?.elements.lesson_type_id?.addEventListener("change", applyLessonTypeDefaults);
 })();
