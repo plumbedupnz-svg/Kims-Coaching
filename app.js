@@ -80,6 +80,9 @@ const profileFormEl = document.querySelector("[data-profile-form]");
 const profileMessageEl = document.querySelector("[data-profile-message]");
 const playerCountEl = document.querySelector("[data-player-count]");
 const playersListEl = document.querySelector("[data-players-list]");
+const accountOnboardingEl = document.querySelector("[data-account-onboarding]");
+const addPlayerEl = document.querySelector("[data-add-player]");
+const accountVerificationMessageEl = document.querySelector("[data-account-verification-message]");
 const publicAuthEls = document.querySelectorAll("[data-auth-public]");
 const privateAuthEls = document.querySelectorAll("[data-auth-private]");
 const signOutEls = document.querySelectorAll("[data-sign-out]");
@@ -99,6 +102,7 @@ const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.ge
 let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
 let currentUser = null;
 let currentProfile = null;
+let verifiedFromEmailLink = false;
 let shopInventorySettings = { hide_out_of_stock: false };
 let shopLoadDebug = {
   source: "not_loaded",
@@ -1057,6 +1061,10 @@ function getRouteName() {
   return file.replace(".html", "") || "index";
 }
 
+function getAccountEmailRedirectUrl() {
+  return `${window.location.origin}/account.html`;
+}
+
 async function loadProfile(user) {
   if (!supabaseClient || !user) return null;
   let data = null;
@@ -1103,7 +1111,8 @@ async function completeAuthCallbackFromUrl() {
     return;
   }
 
-  history.replaceState(null, "", "/account#customer-account");
+  verifiedFromEmailLink = true;
+  history.replaceState(null, "", `${window.location.pathname}#customer-account`);
 }
 
 function redirectAfterAuth(profile = currentProfile) {
@@ -1188,7 +1197,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
-      emailRedirectTo: "https://www.kimjonescoaching.co.nz/account",
+      emailRedirectTo: getAccountEmailRedirectUrl(),
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -1348,6 +1357,39 @@ function renderCustomerAccount() {
   }
 
   populateProfileForm();
+  renderAccountVerificationSuccess();
+  renderAccountOnboarding();
+}
+
+function renderAccountVerificationSuccess() {
+  if (!accountVerificationMessageEl) return;
+  if (!verifiedFromEmailLink) {
+    accountVerificationMessageEl.hidden = true;
+    accountVerificationMessageEl.textContent = "";
+    accountVerificationMessageEl.removeAttribute("data-tone");
+    return;
+  }
+
+  accountVerificationMessageEl.hidden = false;
+  accountVerificationMessageEl.textContent = "Email verified successfully. Welcome to Kim Jones Coaching.";
+  accountVerificationMessageEl.dataset.tone = "success";
+  window.setTimeout(() => {
+    verifiedFromEmailLink = false;
+    if (!accountVerificationMessageEl) return;
+    accountVerificationMessageEl.hidden = true;
+    accountVerificationMessageEl.textContent = "";
+    accountVerificationMessageEl.removeAttribute("data-tone");
+  }, 8000);
+}
+
+function hasSavedPlayerProfiles(profile = currentProfile) {
+  const players = getProfilePlayers(profile);
+  return players.some((player) => [player.name, player.dob, player.level, player.notes].some((value) => String(value || "").trim()));
+}
+
+function renderAccountOnboarding() {
+  if (!accountOnboardingEl) return;
+  accountOnboardingEl.hidden = hasSavedPlayerProfiles(currentProfile);
 }
 
 function setProfileMessage(message, tone = "neutral") {
@@ -1460,6 +1502,18 @@ function getPlayersFromForm(formData) {
       level: formData.get(`player_level_${index}`) || ""
     })
   );
+}
+
+function focusPlayerForm() {
+  if (!profileFormEl) return;
+  if (playerCountEl && Number(playerCountEl.value || 0) < 1) {
+    playerCountEl.value = "1";
+    renderPlayerFields(getProfilePlayers(currentProfile));
+  }
+
+  const firstPlayerInput = profileFormEl.querySelector("[name='player_name_0']");
+  (firstPlayerInput || profileFormEl).scrollIntoView({ behavior: "smooth", block: "center" });
+  if (firstPlayerInput) firstPlayerInput.focus({ preventScroll: true });
 }
 
 async function saveProfile(formData) {
@@ -2191,6 +2245,8 @@ document.querySelectorAll("[data-mode-button]").forEach((button) => {
 });
 
 if (forgotPasswordEl) forgotPasswordEl.addEventListener("click", sendPasswordReset);
+
+if (addPlayerEl) addPlayerEl.addEventListener("click", focusPlayerForm);
 
 if (playerCountEl) playerCountEl.addEventListener("change", () => {
   const formData = profileFormEl ? new FormData(profileFormEl) : null;
