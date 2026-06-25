@@ -17,6 +17,10 @@
   const durationSelectEl = document.querySelector("[data-duration-select]");
   const bundleSelectEl = document.querySelector("[data-bundle-select]");
   const paymentOptionEl = document.querySelector("[data-payment-option]");
+  const paymentOptionRowEl = document.querySelector("[data-payment-option-row]");
+  const bundleRowEl = document.querySelector("[data-bundle-row]");
+  const paymentPolicyNoteEl = document.querySelector("[data-payment-policy-note]");
+  const minimumPlayersNoteEl = document.querySelector("[data-minimum-players-note]");
   const priceSummaryEl = document.querySelector("[data-booking-price-summary]");
   const lessonFilterEl = document.querySelector("[data-booking-lesson-filter]");
   const clubFilterEl = document.querySelector("[data-booking-club-filter]");
@@ -27,6 +31,7 @@
     user: null,
     profile: null,
     lessonType: null,
+    lessonTypes: [],
     bundles: [],
     publicCoaches: [],
     selectedSlot: null,
@@ -98,11 +103,14 @@
       id: slot?.lesson_type_id || state.lessonType?.id || "",
       name: slot?.lesson_type_name || state.lessonType?.name || "Coaching",
       price: Number(slot?.lesson_type_price ?? state.lessonType?.price ?? 0),
-      duration: Number(slot?.lesson_type_duration ?? state.lessonType?.duration ?? 0)
+      duration: Number(slot?.lesson_type_duration ?? state.lessonType?.duration ?? 0),
+      minimumPlayers: Number(slot?.lesson_type_minimum_players ?? state.lessonType?.minimum_players ?? 1),
+      payAsYouGoOnly: Boolean(slot?.lesson_type_pay_as_you_go_only ?? state.lessonType?.pay_as_you_go_only ?? false)
     };
   }
 
   function getSelectedBundle() {
+    if (getSlotLesson().payAsYouGoOnly) return null;
     const bundleId = bundleSelectEl?.value || "";
     return state.bundles.find((bundle) => bundle.id === bundleId) || null;
   }
@@ -201,6 +209,25 @@
     return state.lessonType;
   }
 
+  async function loadLessonTypes() {
+    if (!client) return [];
+    const { data, error } = await client
+      .from("lesson_types")
+      .select("id,name,duration,price,capacity,minimum_players,pay_as_you_go_only,is_active")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load active lesson types.", error.message);
+      state.lessonTypes = [];
+      return [];
+    }
+
+    state.lessonTypes = data || [];
+    if (!state.lessonType && state.lessonTypes.length) state.lessonType = state.lessonTypes[0];
+    return state.lessonTypes;
+  }
+
   async function loadBundles() {
     if (!client) return [];
     const { data, error } = await client
@@ -266,6 +293,8 @@
       lesson_type_name: slot.lesson_type_name,
       lesson_type_price: slot.lesson_type_price,
       lesson_type_duration: slot.lesson_type_duration,
+      lesson_type_minimum_players: slot.lesson_type_minimum_players,
+      lesson_type_pay_as_you_go_only: slot.lesson_type_pay_as_you_go_only,
       capacity: slot.capacity,
       booked_count: slot.booked_count,
       spaces_remaining: slot.spaces_remaining,
@@ -282,7 +311,7 @@
   async function loadAvailableSlotsFallback(weekStartIso, weekEndIso) {
     let { data, error } = await client
       .from("availability")
-      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity), club:club_id(id,name,address), coach:coach_id(id,display_name)")
+      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity,minimum_players,pay_as_you_go_only), club:club_id(id,name,address), coach:coach_id(id,display_name)")
       .eq("is_available", true)
       .gte("start_time", weekStartIso)
       .lt("start_time", weekEndIso)
@@ -292,7 +321,7 @@
       console.warn("Club/coach booking columns are not installed yet; loading legacy availability.");
       const legacyResult = await client
         .from("availability")
-        .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity)")
+        .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity,minimum_players,pay_as_you_go_only)")
         .eq("is_available", true)
         .gte("start_time", weekStartIso)
         .lt("start_time", weekEndIso)
@@ -322,6 +351,8 @@
             lesson_type_name: availability.lesson_type?.name,
             lesson_type_price: availability.lesson_type?.price,
             lesson_type_duration: availability.lesson_type?.duration,
+            lesson_type_minimum_players: availability.lesson_type?.minimum_players,
+            lesson_type_pay_as_you_go_only: availability.lesson_type?.pay_as_you_go_only,
             capacity: availability.capacity || availability.lesson_type?.capacity || 1,
             spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1,
             club_id: availability.club_id,
@@ -358,7 +389,10 @@
   }
 
   function renderFilterOptions() {
-    populateFilter(lessonFilterEl, uniqueFilterItems("lesson_type_id", "lesson_type_name"), "All lesson types");
+    const lessonOptions = new Map();
+    state.lessonTypes.forEach((lesson) => lessonOptions.set(lesson.id, { id: lesson.id, name: lesson.name }));
+    uniqueFilterItems("lesson_type_id", "lesson_type_name").forEach((lesson) => lessonOptions.set(lesson.id, lesson));
+    populateFilter(lessonFilterEl, Array.from(lessonOptions.values()).sort((a, b) => a.name.localeCompare(b.name)), "All lesson types");
     populateFilter(clubFilterEl, uniqueFilterItems("club_id", "club_name"), "All clubs");
     const slotCoaches = uniqueFilterItems("coach_id", "coach_name");
     const coaches = new Map(slotCoaches.map((coach) => [coach.id, coach]));
@@ -459,6 +493,11 @@
   function renderBundleOptions() {
     if (!bundleSelectEl) return;
     const lesson = getSlotLesson();
+    if (lesson.payAsYouGoOnly) {
+      bundleSelectEl.innerHTML = '<option value="">Single lesson</option>';
+      bundleSelectEl.value = "";
+      return;
+    }
     const current = bundleSelectEl.value;
     const matchingBundles = state.bundles.filter((bundle) => !bundle.lesson_type_id || bundle.lesson_type_id === lesson.id);
     bundleSelectEl.innerHTML = [
@@ -466,6 +505,31 @@
       ...matchingBundles.map((bundle) => `<option value="${escapeHtml(bundle.id)}">${escapeHtml(bundle.name)} · ${Number(bundle.lesson_count || 0)} lessons · ${Number(bundle.discount_percent || 0)}% off</option>`)
     ].join("");
     if (matchingBundles.some((bundle) => bundle.id === current)) bundleSelectEl.value = current;
+  }
+
+  function renderPaymentPolicy() {
+    const lesson = getSlotLesson();
+    const isPayAsYouGoOnly = lesson.payAsYouGoOnly;
+    if (paymentOptionRowEl) paymentOptionRowEl.hidden = isPayAsYouGoOnly;
+    if (bundleRowEl) bundleRowEl.hidden = isPayAsYouGoOnly;
+    if (paymentOptionEl) {
+      paymentOptionEl.required = !isPayAsYouGoOnly;
+      if (isPayAsYouGoOnly) paymentOptionEl.value = "pay_later";
+    }
+    if (bundleSelectEl && isPayAsYouGoOnly) bundleSelectEl.value = "";
+    if (paymentPolicyNoteEl) {
+      paymentPolicyNoteEl.hidden = !isPayAsYouGoOnly;
+      paymentPolicyNoteEl.textContent = isPayAsYouGoOnly
+        ? "Pay as you go only. Payment options are not required for this booking."
+        : "";
+    }
+    if (minimumPlayersNoteEl) {
+      const minimumPlayers = Number(lesson.minimumPlayers || 1);
+      minimumPlayersNoteEl.hidden = minimumPlayers <= 1;
+      minimumPlayersNoteEl.textContent = minimumPlayers > 1
+        ? `This class requires a minimum of ${minimumPlayers} players to proceed.`
+        : "";
+    }
   }
 
   function renderPriceSummary() {
@@ -476,6 +540,10 @@
     }
 
     const total = getBookingTotal();
+    if (total.lesson.payAsYouGoOnly) {
+      priceSummaryEl.textContent = `${total.lesson.name}: ${money(total.lesson.price)}. Pay as you go only.`;
+      return;
+    }
     const paymentText = paymentOptionEl?.value === "pay_now" ? "Pay now selected" : "Pay later selected";
     priceSummaryEl.textContent = total.bundle
       ? `${total.bundle.name}: ${total.lessonCount} lessons, ${total.discount}% off. Total ${money(total.total)}. ${paymentText}.`
@@ -501,6 +569,7 @@
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
     renderDurationOptions();
+    renderPaymentPolicy();
     renderBundleOptions();
     renderPriceSummary();
     prefillBookingForm();
@@ -534,6 +603,7 @@
     }
 
     const formData = new FormData(bookingFormEl);
+    const lesson = getSlotLesson(state.selectedSlot);
     const selectedDuration = Number(formData.get("duration_minutes"));
     const availableDurations = getAvailableDurations(state.selectedSlot);
     if (!availableDurations.includes(selectedDuration)) {
@@ -567,8 +637,8 @@
       start_time: state.selectedSlot.start_time,
       end_time: bookingEndTime,
       duration_minutes: selectedDuration,
-      payment_option: formData.get("payment_option") || "pay_later",
-      bundle_id: formData.get("bundle_id") || null,
+      payment_option: lesson.payAsYouGoOnly ? "pay_later" : formData.get("payment_option") || "pay_later",
+      bundle_id: lesson.payAsYouGoOnly ? null : formData.get("bundle_id") || null,
       bundle_lessons_count: bookingTotal.bundle ? bookingTotal.lessonCount : null,
       bundle_discount_percent: bookingTotal.bundle ? bookingTotal.discount : null,
       total_price: bookingTotal.total
@@ -763,6 +833,7 @@
   async function initBookingPage() {
     await refreshSession();
     await loadPrivateLessonType();
+    await loadLessonTypes();
     await loadBundles();
     await loadPublicCoaches();
     await loadAvailableSlots();
