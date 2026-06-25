@@ -62,6 +62,7 @@ const authFormEl = document.querySelector("[data-auth-form]");
 const authMessageEl = document.querySelector("[data-auth-message]");
 const authTitleEl = document.querySelector("[data-auth-title]");
 const authCopyEl = document.querySelector("[data-auth-copy]");
+const signupVerificationNoteEl = document.querySelector("[data-signup-verification-note]");
 const authSubmitEl = document.querySelector("[data-submit-auth]");
 const modeSwitchEl = document.querySelector(".mode-switch");
 const emailFieldEl = document.querySelector("[data-email-field]");
@@ -1121,6 +1122,7 @@ function setAuthMode(mode) {
   if (lastNameFieldEl) lastNameFieldEl.hidden = !isSignup;
   if (phoneFieldEl) phoneFieldEl.hidden = !isSignup;
   if (loginActionsEl) loginActionsEl.hidden = isSignup || isReset;
+  if (signupVerificationNoteEl) signupVerificationNoteEl.hidden = !isSignup;
   if (authTitleEl) authTitleEl.textContent = isReset ? "Set a new password" : isSignup ? "Create your account" : "Welcome back";
   if (authCopyEl) {
     authCopyEl.textContent = isReset
@@ -1190,8 +1192,8 @@ async function createAccount(formData) {
   currentProfile = currentUser ? await loadProfile(currentUser) : null;
 
   if (!data.session) {
-    showAuthMessage("Check your email to confirm your account, then log in.", "success");
     setAuthMode("login");
+    showAuthMessage("Account created. We have sent a verification email to your inbox. Please confirm your email before logging in.", "success");
     return;
   }
 
