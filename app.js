@@ -1188,7 +1188,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
-      emailRedirectTo: "https://www.kimjonescoaching.co.nz/account#customer-account",
+      emailRedirectTo: "https://www.kimjonescoaching.co.nz/account",
       data: {
         first_name: firstName,
         last_name: lastName,
@@ -1209,7 +1209,7 @@ async function createAccount(formData) {
 
   if (!data.session) {
     setAuthMode("login");
-    showAuthMessage("Account created. We have sent a verification email to your inbox. Please confirm your email before logging in.", "success");
+    showAuthMessage("Account created. If email verification is required, please check your inbox before logging in.", "success");
     return;
   }
 
