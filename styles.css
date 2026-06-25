@@ -486,6 +486,31 @@ textarea { resize: vertical; min-height: 120px; }
 .form-message { min-height: 1.4rem; margin: 0; }
 .form-message[data-tone="success"] { color: #177a3a; }
 .form-message[data-tone="error"] { color: #b42318; }
+.email-verified-section { background: linear-gradient(180deg, #ffffff, var(--surface)); }
+.email-verified-wrap { display: grid; gap: 1.25rem; }
+.email-verified-card {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+  text-align: center;
+  box-shadow: var(--shadow);
+}
+.success-icon {
+  width: 82px;
+  height: 82px;
+  display: grid;
+  place-items: center;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--primary-dark);
+  border: 1px solid rgba(39, 173, 255, 0.3);
+  font-size: 2.4rem;
+  font-weight: 800;
+}
+.email-verified-card p:not(.eyebrow) { max-width: 560px; margin-left: auto; margin-right: auto; }
+.email-verified-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.35rem; }
+.email-verified-features { margin-top: 0.75rem; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr); gap: 1rem; align-items: start; }
 .account-summary, .account-cart-card { align-self: start; }
 .profile-form { display: grid; gap: 1rem; grid-row: span 2; }
@@ -569,6 +594,7 @@ textarea { resize: vertical; min-height: 120px; }
   .about-hero { padding-top: 2.4rem; }
   .trust-strip, .programme-grid, .three-col, .impact-metrics { grid-template-columns: 1fr; }
   .hero-actions .btn, .contact-actions .btn { width: 100%; }
+  .email-verified-actions .btn, .email-verified-actions .link-button { width: 100%; }
   .about-hero::after { display: none; }
   .kim-photo-placeholder { min-height: 310px; }
   .rich-copy { padding-left: 1rem; }
