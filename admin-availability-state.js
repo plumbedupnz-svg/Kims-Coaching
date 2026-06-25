@@ -117,6 +117,7 @@
     const clubId = formData.get("club_id") || null;
     const coachId = formData.get("coach_id") || null;
     const capacity = Math.max(1, Number(formData.get("capacity") || 1));
+    const minimumPlayers = Math.min(capacity, Math.max(1, Number(formData.get("minimum_players") || 1)));
     const recurrenceLabel = (formData.get("recurrence_label") || "").trim();
     const recurringWeekly = formData.get("recurring_weekly") === "on";
     const repeatWeeks = recurringWeekly ? Math.min(Math.max(Number(formData.get("repeat_weeks") || 1), 1), 52) : 1;
@@ -142,6 +143,7 @@
       club_id: clubId,
       coach_id: coachId,
       capacity,
+      minimum_players: minimumPlayers,
       created_by: state.user.id,
       recurrence_group_id: recurrenceGroupId,
       recurrence_label: recurrenceLabel,
@@ -161,6 +163,7 @@
     if (formEl.elements.club_id) formEl.elements.club_id.value = slot.club_id || "";
     if (formEl.elements.coach_id) formEl.elements.coach_id.value = slot.coach_id || "";
     if (formEl.elements.capacity) formEl.elements.capacity.value = slot.capacity || 1;
+    if (formEl.elements.minimum_players) formEl.elements.minimum_players.value = slot.minimum_players || 1;
     formEl.elements.recurrence_label.value = slot.recurrence_label || "";
     formEl.elements.recurring_weekly.checked = false;
     formEl.elements.repeat_weeks.value = "1";

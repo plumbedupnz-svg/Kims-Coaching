@@ -351,7 +351,7 @@
             lesson_type_name: availability.lesson_type?.name,
             lesson_type_price: availability.lesson_type?.price,
             lesson_type_duration: availability.lesson_type?.duration,
-            lesson_type_minimum_players: availability.lesson_type?.minimum_players,
+            lesson_type_minimum_players: availability.minimum_players || availability.lesson_type?.minimum_players,
             lesson_type_pay_as_you_go_only: availability.lesson_type?.pay_as_you_go_only,
             capacity: availability.capacity || availability.lesson_type?.capacity || 1,
             spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1,

@@ -18,6 +18,7 @@
       const lessonType = lessonTypes.find((lesson) => lesson.id === slot.lesson_type_id);
       const lessonLabel = lessonType?.name || "Coaching";
       const capacity = Number(slot.capacity || lessonType?.capacity || 1);
+      const minimumPlayers = Number(slot.minimum_players || lessonType?.minimum_players || 1);
       const club = coachingSettings.clubs.find((item) => item.id === slot.club_id);
       const coach = coachingSettings.coaches.find((item) => item.id === slot.coach_id);
       const context = [club?.name, coach?.display_name ? `Coach ${coach.display_name}` : ""].filter(Boolean).join(" · ");
@@ -30,7 +31,7 @@
           <div class="availability-row-main">
             <span class="status-pill ${statusClass}">${statusText}</span>
             <h3>${admin.formatDateTime(slot.start_time)} - ${admin.formatTimeInput(slot.end_time)}</h3>
-            <p>${admin.escapeHtml(lessonLabel)} · ${capacity} spot${capacity === 1 ? "" : "s"}</p>
+            <p>${admin.escapeHtml(lessonLabel)} · ${capacity} spot${capacity === 1 ? "" : "s"} · minimum ${minimumPlayers}</p>
             ${context ? `<p>${admin.escapeHtml(context)}</p>` : ""}
             ${label ? `<p>${label}</p>` : ""}
             ${slot.recurrence_group_id ? '<p class="owner-meta">Weekly recurring slot</p>' : ""}
