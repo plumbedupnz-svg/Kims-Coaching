@@ -68,6 +68,12 @@
     return getDurationMinutes(slot);
   }
 
+  function getRequiredDurationMinutes(slot) {
+    const lessonDuration = Number(slot?.lesson_type_duration || 0);
+    if (lessonDuration > 0) return lessonDuration;
+    return getDurationMinutes(slot);
+  }
+
   function getSlotKey(slot) {
     return `${slot.id}|${slot.start_time}`;
   }
@@ -78,6 +84,8 @@
 
   function getAvailableDurations(slot) {
     const maxDuration = getMaxDurationMinutes(slot);
+    const requiredDuration = getRequiredDurationMinutes(slot);
+    if (requiredDuration > 0) return requiredDuration <= maxDuration ? [requiredDuration] : [];
     return durationOptions.filter((duration) => duration <= maxDuration);
   }
 
@@ -137,12 +145,12 @@
     return !Number.isNaN(date.getTime()) && (minutes === 0 || minutes === 30);
   }
 
-  function onlyValidStartSlots(slots) {
+  function onlyBookableStartSlots(slots) {
     const validSlots = (slots || []).filter((slot) => isHalfHourStart(slot.start_time));
     if (slots?.length && validSlots.length !== slots.length) {
       setStatus(invalidStartMessage, "error");
     }
-    return validSlots;
+    return validSlots.filter((slot) => getMaxDurationMinutes(slot) >= getRequiredDurationMinutes(slot));
   }
 
   function escapeHtml(value = "") {
@@ -248,7 +256,7 @@
       return;
     }
 
-    state.slots = onlyValidStartSlots((data || []).map((slot) => ({
+    state.slots = onlyBookableStartSlots((data || []).map((slot) => ({
       id: slot.availability_id || slot.id,
       start_time: slot.start_time,
       end_time: slot.end_time,
@@ -326,7 +334,7 @@
       }
     });
 
-    state.slots = onlyValidStartSlots(expandedSlots);
+    state.slots = onlyBookableStartSlots(expandedSlots);
     renderFilterOptions();
     renderCalendar();
   }
@@ -399,7 +407,7 @@
         <button class="slot-button ${state.selectedSlot && getSlotKey(state.selectedSlot) === getSlotKey(slot) ? "selected" : ""}" type="button" data-slot-id="${getSlotKey(slot)}">
           <span class="slot-lesson-type">${escapeHtml(lesson.name)}</span>
           <strong class="slot-time">${formatTime(slot.start_time)}</strong>
-          <span class="slot-meta">Up to ${getMaxDurationMinutes(slot)} min${spotText}</span>
+          <span class="slot-meta">${getRequiredDurationMinutes(slot)} min${spotText}</span>
           ${contextText ? `<span class="slot-context">${escapeHtml(contextText)}</span>` : ""}
         </button>
       `;
@@ -488,7 +496,7 @@
     selectedSlotTitleEl.textContent = `${lesson.name}`;
     const effectiveCoach = getEffectiveCoach(state.selectedSlot);
     const context = [state.selectedSlot.club_name, effectiveCoach?.name ? `Coach ${effectiveCoach.name}` : ""].filter(Boolean).join(" · ");
-    selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start${context ? ` · ${context}` : ""} · choose your lesson duration`;
+    selectedSlotCopyEl.textContent = `${formatDate(state.selectedSlot.start_time, { weekday: "long", month: "short", day: "numeric" })} · ${formatTime(state.selectedSlot.start_time)} start${context ? ` · ${context}` : ""} · ${getRequiredDurationMinutes(state.selectedSlot)} minute lesson`;
     if (authRequiredEl) authRequiredEl.hidden = Boolean(state.user);
     if (bookingFormEl) bookingFormEl.hidden = !state.user;
     if (bookingSuccessEl) bookingSuccessEl.hidden = true;
