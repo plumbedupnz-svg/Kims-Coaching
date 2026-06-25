@@ -1061,10 +1061,6 @@ function getRouteName() {
   return file.replace(".html", "") || "index";
 }
 
-function getAccountEmailRedirectUrl() {
-  return `${window.location.origin}/account.html`;
-}
-
 async function loadProfile(user) {
   if (!supabaseClient || !user) return null;
   let data = null;
@@ -1197,7 +1193,7 @@ async function createAccount(formData) {
     email,
     password,
     options: {
-      emailRedirectTo: getAccountEmailRedirectUrl(),
+      emailRedirectTo: "https://www.kimjonescoaching.co.nz/account.html",
       data: {
         first_name: firstName,
         last_name: lastName,
