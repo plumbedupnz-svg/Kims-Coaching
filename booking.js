@@ -25,6 +25,7 @@
   const lessonFilterEl = document.querySelector("[data-booking-lesson-filter]");
   const clubFilterEl = document.querySelector("[data-booking-club-filter]");
   const coachFilterEl = document.querySelector("[data-booking-coach-filter]");
+  const bookingPersonSelectEl = document.querySelector("[data-booking-person-select]");
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 45, 60, 90, 120];
   const state = {
@@ -477,21 +478,79 @@
   }
 
   function getProfilePlayers(profile) {
-    if (Array.isArray(profile?.players) && profile.players.length) return profile.players;
+    if (Array.isArray(profile?.players) && profile.players.length) {
+      return profile.players
+        .map((player) => ({
+          name: player?.name || "",
+          level: player?.level || player?.tennis_level || "",
+          notes: player?.notes || ""
+        }))
+        .filter((player) => player.name);
+    }
     if (profile?.player_name) return [{ name: profile.player_name, level: profile.tennis_level || "" }];
     return [];
+  }
+
+  function getAccountHolderName(profile = state.profile) {
+    return `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim();
+  }
+
+  function getBookingPeople() {
+    const profile = state.profile || {};
+    const accountHolderName = getAccountHolderName(profile);
+    const people = [];
+    if (accountHolderName) {
+      people.push({
+        id: "account-holder",
+        label: `${accountHolderName} (account holder)`,
+        name: accountHolderName,
+        level: profile.tennis_level || ""
+      });
+    }
+
+    getProfilePlayers(profile).forEach((player, index) => {
+      people.push({
+        id: `player-${index}`,
+        label: player.name,
+        name: player.name,
+        level: player.level || "",
+        notes: player.notes || ""
+      });
+    });
+
+    return people;
+  }
+
+  function renderBookingPersonOptions() {
+    if (!bookingPersonSelectEl) return;
+    const people = getBookingPeople();
+    bookingPersonSelectEl.innerHTML = [
+      '<option value="">Select account holder or player</option>',
+      ...people.map((person) => `<option value="${escapeHtml(person.id)}">${escapeHtml(person.label)}</option>`)
+    ].join("");
+
+    if (people.length) bookingPersonSelectEl.value = people[0].id;
+  }
+
+  function applySelectedBookingPerson() {
+    if (!bookingFormEl || !bookingPersonSelectEl) return;
+    const selected = getBookingPeople().find((person) => person.id === bookingPersonSelectEl.value);
+    if (!selected) return;
+    bookingFormEl.elements.player_name.value = selected.name || "";
+    if (bookingFormEl.elements.player_level) {
+      bookingFormEl.elements.player_level.value = selected.level || "";
+    }
   }
 
   function prefillBookingForm() {
     if (!bookingFormEl || !state.user) return;
     const profile = state.profile || {};
-    const player = getProfilePlayers(profile)[0] || {};
-    bookingFormEl.elements.player_name.value = player.name || profile.player_name || "";
     bookingFormEl.elements.parent_name.value = profile.parent_name || `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
     bookingFormEl.elements.email.value = state.user.email || profile.email || "";
     bookingFormEl.elements.mobile.value = profile.mobile || profile.phone || "";
-    bookingFormEl.elements.player_level.value = player.level || player.tennis_level || profile.tennis_level || "";
     bookingFormEl.elements.notes.value = profile.notes || "";
+    renderBookingPersonOptions();
+    applySelectedBookingPerson();
   }
 
   function renderDurationOptions() {
@@ -886,6 +945,7 @@
 
   if (bundleSelectEl) bundleSelectEl.addEventListener("change", renderPriceSummary);
   if (paymentOptionEl) paymentOptionEl.addEventListener("change", renderPriceSummary);
+  if (bookingPersonSelectEl) bookingPersonSelectEl.addEventListener("change", applySelectedBookingPerson);
   [lessonFilterEl, clubFilterEl, coachFilterEl].forEach((filter) => filter?.addEventListener("change", () => {
     state.selectedSlot = null;
     renderCalendar();
