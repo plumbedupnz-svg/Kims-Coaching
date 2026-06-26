@@ -1198,7 +1198,8 @@ async function createAccount(formData) {
       data: {
         first_name: firstName,
         last_name: lastName,
-        phone
+        phone,
+        mobile: phone
       }
     }
   });
