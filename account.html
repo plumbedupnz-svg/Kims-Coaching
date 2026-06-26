@@ -74,6 +74,11 @@
                 <input type="text" name="last_name" placeholder="Morgan" autocomplete="family-name" />
               </label>
 
+              <label data-account-age-field hidden>
+                Your age
+                <input type="number" name="account_holder_age" min="0" max="120" step="1" placeholder="e.g. 35" inputmode="numeric" />
+              </label>
+
               <label data-email-field>
                 Email
                 <input type="email" name="email" placeholder="you@example.com" autocomplete="email" required />
@@ -135,6 +140,10 @@
               <label>
                 Phone
                 <input type="tel" name="phone" autocomplete="tel" />
+              </label>
+              <label>
+                Account holder age
+                <input type="number" name="account_holder_age" min="0" max="120" step="1" inputmode="numeric" />
               </label>
               <section class="players-section">
                 <div class="players-heading">

@@ -68,6 +68,7 @@ const modeSwitchEl = document.querySelector(".mode-switch");
 const emailFieldEl = document.querySelector("[data-email-field]");
 const nameFieldEl = document.querySelector("[data-name-field]");
 const lastNameFieldEl = document.querySelector("[data-last-name-field]");
+const accountAgeFieldEl = document.querySelector("[data-account-age-field]");
 const phoneFieldEl = document.querySelector("[data-phone-field]");
 const loginActionsEl = document.querySelector("[data-login-actions]");
 const forgotPasswordEl = document.querySelector("[data-forgot-password]");
@@ -1142,6 +1143,8 @@ function setAuthMode(mode) {
   if (authFormEl?.email) authFormEl.email.required = !isReset;
   if (nameFieldEl) nameFieldEl.hidden = !isSignup;
   if (lastNameFieldEl) lastNameFieldEl.hidden = !isSignup;
+  if (accountAgeFieldEl) accountAgeFieldEl.hidden = !isSignup;
+  if (authFormEl?.account_holder_age) authFormEl.account_holder_age.required = isSignup;
   if (phoneFieldEl) phoneFieldEl.hidden = !isSignup;
   if (loginActionsEl) loginActionsEl.hidden = isSignup || isReset;
   if (signupVerificationNoteEl) signupVerificationNoteEl.hidden = !isSignup;
@@ -1180,10 +1183,16 @@ async function createAccount(formData) {
   const password = formData.get("password");
   const firstName = formData.get("first_name").trim();
   const lastName = formData.get("last_name").trim();
+  const accountHolderAge = Number(formData.get("account_holder_age") || 0);
   const phone = formData.get("phone").trim();
 
   if (!firstName || !lastName) {
     showAuthMessage("Please add your first and last name to create an account.", "error");
+    return;
+  }
+
+  if (!accountHolderAge || accountHolderAge < 1 || accountHolderAge > 120) {
+    showAuthMessage("Please add a valid age for the account holder.", "error");
     return;
   }
 
@@ -1198,6 +1207,7 @@ async function createAccount(formData) {
       data: {
         first_name: firstName,
         last_name: lastName,
+        account_holder_age: accountHolderAge,
         phone,
         mobile: phone
       }
@@ -1398,7 +1408,7 @@ function setProfileMessage(message, tone = "neutral") {
 
 function populateProfileForm() {
   if (!profileFormEl || !currentProfile) return;
-  const fields = ["first_name", "last_name", "phone", "parent_name", "notes"];
+  const fields = ["first_name", "last_name", "phone", "account_holder_age", "parent_name", "notes"];
   fields.forEach((field) => {
     if (!profileFormEl.elements[field]) return;
     profileFormEl.elements[field].value = currentProfile[field] ?? "";
@@ -1548,6 +1558,7 @@ async function saveProfile(formData) {
     first_name: formData.get("first_name").trim(),
     last_name: formData.get("last_name").trim(),
     phone: formData.get("phone").trim(),
+    account_holder_age: formData.get("account_holder_age") ? Number(formData.get("account_holder_age")) : null,
     parent_name: formData.get("parent_name").trim(),
     player_name: primaryPlayer.name,
     player_age: primaryPlayer.age === "" ? null : primaryPlayer.age,

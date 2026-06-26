@@ -607,7 +607,7 @@
         label: `${accountHolderName} (account holder)`,
         name: accountHolderName,
         level: profile.tennis_level || "",
-        age: normalizePlayerAge({ age: profile.player_age }),
+        age: normalizePlayerAge({ age: profile.account_holder_age ?? profile.player_age }),
         parentName: ""
       });
     }
