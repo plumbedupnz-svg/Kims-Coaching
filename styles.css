@@ -523,7 +523,7 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .account-summary h1 {
   margin: 0;
-  font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+  font-size: clamp(2rem, 3vw, 2.8rem);
   line-height: 1;
 }
 .account-summary p { margin: 0; }
@@ -562,13 +562,44 @@ textarea { resize: vertical; min-height: 120px; }
   background: #fff;
 }
 .players-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(180px, 240px);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
-  align-items: end;
 }
 .players-heading h3, .players-heading p { margin: 0; }
+.player-count-control { display: none; }
 .players-list { display: grid; gap: 0.65rem; }
+.player-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.player-tab {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.55rem 0.8rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.player-tab.active {
+  background: #fff;
+  border-color: rgba(39, 173, 255, 0.32);
+  color: var(--text);
+  box-shadow: 0 10px 22px rgba(19, 33, 61, 0.06);
+}
+.player-tab-add {
+  color: var(--primary-dark);
+  border-color: rgba(39, 173, 255, 0.24);
+  margin-left: auto;
+}
 .player-card {
   display: grid;
   gap: 0.6rem;
@@ -580,8 +611,8 @@ textarea { resize: vertical; min-height: 120px; }
 .player-card h4 { margin: 0; font-size: 0.98rem; }
 .player-grid {
   display: grid;
-  grid-template-columns: minmax(170px, 1.25fr) minmax(145px, 1fr) minmax(80px, 0.45fr) minmax(150px, 1fr);
-  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
   align-items: end;
 }
 .profile-notes { grid-column: 1 / -1; }
@@ -641,6 +672,7 @@ textarea { resize: vertical; min-height: 120px; }
   .shop-toolbar { display: grid; align-items: stretch; }
   .achievement-item { grid-template-columns: 1fr; }
   .category-add-row { grid-template-columns: 1fr; }
-  .profile-grid, .players-heading, .player-grid { grid-template-columns: 1fr; }
+  .profile-grid, .player-grid { grid-template-columns: 1fr; }
+  .player-tab-add { margin-left: 0; }
   .footer-inner { flex-direction: column; justify-content: center; padding: 0.9rem 0; text-align: center; }
 }
