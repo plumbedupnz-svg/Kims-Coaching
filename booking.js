@@ -21,6 +21,8 @@
   const bundleRowEl = document.querySelector("[data-bundle-row]");
   const paymentPolicyNoteEl = document.querySelector("[data-payment-policy-note]");
   const minimumPlayersNoteEl = document.querySelector("[data-minimum-players-note]");
+  const eligibilityNoteEl = document.querySelector("[data-eligibility-note]");
+  const eligibilityWarningEl = document.querySelector("[data-eligibility-warning]");
   const priceSummaryEl = document.querySelector("[data-booking-price-summary]");
   const lessonFilterEl = document.querySelector("[data-booking-lesson-filter]");
   const clubFilterEl = document.querySelector("[data-booking-club-filter]");
@@ -37,6 +39,7 @@
   const adminWaitlistEmail = "kim@kimjonescoaching.co.nz";
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 45, 60, 90, 120];
+  const levelOrder = ["Beginner", "Developing", "Interclub", "Tournament"];
   const state = {
     user: null,
     profile: null,
@@ -116,8 +119,33 @@
       price: Number(slot?.lesson_type_price ?? state.lessonType?.price ?? 0),
       duration: Number(slot?.lesson_type_duration ?? state.lessonType?.duration ?? 0),
       minimumPlayers: Number(slot?.lesson_type_minimum_players ?? state.lessonType?.minimum_players ?? 1),
+      minimumAge: Number(slot?.lesson_type_minimum_age ?? state.lessonType?.minimum_age ?? 0),
+      minimumLevel: slot?.lesson_type_minimum_level ?? state.lessonType?.minimum_level ?? "",
       payAsYouGoOnly: Boolean(slot?.lesson_type_pay_as_you_go_only ?? state.lessonType?.pay_as_you_go_only ?? false)
     };
+  }
+
+  function getLevelRank(value) {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (!normalized) return -1;
+    return levelOrder.findIndex((level) => level.toLowerCase() === normalized);
+  }
+
+  function calculateAgeFromDob(value) {
+    if (!value) return null;
+    const dob = new Date(value);
+    if (Number.isNaN(dob.getTime())) return null;
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age -= 1;
+    return age >= 0 ? age : null;
+  }
+
+  function normalizePlayerAge(player = {}) {
+    const explicitAge = Number(player.age ?? player.player_age ?? "");
+    if (!Number.isNaN(explicitAge) && explicitAge > 0) return explicitAge;
+    return calculateAgeFromDob(player.dob || player.date_of_birth || player.dateOfBirth);
   }
 
   function getSelectedBundle() {
@@ -239,11 +267,21 @@
 
   async function loadLessonTypes() {
     if (!client) return [];
-    const { data, error } = await client
+    let { data, error } = await client
       .from("lesson_types")
-      .select("id,name,duration,price,capacity,minimum_players,pay_as_you_go_only,is_active")
+      .select("id,name,duration,price,capacity,minimum_players,minimum_age,minimum_level,pay_as_you_go_only,is_active")
       .eq("is_active", true)
       .order("name", { ascending: true });
+
+    if (error && /minimum_age|minimum_level|schema cache|PGRST204|42703/i.test(error.message || error.code || "")) {
+      const legacyResult = await client
+        .from("lesson_types")
+        .select("id,name,duration,price,capacity,minimum_players,pay_as_you_go_only,is_active")
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      data = legacyResult.data;
+      error = legacyResult.error;
+    }
 
     if (error) {
       console.warn("Could not load active lesson types.", error.message);
@@ -344,6 +382,8 @@
       lesson_type_price: slot.lesson_type_price,
       lesson_type_duration: slot.lesson_type_duration,
       lesson_type_minimum_players: slot.lesson_type_minimum_players,
+      lesson_type_minimum_age: slot.lesson_type_minimum_age,
+      lesson_type_minimum_level: slot.lesson_type_minimum_level,
       lesson_type_pay_as_you_go_only: slot.lesson_type_pay_as_you_go_only,
       capacity: slot.capacity,
       booked_count: slot.booked_count,
@@ -361,13 +401,13 @@
   async function loadAvailableSlotsFallback(weekStartIso, weekEndIso) {
     let { data, error } = await client
       .from("availability")
-      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity,minimum_players,pay_as_you_go_only), club:club_id(id,name,address), coach:coach_id(id,display_name)")
+      .select("*, lesson_type:lesson_type_id(id,name,duration,price,capacity,minimum_players,minimum_age,minimum_level,pay_as_you_go_only), club:club_id(id,name,address), coach:coach_id(id,display_name)")
       .eq("is_available", true)
       .gte("start_time", weekStartIso)
       .lt("start_time", weekEndIso)
       .order("start_time", { ascending: true });
 
-    if (error && /club_id|coach_id|relationship|schema cache/i.test(error.message || "")) {
+    if (error && /club_id|coach_id|minimum_age|minimum_level|relationship|schema cache/i.test(error.message || "")) {
       console.warn("Club/coach booking columns are not installed yet; loading legacy availability.");
       const legacyResult = await client
         .from("availability")
@@ -402,6 +442,8 @@
             lesson_type_price: availability.lesson_type?.price,
             lesson_type_duration: availability.lesson_type?.duration,
             lesson_type_minimum_players: availability.minimum_players || availability.lesson_type?.minimum_players,
+            lesson_type_minimum_age: availability.lesson_type?.minimum_age,
+            lesson_type_minimum_level: availability.lesson_type?.minimum_level,
             lesson_type_pay_as_you_go_only: availability.lesson_type?.pay_as_you_go_only,
             capacity: availability.capacity || availability.lesson_type?.capacity || 1,
             spaces_remaining: availability.capacity || availability.lesson_type?.capacity || 1,
@@ -541,11 +583,13 @@
         .map((player) => ({
           name: player?.name || "",
           level: player?.level || player?.tennis_level || "",
+          age: normalizePlayerAge(player),
+          dob: player?.dob || player?.date_of_birth || player?.dateOfBirth || "",
           notes: player?.notes || ""
         }))
         .filter((player) => player.name);
     }
-    if (profile?.player_name) return [{ name: profile.player_name, level: profile.tennis_level || "" }];
+    if (profile?.player_name) return [{ name: profile.player_name, level: profile.tennis_level || "", age: normalizePlayerAge({ age: profile.player_age }) }];
     return [];
   }
 
@@ -563,6 +607,7 @@
         label: `${accountHolderName} (account holder)`,
         name: accountHolderName,
         level: profile.tennis_level || "",
+        age: normalizePlayerAge({ age: profile.player_age }),
         parentName: ""
       });
     }
@@ -573,6 +618,7 @@
         label: player.name,
         name: player.name,
         level: player.level || "",
+        age: normalizePlayerAge(player),
         notes: player.notes || "",
         parentName: profile.parent_name || ""
       });
@@ -601,6 +647,68 @@
     if (bookingFormEl.elements.player_level) {
       bookingFormEl.elements.player_level.value = selected.level || "";
     }
+    renderEligibilityWarning();
+  }
+
+  function getSelectedBookingPerson() {
+    if (!bookingPersonSelectEl) return null;
+    return getBookingPeople().find((person) => person.id === bookingPersonSelectEl.value) || null;
+  }
+
+  function getEligibilityIssue() {
+    const lesson = getSlotLesson();
+    const selectedPerson = getSelectedBookingPerson();
+    const minimumAge = Number(lesson.minimumAge || 0);
+    const minimumLevel = String(lesson.minimumLevel || "").trim();
+
+    if (minimumAge > 0) {
+      const age = selectedPerson?.age;
+      if (!age || Number(age) < minimumAge) {
+        return `This coaching option requires players to be at least ${minimumAge} years old. Select a player who meets the age requirement before booking.`;
+      }
+    }
+
+    if (minimumLevel) {
+      const requiredRank = getLevelRank(minimumLevel);
+      const playerLevel = bookingFormEl?.elements.player_level?.value || selectedPerson?.level || "";
+      const playerRank = getLevelRank(playerLevel);
+      if (requiredRank >= 0 && playerRank < requiredRank) {
+        return `This coaching option requires a minimum level of ${minimumLevel}. Select a player with the right level before booking.`;
+      }
+    }
+
+    return "";
+  }
+
+  function renderEligibilityWarning() {
+    const issue = state.selectedSlot && state.user ? getEligibilityIssue() : "";
+    if (eligibilityWarningEl) {
+      eligibilityWarningEl.hidden = !issue;
+      eligibilityWarningEl.textContent = issue;
+      eligibilityWarningEl.dataset.tone = issue ? "error" : "neutral";
+    }
+    const submitButton = bookingFormEl?.querySelector("button[type='submit']");
+    if (submitButton) submitButton.disabled = Boolean(issue);
+  }
+
+  function renderEligibilityRules() {
+    if (!state.selectedSlot) {
+      if (eligibilityNoteEl) {
+        eligibilityNoteEl.hidden = true;
+        eligibilityNoteEl.textContent = "";
+      }
+      renderEligibilityWarning();
+      return;
+    }
+    const lesson = getSlotLesson();
+    const rules = [];
+    if (Number(lesson.minimumAge || 0) > 0) rules.push(`Minimum age: ${Number(lesson.minimumAge)}`);
+    if (lesson.minimumLevel) rules.push(`Minimum level: ${lesson.minimumLevel}`);
+    if (eligibilityNoteEl) {
+      eligibilityNoteEl.hidden = !rules.length;
+      eligibilityNoteEl.textContent = rules.length ? rules.join(" · ") : "";
+    }
+    renderEligibilityWarning();
   }
 
   function prefillBookingForm() {
@@ -856,6 +964,7 @@
         ? `This class requires a minimum of ${minimumPlayers} players to proceed.`
         : "";
     }
+    renderEligibilityRules();
   }
 
   function renderPriceSummary() {
@@ -899,6 +1008,7 @@
     renderBundleOptions();
     renderPriceSummary();
     prefillBookingForm();
+    renderEligibilityRules();
     renderCalendar();
   }
 
@@ -929,6 +1039,12 @@
     }
 
     const formData = new FormData(bookingFormEl);
+    const eligibilityIssue = getEligibilityIssue();
+    if (eligibilityIssue) {
+      renderEligibilityWarning();
+      setStatus(eligibilityIssue, "error");
+      return;
+    }
     const lesson = getSlotLesson(state.selectedSlot);
     const selectedDuration = Number(formData.get("duration_minutes"));
     const availableDurations = getAvailableDurations(state.selectedSlot);
@@ -1173,6 +1289,7 @@
     state.weekStart = addDays(state.weekStart, -7);
     state.selectedSlot = null;
     state.selectedDuration = null;
+    renderEligibilityRules();
     await loadAvailableSlots();
   });
 
@@ -1180,6 +1297,7 @@
     state.weekStart = addDays(state.weekStart, 7);
     state.selectedSlot = null;
     state.selectedDuration = null;
+    renderEligibilityRules();
     await loadAvailableSlots();
   });
 
@@ -1199,8 +1317,10 @@
   if (bundleSelectEl) bundleSelectEl.addEventListener("change", renderPriceSummary);
   if (paymentOptionEl) paymentOptionEl.addEventListener("change", renderPriceSummary);
   if (bookingPersonSelectEl) bookingPersonSelectEl.addEventListener("change", applySelectedBookingPerson);
+  bookingFormEl?.elements.player_level?.addEventListener("change", renderEligibilityWarning);
   [lessonFilterEl, clubFilterEl, coachFilterEl].forEach((filter) => filter?.addEventListener("change", () => {
     state.selectedSlot = null;
+    renderEligibilityRules();
     renderCalendar();
   }));
 

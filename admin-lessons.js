@@ -20,7 +20,7 @@
 
   if (!lessonTypeFormEl && !bundleFormEl) return;
 
-  const lessonRulesMigration = "supabase/migrations/20260626010000_lesson_type_booking_rules.sql";
+  const lessonRulesMigration = "supabase/migrations/20260626060000_lesson_type_age_level_rules.sql";
   let lessonTypes = [];
   let bundles = [];
   window.KimsLessonTypes = window.KimsLessonTypes || [];
@@ -45,7 +45,7 @@
   }
 
   function isLessonRulesSchemaError(error) {
-    return /minimum_players|pay_as_you_go_only|schema cache|PGRST204|42703/i.test(error?.message || error?.code || "");
+    return /minimum_players|pay_as_you_go_only|minimum_age|minimum_level|schema cache|PGRST204|42703/i.test(error?.message || error?.code || "");
   }
 
   function getLessonRulesSchemaMessage(error) {
@@ -92,6 +92,7 @@
           <span class="status-pill ${lesson.is_active === false ? "blocked" : "available"}">${lesson.is_active === false ? "Inactive" : "Active"}</span>
           <h3>${escapeHtml(lesson.name)}</h3>
           <p>${Number(lesson.duration || 0)} min · ${money(lesson.price)} · capacity ${Number(lesson.capacity || 1)} · minimum ${Number(lesson.minimum_players || 1)}</p>
+          <p>Minimum age ${lesson.minimum_age ? Number(lesson.minimum_age) : "any"} · level ${lesson.minimum_level || "any"}</p>
           ${lesson.pay_as_you_go_only ? '<p>Pay as you go only</p>' : ""}
           ${lesson.description ? `<p>${escapeHtml(lesson.description)}</p>` : ""}
         </div>
@@ -131,7 +132,7 @@
     if (!client) return;
     const { data, error } = await client
       .from("lesson_types")
-      .select("id,name,duration,price,description,capacity,minimum_players,pay_as_you_go_only,is_active")
+      .select("id,name,duration,price,description,capacity,minimum_players,minimum_age,minimum_level,pay_as_you_go_only,is_active")
       .order("name", { ascending: true });
 
     if (error) {
@@ -191,6 +192,8 @@
       price: Number(formData.get("price") || 0),
       capacity: Math.max(1, Number(formData.get("capacity") || 1)),
       minimum_players: Math.max(1, Number(formData.get("minimum_players") || 1)),
+      minimum_age: formData.get("minimum_age") ? Math.max(0, Number(formData.get("minimum_age"))) : null,
+      minimum_level: formData.get("minimum_level") || "",
       pay_as_you_go_only: formData.get("pay_as_you_go_only") === "on",
       description: formData.get("description")?.trim() || "",
       is_active: formData.get("is_active") === "on"
@@ -248,7 +251,7 @@
     if (!lessonTypeId) {
       const { data, error } = await client
         .from("lesson_types")
-        .insert({ name, duration: 60, price: 0, capacity: 1, minimum_players: 1, pay_as_you_go_only: false, description: "", is_active: true })
+        .insert({ name, duration: 60, price: 0, capacity: 1, minimum_players: 1, minimum_age: null, minimum_level: "", pay_as_you_go_only: false, description: "", is_active: true })
         .select("id")
         .single();
 
@@ -314,6 +317,8 @@
     lessonTypeFormEl.elements.price.value = Number(lesson.price || 0).toFixed(2);
     lessonTypeFormEl.elements.capacity.value = lesson.capacity || 1;
     lessonTypeFormEl.elements.minimum_players.value = lesson.minimum_players || 1;
+    lessonTypeFormEl.elements.minimum_age.value = lesson.minimum_age ?? "";
+    lessonTypeFormEl.elements.minimum_level.value = lesson.minimum_level || "";
     lessonTypeFormEl.elements.pay_as_you_go_only.checked = lesson.pay_as_you_go_only === true;
     lessonTypeFormEl.elements.description.value = lesson.description || "";
     lessonTypeFormEl.elements.is_active.checked = lesson.is_active !== false;
