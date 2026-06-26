@@ -569,6 +569,13 @@ textarea { resize: vertical; min-height: 120px; }
 }
 .players-heading h3, .players-heading p { margin: 0; }
 .player-count-control { display: none; }
+.players-parent-field {
+  display: grid;
+  gap: 0.35rem;
+  max-width: 520px;
+  color: var(--text);
+  font-weight: 600;
+}
 .players-list { display: grid; gap: 0.65rem; }
 .player-tabs {
   display: grid;
