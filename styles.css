@@ -512,6 +512,7 @@ textarea { resize: vertical; min-height: 120px; }
 .email-verified-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 1rem; margin-top: 1.35rem; }
 .email-verified-features { margin-top: 0.75rem; }
 .dashboard-grid { display: grid; grid-template-columns: minmax(250px, 0.45fr) minmax(0, 1.55fr); gap: 1.1rem; align-items: start; }
+.account-side-panel { display: grid; gap: 1.1rem; align-content: start; }
 .account-summary, .account-cart-card, .account-bookings-card { align-self: start; }
 .account-summary {
   display: grid;

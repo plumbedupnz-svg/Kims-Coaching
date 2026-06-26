@@ -119,11 +119,27 @@
             </div>
           </section>
 
-          <div class="account-summary">
-            <p class="eyebrow">Customer Account</p>
-            <h1 data-customer-greeting>Your coaching hub</h1>
-            <p data-customer-details>Review your profile, saved details, and coaching next steps from one place.</p>
-            <a class="btn btn-primary" href="booking.html">Book Coaching</a>
+          <div class="account-side-panel">
+            <div class="account-summary">
+              <p class="eyebrow">Customer Account</p>
+              <h1 data-customer-greeting>Your coaching hub</h1>
+              <p data-customer-details>Review your profile, saved details, and coaching next steps from one place.</p>
+              <a class="btn btn-primary" href="booking.html">Book Coaching</a>
+            </div>
+
+            <div class="dashboard-card account-cart-card">
+              <h3>Current Cart</h3>
+              <p data-customer-cart>Your cart is empty.</p>
+              <a class="btn btn-primary full" href="shop.html#cart">Continue Shopping</a>
+            </div>
+
+            <div class="dashboard-card account-bookings-card">
+              <h3>My Bookings</h3>
+              <div class="booking-list" data-my-bookings>
+                <p class="helper-text">Loading coaching bookings...</p>
+              </div>
+              <a class="btn btn-secondary full" href="booking.html">Book Coaching</a>
+            </div>
           </div>
 
           <form class="profile-form dashboard-card" data-profile-form>
@@ -177,20 +193,6 @@
             <button type="submit" class="btn btn-primary full">Save Changes</button>
             <p class="form-message" data-profile-message role="status" aria-live="polite"></p>
           </form>
-
-          <div class="dashboard-card account-cart-card">
-            <h3>Current Cart</h3>
-            <p data-customer-cart>Your cart is empty.</p>
-            <a class="btn btn-primary full" href="shop.html#cart">Continue Shopping</a>
-          </div>
-
-          <div class="dashboard-card account-bookings-card">
-            <h3>My Bookings</h3>
-            <div class="booking-list" data-my-bookings>
-              <p class="helper-text">Loading coaching bookings...</p>
-            </div>
-            <a class="btn btn-secondary full" href="booking.html">Book Coaching</a>
-          </div>
         </div>
       </section>
     </main>
