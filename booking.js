@@ -545,7 +545,7 @@
   function prefillBookingForm() {
     if (!bookingFormEl || !state.user) return;
     const profile = state.profile || {};
-    bookingFormEl.elements.parent_name.value = profile.parent_name || `${profile.first_name || ""} ${profile.last_name || ""}`.trim();
+    bookingFormEl.elements.parent_name.value = profile.parent_name || "";
     bookingFormEl.elements.email.value = state.user.email || profile.email || "";
     bookingFormEl.elements.mobile.value = profile.mobile || profile.phone || "";
     bookingFormEl.elements.notes.value = profile.notes || "";
