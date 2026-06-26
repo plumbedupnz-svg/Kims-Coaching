@@ -102,6 +102,7 @@ const isPasswordRecovery = urlParams.get("type") === "recovery" || hashParams.ge
 let authMode = isPasswordRecovery ? "reset" : urlParams.get("mode") === "signup" ? "signup" : "login";
 let currentUser = null;
 let currentProfile = null;
+let activeProfilePlayerIndex = 0;
 let verifiedFromEmailLink = false;
 let shopInventorySettings = { hide_out_of_stock: false };
 let shopLoadDebug = {
@@ -1404,6 +1405,7 @@ function populateProfileForm() {
 
   const players = getProfilePlayers(currentProfile);
   if (playerCountEl) playerCountEl.value = String(players.length || 1);
+  activeProfilePlayerIndex = 0;
   renderPlayerFields(players);
 }
 
@@ -1446,9 +1448,18 @@ function renderPlayerFields(players = []) {
   const count = getSelectedPlayerCount();
   const nextPlayers = [...players];
   while (nextPlayers.length < count) nextPlayers.push(normalizePlayer({}));
+  activeProfilePlayerIndex = Math.min(Math.max(activeProfilePlayerIndex, 0), count - 1);
+  const visiblePlayers = nextPlayers.slice(0, count);
+  const tabButtons = visiblePlayers
+    .map((player, index) => {
+      const label = player.name?.trim() || `Player ${index + 1}`;
+      const isActive = index === activeProfilePlayerIndex;
+      return `<button type="button" class="player-tab${isActive ? " active" : ""}" data-player-tab="${index}" aria-selected="${isActive}">${escapeAttribute(label)}</button>`;
+    })
+    .join("");
+  const addPlayerTab = count < 6 ? '<button type="button" class="player-tab player-tab-add" data-add-profile-player>+ New player</button>' : "";
 
-  playersListEl.innerHTML = nextPlayers
-    .slice(0, count)
+  const playerCards = visiblePlayers
     .map((player, index) => {
       const levelOptions = [
         '<option value="">Select skill level</option>',
@@ -1456,7 +1467,7 @@ function renderPlayerFields(players = []) {
       ].join("");
 
       return `
-        <article class="player-card">
+        <article class="player-card" ${index === activeProfilePlayerIndex ? "" : "hidden"}>
           <h4>Player ${index + 1}</h4>
           <div class="player-grid">
             <label>
@@ -1479,6 +1490,13 @@ function renderPlayerFields(players = []) {
         </article>`;
     })
     .join("");
+
+  playersListEl.innerHTML = `
+    <div class="player-tabs" role="tablist" aria-label="Player profiles">
+      ${tabButtons}
+      ${addPlayerTab}
+    </div>
+    ${playerCards}`;
 }
 
 function escapeAttribute(value) {
@@ -2246,7 +2264,29 @@ if (addPlayerEl) addPlayerEl.addEventListener("click", focusPlayerForm);
 
 if (playerCountEl) playerCountEl.addEventListener("change", () => {
   const formData = profileFormEl ? new FormData(profileFormEl) : null;
+  activeProfilePlayerIndex = Math.min(activeProfilePlayerIndex, getSelectedPlayerCount() - 1);
   renderPlayerFields(formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile));
+});
+
+if (playersListEl) playersListEl.addEventListener("click", (event) => {
+  const tab = event.target.closest("[data-player-tab]");
+  const addTab = event.target.closest("[data-add-profile-player]");
+  if (!tab && !addTab) return;
+
+  const formData = profileFormEl ? new FormData(profileFormEl) : null;
+  const players = formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile);
+
+  if (tab) {
+    activeProfilePlayerIndex = Number(tab.dataset.playerTab || 0);
+    renderPlayerFields(players);
+    return;
+  }
+
+  const nextCount = Math.min(6, getSelectedPlayerCount() + 1);
+  if (playerCountEl) playerCountEl.value = String(nextCount);
+  while (players.length < nextCount) players.push(normalizePlayer({}));
+  activeProfilePlayerIndex = nextCount - 1;
+  renderPlayerFields(players);
 });
 
 if (authFormEl) authFormEl.addEventListener("submit", async (event) => {
