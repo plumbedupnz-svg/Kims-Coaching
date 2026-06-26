@@ -26,6 +26,15 @@
   const clubFilterEl = document.querySelector("[data-booking-club-filter]");
   const coachFilterEl = document.querySelector("[data-booking-coach-filter]");
   const bookingPersonSelectEl = document.querySelector("[data-booking-person-select]");
+  const waitlistFormEl = document.querySelector("[data-waitlist-form]");
+  const waitlistOpenEl = document.querySelector("[data-waitlist-open]");
+  const waitlistStatusEl = document.querySelector("[data-waitlist-status]");
+  const waitlistPlayerRowEl = document.querySelector("[data-waitlist-player-row]");
+  const waitlistPlayerSelectEl = document.querySelector("[data-waitlist-player-select]");
+  const waitlistLessonTypeEl = document.querySelector("[data-waitlist-lesson-type]");
+  const waitlistClubEl = document.querySelector("[data-waitlist-club]");
+  const waitlistCoachEl = document.querySelector("[data-waitlist-coach]");
+  const adminWaitlistEmail = "kim@kimjonescoaching.co.nz";
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 45, 60, 90, 120];
   const state = {
@@ -34,6 +43,7 @@
     lessonType: null,
     lessonTypes: [],
     bundles: [],
+    publicClubs: [],
     publicCoaches: [],
     selectedSlot: null,
     selectedDuration: null,
@@ -279,6 +289,28 @@
     return state.publicCoaches;
   }
 
+  async function loadPublicClubs() {
+    if (!client) return [];
+    const { data, error } = await client
+      .from("coaching_clubs")
+      .select("id,name,address,is_active")
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+
+    if (error) {
+      console.warn("Could not load public clubs.", error.message);
+      state.publicClubs = [];
+      return [];
+    }
+
+    state.publicClubs = (data || []).map((club) => ({
+      id: club.id,
+      name: club.name,
+      address: club.address || ""
+    })).filter((club) => club.id && club.name);
+    return state.publicClubs;
+  }
+
   async function loadAvailableSlots() {
     if (!calendarEl) return;
     if (!client) {
@@ -420,6 +452,32 @@
     if (coachFilterEl?.value === "all" && coachOptions.length === 1) coachFilterEl.value = coachOptions[0].id;
   }
 
+  function populateSimpleSelect(select, items, placeholder) {
+    if (!select) return;
+    const current = select.value || "";
+    select.innerHTML = [
+      `<option value="">${escapeHtml(placeholder)}</option>`,
+      ...items.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.name)}</option>`)
+    ].join("");
+    if (items.some((item) => item.id === current)) select.value = current;
+  }
+
+  function populateWaitlistSelects() {
+    const lessonOptions = state.lessonTypes
+      .map((lesson) => ({ id: lesson.id, name: lesson.name }))
+      .filter((lesson) => lesson.id && lesson.name);
+    const clubOptions = state.publicClubs.length
+      ? state.publicClubs
+      : uniqueFilterItems("club_id", "club_name");
+    const coachOptions = state.publicCoaches.length
+      ? state.publicCoaches
+      : uniqueFilterItems("coach_id", "coach_name");
+
+    populateSimpleSelect(waitlistLessonTypeEl, lessonOptions, "Any coaching type");
+    populateSimpleSelect(waitlistClubEl, clubOptions, "Any club");
+    populateSimpleSelect(waitlistCoachEl, coachOptions, "Any coach");
+  }
+
   function getFilteredSlots() {
     const lessonId = lessonFilterEl?.value || "all";
     const clubId = clubFilterEl?.value || "all";
@@ -554,6 +612,195 @@
     bookingFormEl.elements.notes.value = profile.notes || "";
     renderBookingPersonOptions();
     applySelectedBookingPerson();
+  }
+
+  function setWaitlistStatus(message, tone = "neutral") {
+    if (!waitlistStatusEl) return;
+    waitlistStatusEl.textContent = message;
+    waitlistStatusEl.dataset.tone = tone;
+  }
+
+  function getSelectedOptionText(select) {
+    if (!select || !select.value) return "";
+    return select.selectedOptions?.[0]?.textContent?.trim() || "";
+  }
+
+  function splitPreferenceList(value = "") {
+    return String(value || "")
+      .split(/[,;\n]/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+
+  function prefillWaitlistForm() {
+    if (!waitlistFormEl) return;
+    const profile = state.profile || {};
+    const accountHolderName = getAccountHolderName(profile);
+    const players = getProfilePlayers(profile);
+
+    if (waitlistPlayerSelectEl) {
+      waitlistPlayerSelectEl.innerHTML = [
+        '<option value="">Select a saved player</option>',
+        ...players.map((player, index) => `<option value="${index}">${escapeHtml(player.name)}</option>`)
+      ].join("");
+    }
+    if (waitlistPlayerRowEl) waitlistPlayerRowEl.hidden = !players.length;
+
+    if (!state.user) return;
+    waitlistFormEl.elements.customer_name.value = profile.parent_name || accountHolderName || "";
+    waitlistFormEl.elements.email.value = state.user.email || profile.email || "";
+    waitlistFormEl.elements.mobile.value = profile.mobile || profile.phone || "";
+  }
+
+  function openWaitlistForm() {
+    if (!waitlistFormEl) return;
+    waitlistFormEl.hidden = false;
+    if (waitlistOpenEl) waitlistOpenEl.hidden = true;
+    prefillWaitlistForm();
+    const focusTarget = waitlistPlayerSelectEl && !waitlistPlayerSelectEl.closest("[hidden]")
+      ? waitlistPlayerSelectEl
+      : waitlistFormEl.elements.player_name;
+    focusTarget?.focus?.({ preventScroll: true });
+    waitlistFormEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function applyWaitlistPlayerSelection() {
+    if (!waitlistFormEl || !waitlistPlayerSelectEl) return;
+    const selectedIndex = waitlistPlayerSelectEl.value;
+    if (selectedIndex === "") return;
+    const player = getProfilePlayers(state.profile || {})[Number(selectedIndex)];
+    if (!player) return;
+    waitlistFormEl.elements.player_name.value = player.name || "";
+    waitlistFormEl.elements.player_level.value = player.level || "";
+  }
+
+  function buildWaitlistRequest(formData) {
+    const lessonTypeName = getSelectedOptionText(waitlistLessonTypeEl);
+    const clubName = getSelectedOptionText(waitlistClubEl);
+    const coachName = getSelectedOptionText(waitlistCoachEl);
+    const preferredDuration = formData.get("preferred_duration") || "";
+    return {
+      relatedType: "waitlist",
+      adminEmail: adminWaitlistEmail,
+      lessonTypeId: formData.get("lesson_type_id") || "",
+      clubId: formData.get("club_id") || "",
+      coachId: formData.get("coach_id") || "",
+      playerName: formData.get("player_name")?.trim() || "",
+      playerLevel: formData.get("player_level") || "",
+      lessonTypeName: lessonTypeName === "Any coaching type" ? "" : lessonTypeName,
+      preferredDuration,
+      preferredDays: splitPreferenceList(formData.get("preferred_days")),
+      preferredTimes: splitPreferenceList(formData.get("preferred_times")),
+      clubName: clubName === "Any club" ? "" : clubName,
+      coachName: coachName === "Any coach" ? "" : coachName,
+      customerName: formData.get("customer_name")?.trim() || "",
+      email: formData.get("email")?.trim() || "",
+      mobile: formData.get("mobile")?.trim() || "",
+      notes: formData.get("notes")?.trim() || ""
+    };
+  }
+
+  function buildWaitlistInsertPayload(request) {
+    return {
+      user_id: state.user?.id || null,
+      preferred_days: request.preferredDays,
+      preferred_times: request.preferredTimes,
+      skill_level: request.playerLevel,
+      notes: request.notes,
+      player_name: request.playerName,
+      preferred_lesson_type: request.lessonTypeName,
+      preferred_duration: request.preferredDuration ? Number(request.preferredDuration) : null,
+      lesson_type_id: request.lessonTypeId || null,
+      club: request.clubName,
+      club_id: request.clubId || null,
+      coach: request.coachName,
+      coach_id: request.coachId || null,
+      customer_name: request.customerName,
+      email: request.email,
+      mobile: request.mobile,
+      request_status: "new"
+    };
+  }
+
+  function buildLegacyWaitlistPayload(request) {
+    const legacyNotes = [
+      request.notes,
+      request.playerName ? `Player: ${request.playerName}` : "",
+      request.lessonTypeName ? `Lesson type: ${request.lessonTypeName}` : "",
+      request.preferredDuration ? `Preferred duration: ${request.preferredDuration} minutes` : "",
+      request.clubName ? `Club: ${request.clubName}` : "",
+      request.coachName ? `Coach: ${request.coachName}` : "",
+      request.customerName ? `Customer: ${request.customerName}` : "",
+      request.email ? `Email: ${request.email}` : "",
+      request.mobile ? `Mobile: ${request.mobile}` : ""
+    ].filter(Boolean).join("\n");
+
+    return {
+      user_id: state.user?.id || null,
+      preferred_days: request.preferredDays,
+      preferred_times: request.preferredTimes,
+      skill_level: request.playerLevel,
+      notes: legacyNotes
+    };
+  }
+
+  async function saveWaitlistRequest(request) {
+    if (!client) throw new Error("Supabase is not configured yet.");
+    const result = await client
+      .from("waitlist")
+      .insert(buildWaitlistInsertPayload(request))
+      .select("id")
+      .single();
+
+    if (!result.error) return result.data;
+    if (/column|schema cache/i.test(result.error.message || "")) {
+      const legacyResult = await client
+        .from("waitlist")
+        .insert(buildLegacyWaitlistPayload(request))
+        .select("id")
+        .single();
+      if (legacyResult.error) throw legacyResult.error;
+      return legacyResult.data;
+    }
+    throw result.error;
+  }
+
+  async function submitWaitlistRequest(event) {
+    event.preventDefault();
+    if (!waitlistFormEl) return;
+    if (!waitlistFormEl.checkValidity()) {
+      waitlistFormEl.reportValidity();
+      return;
+    }
+
+    const submitButton = waitlistFormEl.querySelector("button[type='submit']");
+    const request = buildWaitlistRequest(new FormData(waitlistFormEl));
+    if (submitButton) submitButton.disabled = true;
+    setWaitlistStatus("Sending your request...", "neutral");
+
+    try {
+      const savedRequest = await saveWaitlistRequest(request);
+      const emailPayload = {
+        ...request,
+        relatedId: savedRequest?.id || "",
+        traceId: `waitlist-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      };
+      await Promise.allSettled([
+        window.KimsEmailService?.sendWaitlistNotification(emailPayload),
+        request.email ? window.KimsEmailService?.sendWaitlistCustomerConfirmation(emailPayload) : Promise.resolve({ status: "skipped" })
+      ]);
+      waitlistFormEl.reset();
+      populateWaitlistSelects();
+      prefillWaitlistForm();
+      if (waitlistOpenEl) waitlistOpenEl.hidden = false;
+      waitlistFormEl.hidden = true;
+      setWaitlistStatus("Thanks, your request has been received. Kim will be in touch soon.", "success");
+    } catch (error) {
+      console.error("Could not submit waitlist request", error);
+      setWaitlistStatus(error.message || "Could not submit the request. Please try again.", "error");
+    } finally {
+      if (submitButton) submitButton.disabled = false;
+    }
   }
 
   function renderDurationOptions() {
@@ -914,9 +1161,12 @@
     await loadPrivateLessonType();
     await loadLessonTypes();
     await loadBundles();
+    await loadPublicClubs();
     await loadPublicCoaches();
     await loadAvailableSlots();
+    populateWaitlistSelects();
     prefillBookingForm();
+    prefillWaitlistForm();
   }
 
   if (previousWeekEl) previousWeekEl.addEventListener("click", async () => {
@@ -955,6 +1205,9 @@
   }));
 
   if (bookingFormEl) bookingFormEl.addEventListener("submit", createBooking);
+  if (waitlistOpenEl) waitlistOpenEl.addEventListener("click", openWaitlistForm);
+  if (waitlistPlayerSelectEl) waitlistPlayerSelectEl.addEventListener("change", applyWaitlistPlayerSelection);
+  if (waitlistFormEl) waitlistFormEl.addEventListener("submit", submitWaitlistRequest);
 
   if (calendarEl) initBookingPage();
   if (myBookingsEl) renderMyBookings();
