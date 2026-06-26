@@ -106,6 +106,17 @@
 .booking-confirmation h2, .booking-confirmation p { margin: 0; }
 .booking-form { display: grid; gap: 0.8rem; }
 .booking-form label { display: grid; gap: 0.35rem; color: var(--text); font-weight: 700; }
+.waitlist-request-panel { display: grid; gap: 1rem; }
+.waitlist-open-button { justify-self: start; }
+.waitlist-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+.waitlist-form label:has(textarea),
+.waitlist-form .full { grid-column: 1 / -1; }
 .booking-status[data-tone="success"] { color: #177a3a; }
 .booking-status[data-tone="error"] { color: #b42318; }
 .booking-success-card {
@@ -136,6 +147,7 @@
 @media (max-width: 760px) {
   .booking-toolbar { grid-template-columns: 1fr; }
   .booking-filters { grid-template-columns: 1fr; }
+  .waitlist-form { grid-template-columns: 1fr; }
   .booking-week-title { text-align: left; }
   .booking-calendar { grid-template-columns: 1fr; }
   .booking-day { min-height: auto; }

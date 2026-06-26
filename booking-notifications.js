@@ -69,34 +69,6 @@
     implementationNote: "Add Twilio or another SMS provider from a server-side function so customer mobile numbers are not exposed."
   };
 
-  async function getCurrentUserEmail() {
-    const settings = window.KIMS_SUPABASE || {};
-    if (!settings.url || !settings.anonKey || !window.supabase) return "";
-    const client = window.supabase.createClient(settings.url, settings.anonKey);
-    const { data } = await client.auth.getSession();
-    return data?.session?.user?.email || "";
-  }
-
-  async function handleWaitlistRequest(event) {
-    const link = event.target.closest('a[href^="mailto:"][href*="waitlist"]');
-    if (!link || !window.KimsEmailService) return;
-    event.preventDefault();
-    const email = await getCurrentUserEmail();
-    const payload = {
-      relatedType: "waitlist",
-      customerName: email || "Website visitor",
-      email,
-      notes: "Customer clicked the coaching waitlist/request-a-time link."
-    };
-    await Promise.allSettled([
-      window.KimsEmailService.sendWaitlistNotification(payload),
-      email ? window.KimsEmailService.sendWaitlistCustomerConfirmation(payload) : Promise.resolve({ status: "skipped" })
-    ]);
-    window.location.href = link.href;
-  }
-
-  document.addEventListener("click", handleWaitlistRequest, true);
-
   window.KimsBookingServices = {
     notifyAdminOfNewBooking,
     generateCalendarInviteData,

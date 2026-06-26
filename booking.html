@@ -154,9 +154,86 @@
             <p class="eyebrow">Waitlist</p>
             <h2>Can’t find a suitable time? Join the waitlist.</h2>
           </div>
-          <div class="rich-copy">
-            <p>Send Kim your preferred days, times, player level, and any notes. A dedicated waitlist form can be connected here later.</p>
-            <a class="btn btn-primary" href="mailto:kimjonescoaching@outlook.com?subject=Coaching%20waitlist">Request a Time</a>
+          <div class="rich-copy waitlist-request-panel">
+            <p>Tell Kim what you are looking for and she will be in touch when a suitable coaching option is available.</p>
+            <button class="btn btn-primary waitlist-open-button" type="button" data-waitlist-open>Request a Time</button>
+            <form class="booking-form waitlist-form" data-waitlist-form hidden>
+              <label data-waitlist-player-row hidden>
+                Select saved player
+                <select name="saved_player" data-waitlist-player-select>
+                  <option value="">Select a player</option>
+                </select>
+              </label>
+              <label>
+                Player name
+                <input type="text" name="player_name" required />
+              </label>
+              <label>
+                Player level
+                <select name="player_level" required>
+                  <option value="">Select level</option>
+                  <option value="Beginner">Beginner</option>
+                  <option value="Developing">Developing</option>
+                  <option value="Interclub">Interclub</option>
+                  <option value="Tournament">Tournament</option>
+                </select>
+              </label>
+              <label>
+                Preferred lesson type
+                <select name="lesson_type_id" data-waitlist-lesson-type>
+                  <option value="">Any coaching type</option>
+                </select>
+              </label>
+              <label>
+                Preferred duration
+                <select name="preferred_duration">
+                  <option value="">Any duration</option>
+                  <option value="30">30 minutes</option>
+                  <option value="45">45 minutes</option>
+                  <option value="60">60 minutes</option>
+                  <option value="90">90 minutes</option>
+                  <option value="120">120 minutes</option>
+                </select>
+              </label>
+              <label>
+                Preferred day(s)
+                <input type="text" name="preferred_days" placeholder="e.g. Monday, Wednesday, Saturday" required />
+              </label>
+              <label>
+                Preferred time(s)
+                <input type="text" name="preferred_times" placeholder="e.g. After school, mornings, 4pm-6pm" required />
+              </label>
+              <label>
+                Club
+                <select name="club_id" data-waitlist-club>
+                  <option value="">Any club</option>
+                </select>
+              </label>
+              <label>
+                Coach
+                <select name="coach_id" data-waitlist-coach>
+                  <option value="">Any coach</option>
+                </select>
+              </label>
+              <label>
+                Parent/customer name
+                <input type="text" name="customer_name" required />
+              </label>
+              <label>
+                Email
+                <input type="email" name="email" required />
+              </label>
+              <label>
+                Mobile
+                <input type="tel" name="mobile" required />
+              </label>
+              <label>
+                Notes
+                <textarea name="notes" rows="4" placeholder="Anything Kim should know about the request"></textarea>
+              </label>
+              <button class="btn btn-primary full" type="submit">Send Request</button>
+            </form>
+            <p class="form-message" data-waitlist-status role="status" aria-live="polite"></p>
           </div>
         </div>
       </section>

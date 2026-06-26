@@ -1,8 +1,8 @@
 const defaultEmailSettings = {
   provider: "disabled",
   from_name: "Kim Jones Coaching",
-  from_email: "kimjonescoaching@outlook.com",
-  reply_to_email: "kimjonescoaching@outlook.com",
+  from_email: "kim@kimjonescoaching.co.nz",
+  reply_to_email: "kim@kimjonescoaching.co.nz",
   enabled: false
 };
 
@@ -93,7 +93,9 @@ function getCustomerEmail(payload = {}) {
 }
 
 function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
-  const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
+  const adminEmail = type === "waitlist_notification"
+    ? process.env.EMAIL_ADMIN_TO || payload.adminEmail || "kim@kimjonescoaching.co.nz"
+    : process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
   if (adminTypes.has(type)) return [adminEmail].filter(Boolean);
   return [getCustomerEmail(payload)].filter(Boolean);
 }
@@ -139,6 +141,14 @@ function line(label, value) {
   return `${label}: ${value || ""}`;
 }
 
+function lineIf(label, value) {
+  if (Array.isArray(value)) {
+    const joined = value.filter(Boolean).join(", ");
+    return joined ? `${label}: ${joined}` : "";
+  }
+  return value ? `${label}: ${value}` : "";
+}
+
 function formatEmailDate(value, options) {
   if (!value) return "";
   const date = new Date(value);
@@ -170,6 +180,26 @@ function renderBookingText(title, payload = {}) {
     line("Status", payload.bookingStatus || payload.booking_status),
     line("Notes", payload.notes)
   ].join("\n");
+}
+
+function renderWaitlistText(title, payload = {}) {
+  const preferredDuration = payload.preferredDuration || payload.preferred_duration;
+  return [
+    title,
+    "",
+    lineIf("Player", payload.playerName || payload.player_name),
+    lineIf("Player level", payload.playerLevel || payload.player_level || payload.skill_level),
+    lineIf("Preferred lesson type", payload.lessonTypeName || payload.lesson_type_name || payload.preferred_lesson_type),
+    lineIf("Preferred duration", preferredDuration ? `${preferredDuration} minutes` : ""),
+    lineIf("Preferred days", payload.preferredDays || payload.preferred_days),
+    lineIf("Preferred times", payload.preferredTimes || payload.preferred_times),
+    lineIf("Club", payload.clubName || payload.club_name || payload.club),
+    lineIf("Coach", payload.coachName || payload.coach_name || payload.coach),
+    lineIf("Customer", payload.customerName || payload.customer_name),
+    lineIf("Email", getCustomerEmail(payload)),
+    lineIf("Mobile", payload.mobile),
+    lineIf("Notes", payload.notes)
+  ].filter(Boolean).join("\n");
 }
 
 function renderItems(payload = {}) {
@@ -208,8 +238,8 @@ function renderText(type, payload = {}) {
   if (type === "booking_customer_confirmation") return renderBookingText("Your coaching booking has been booked", payload);
   if (type === "booking_changed") return renderBookingText("Your Kim Jones Coaching booking has been updated", payload);
   if (type === "booking_cancelled") return renderBookingText("Your Kim Jones Coaching booking has been cancelled", payload);
-  if (type === "waitlist_notification") return renderBookingText("New waitlist request", payload);
-  if (type === "waitlist_customer_confirmation") return renderBookingText("Your waitlist request has been received", payload);
+  if (type === "waitlist_notification") return renderWaitlistText("New waitlist request", payload);
+  if (type === "waitlist_customer_confirmation") return renderWaitlistText("Your waitlist request has been received", payload);
   if (type === "purchase_order_email") return renderShopText("Kim Jones Coaching purchase order", payload);
   if (type === "product_enquiry_notification") return renderShopText("Kim Jones Coaching product enquiry", payload);
   if (type.includes("shop_order") || type.includes("product_")) return renderShopText("Kim Jones Coaching shop notification", payload);
