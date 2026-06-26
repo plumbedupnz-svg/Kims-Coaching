@@ -504,7 +504,8 @@
         id: "account-holder",
         label: `${accountHolderName} (account holder)`,
         name: accountHolderName,
-        level: profile.tennis_level || ""
+        level: profile.tennis_level || "",
+        parentName: ""
       });
     }
 
@@ -514,7 +515,8 @@
         label: player.name,
         name: player.name,
         level: player.level || "",
-        notes: player.notes || ""
+        notes: player.notes || "",
+        parentName: profile.parent_name || ""
       });
     });
 
@@ -537,6 +539,7 @@
     const selected = getBookingPeople().find((person) => person.id === bookingPersonSelectEl.value);
     if (!selected) return;
     bookingFormEl.elements.player_name.value = selected.name || "";
+    bookingFormEl.elements.parent_name.value = selected.parentName || "";
     if (bookingFormEl.elements.player_level) {
       bookingFormEl.elements.player_level.value = selected.level || "";
     }
