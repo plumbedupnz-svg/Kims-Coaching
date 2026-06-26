@@ -1405,7 +1405,7 @@ function populateProfileForm() {
 
   const players = getProfilePlayers(currentProfile);
   if (playerCountEl) playerCountEl.value = String(players.length || 1);
-  activeProfilePlayerIndex = 0;
+  activeProfilePlayerIndex = -1;
   renderPlayerFields(players);
 }
 
@@ -1448,13 +1448,17 @@ function renderPlayerFields(players = []) {
   const count = getSelectedPlayerCount();
   const nextPlayers = [...players];
   while (nextPlayers.length < count) nextPlayers.push(normalizePlayer({}));
-  activeProfilePlayerIndex = Math.min(Math.max(activeProfilePlayerIndex, 0), count - 1);
+  activeProfilePlayerIndex = activeProfilePlayerIndex < 0 ? -1 : Math.min(activeProfilePlayerIndex, count - 1);
   const visiblePlayers = nextPlayers.slice(0, count);
   const tabButtons = visiblePlayers
     .map((player, index) => {
       const label = player.name?.trim() || `Player ${index + 1}`;
       const isActive = index === activeProfilePlayerIndex;
-      return `<button type="button" class="player-tab${isActive ? " active" : ""}" data-player-tab="${index}" aria-selected="${isActive}">${escapeAttribute(label)}</button>`;
+      return `
+        <button type="button" class="player-tab${isActive ? " active" : ""}" data-player-tab="${index}" aria-selected="${isActive}">
+          <span>Player ${index + 1}</span>
+          <strong>${escapeAttribute(label)}</strong>
+        </button>`;
     })
     .join("");
   const addPlayerTab = count < 6 ? '<button type="button" class="player-tab player-tab-add" data-add-profile-player>+ New player</button>' : "";
@@ -1490,12 +1494,16 @@ function renderPlayerFields(players = []) {
         </article>`;
     })
     .join("");
+  const emptyPlayerPrompt = activeProfilePlayerIndex < 0
+    ? '<div class="player-empty">Select a player above to view or edit their details.</div>'
+    : "";
 
   playersListEl.innerHTML = `
     <div class="player-tabs" role="tablist" aria-label="Player profiles">
       ${tabButtons}
       ${addPlayerTab}
     </div>
+    ${emptyPlayerPrompt}
     ${playerCards}`;
 }
 
@@ -2264,7 +2272,7 @@ if (addPlayerEl) addPlayerEl.addEventListener("click", focusPlayerForm);
 
 if (playerCountEl) playerCountEl.addEventListener("change", () => {
   const formData = profileFormEl ? new FormData(profileFormEl) : null;
-  activeProfilePlayerIndex = Math.min(activeProfilePlayerIndex, getSelectedPlayerCount() - 1);
+  activeProfilePlayerIndex = activeProfilePlayerIndex < 0 ? -1 : Math.min(activeProfilePlayerIndex, getSelectedPlayerCount() - 1);
   renderPlayerFields(formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile));
 });
 
