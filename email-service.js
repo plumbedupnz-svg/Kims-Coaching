@@ -146,6 +146,22 @@
     return sendEmail("waitlist_customer_confirmation", payload);
   }
 
+  function sendJuniorGroupAdminNotification(payload) {
+    return sendEmail("junior_group_admin_notification", payload);
+  }
+
+  function sendJuniorGroupPaymentRequest(payload) {
+    return sendEmail("junior_group_payment_request", payload);
+  }
+
+  function sendJuniorGroupCustomerConfirmation(payload) {
+    return sendEmail("junior_group_customer_confirmation", payload);
+  }
+
+  function sendJuniorGroupSessionPlan(payload) {
+    return sendEmail("junior_group_session_plan", payload);
+  }
+
   window.KimsEmailService = {
     sendEmail,
     sendAdminNotification,
@@ -163,6 +179,10 @@
     sendPurchaseOrderEmail,
     sendWaitlistNotification,
     sendWaitlistCustomerConfirmation,
+    sendJuniorGroupAdminNotification,
+    sendJuniorGroupPaymentRequest,
+    sendJuniorGroupCustomerConfirmation,
+    sendJuniorGroupSessionPlan,
     generateICSInvite,
     generateBookingICS: generateICSInvite
   };

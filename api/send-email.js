@@ -14,6 +14,8 @@ const adminTypes = new Set([
   "product_enquiry_notification",
   "purchase_order_email",
   "waitlist_notification",
+  "junior_group_admin_notification",
+  "junior_group_session_plan",
   "admin_alert"
 ]);
 
@@ -131,7 +133,11 @@ function getSubject(type, payload = {}) {
     product_enquiry_notification: `Product enquiry: ${productName}`,
     purchase_order_email: `Purchase order: ${productName}`,
     waitlist_notification: `New waitlist request from ${customerName}`,
-    waitlist_customer_confirmation: "Kim Jones Coaching waitlist request received"
+    waitlist_customer_confirmation: "Kim Jones Coaching waitlist request received",
+    junior_group_admin_notification: `New junior group booking request: ${playerName}`,
+    junior_group_payment_request: "Complete your Kim Jones Coaching group booking",
+    junior_group_customer_confirmation: "Your junior group coaching place is confirmed",
+    junior_group_session_plan: `Session plan: ${payload.programmeName || payload.groupName || "Junior coaching"}`
   };
 
   return subjects[type] || "Kim Jones Coaching notification";
@@ -202,6 +208,44 @@ function renderWaitlistText(title, payload = {}) {
   ].filter(Boolean).join("\n");
 }
 
+function renderJuniorGroupText(title, payload = {}) {
+  return [
+    title,
+    "",
+    lineIf("Programme", payload.programmeName || payload.programme_name),
+    lineIf("Group", payload.groupName || payload.group_name),
+    lineIf("Player", payload.playerName || payload.player_name),
+    lineIf("Player age", payload.playerAge || payload.player_age),
+    lineIf("Player level", payload.playerLevel || payload.player_level),
+    lineIf("Customer", payload.customerName || payload.customer_name),
+    lineIf("Email", getCustomerEmail(payload)),
+    lineIf("Mobile", payload.mobile),
+    lineIf("Coach", payload.coachName || payload.coach_name),
+    lineIf("Club", payload.clubName || payload.club_name),
+    lineIf("Start date", payload.startDate || payload.start_date),
+    lineIf("Sessions", payload.sessionCount || payload.session_count),
+    lineIf("Duration", payload.durationMinutes ? `${payload.durationMinutes} minutes` : ""),
+    lineIf("Amount", payload.amount ? `$${Number(payload.amount).toFixed(2)}` : ""),
+    lineIf("Payment link", payload.paymentLinkUrl || payload.payment_link_url),
+    lineIf("Notes", payload.notes)
+  ].filter(Boolean).join("\n");
+}
+
+function renderSessionPlanText(title, payload = {}) {
+  return [
+    title,
+    "",
+    lineIf("Programme", payload.programmeName || payload.groupName),
+    lineIf("Session date", payload.sessionDate || payload.session_date),
+    lineIf("Warm-up", payload.warmUp || payload.warm_up),
+    lineIf("Technical focus", payload.technicalFocus || payload.technical_focus),
+    lineIf("Drills", payload.drills),
+    lineIf("Games", payload.games),
+    lineIf("Equipment needed", payload.equipmentNeeded || payload.equipment_needed),
+    lineIf("Notes", payload.notes)
+  ].filter(Boolean).join("\n");
+}
+
 function renderItems(payload = {}) {
   if (Array.isArray(payload.items)) {
     return payload.items
@@ -240,6 +284,10 @@ function renderText(type, payload = {}) {
   if (type === "booking_cancelled") return renderBookingText("Your Kim Jones Coaching booking has been cancelled", payload);
   if (type === "waitlist_notification") return renderWaitlistText("New waitlist request", payload);
   if (type === "waitlist_customer_confirmation") return renderWaitlistText("Your waitlist request has been received", payload);
+  if (type === "junior_group_admin_notification") return renderJuniorGroupText("New junior group booking request", payload);
+  if (type === "junior_group_payment_request") return renderJuniorGroupText("Complete payment to confirm your junior group coaching place", payload);
+  if (type === "junior_group_customer_confirmation") return renderJuniorGroupText("Your junior group coaching place is confirmed", payload);
+  if (type === "junior_group_session_plan") return renderSessionPlanText("Junior group session plan", payload);
   if (type === "purchase_order_email") return renderShopText("Kim Jones Coaching purchase order", payload);
   if (type === "product_enquiry_notification") return renderShopText("Kim Jones Coaching product enquiry", payload);
   if (type.includes("shop_order") || type.includes("product_")) return renderShopText("Kim Jones Coaching shop notification", payload);

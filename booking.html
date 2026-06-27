@@ -47,7 +47,103 @@
           <p>Choose an available coaching time opened by Kim, confirm player details, and keep your booking in My Account.</p>
           <div class="booking-hero-actions">
             <a class="btn btn-primary" href="#calendar">View Available Times</a>
+            <a class="btn btn-secondary" href="#junior-group-coaching">Junior Group Coaching</a>
             <a class="btn btn-secondary" href="#waitlist">Join Waitlist</a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section alt" id="coaching-options">
+        <div class="container">
+          <div class="booking-choice-grid">
+            <a class="booking-choice-card" href="#calendar">
+              <span class="eyebrow">Private Lessons</span>
+              <strong>Book a private coaching time</strong>
+              <p>Choose an open one-to-one coaching slot and confirm the player details.</p>
+            </a>
+            <a class="booking-choice-card" href="#junior-group-coaching">
+              <span class="eyebrow">Junior Group Coaching</span>
+              <strong>Join a junior programme</strong>
+              <p>Pick an active group, select a player, and pay online before the place is confirmed.</p>
+            </a>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="junior-group-coaching">
+        <div class="container">
+          <div class="section-head">
+            <p class="eyebrow">Group Coaching</p>
+            <h2>Junior Group Coaching</h2>
+            <p>Browse active junior programmes. Places are confirmed only after online payment is received.</p>
+          </div>
+          <div class="junior-group-layout">
+            <div>
+              <div class="junior-group-grid" data-junior-group-cards>
+                <p class="helper-text">Loading junior group programmes...</p>
+              </div>
+            </div>
+            <aside class="booking-confirmation junior-group-booking-panel" data-junior-group-panel hidden>
+              <p class="eyebrow">Junior Group</p>
+              <h2 data-junior-selected-title>Select a group</h2>
+              <p data-junior-selected-copy>Choose a junior group programme to book.</p>
+              <div data-junior-auth-required hidden>
+                <p class="helper-text">Please log in or create an account before booking junior group coaching.</p>
+                <a class="btn btn-primary full" href="account.html?mode=signup">Login or Create Account</a>
+              </div>
+              <form class="booking-form" data-junior-group-form hidden>
+                <label>
+                  Booking for
+                  <select name="booking_person" data-junior-booking-person required>
+                    <option value="">Select account holder or player</option>
+                  </select>
+                </label>
+                <label>
+                  Player name
+                  <input type="text" name="player_name" required />
+                </label>
+                <label>
+                  Player age
+                  <input type="number" name="player_age" min="0" max="120" required />
+                </label>
+                <label>
+                  Player level
+                  <select name="player_level" required>
+                    <option value="">Select level</option>
+                    <option value="Beginner">Beginner</option>
+                    <option value="Developing">Developing</option>
+                    <option value="Interclub">Interclub</option>
+                    <option value="Tournament">Tournament</option>
+                  </select>
+                </label>
+                <label>
+                  Parent/customer name
+                  <input type="text" name="parent_name" required />
+                </label>
+                <label>
+                  Email
+                  <input type="email" name="email" required />
+                </label>
+                <label>
+                  Mobile
+                  <input type="tel" name="mobile" required />
+                </label>
+                <label>
+                  Notes
+                  <textarea name="notes" rows="4" placeholder="Anything Kim should know before the programme"></textarea>
+                </label>
+                <p class="helper-text" data-junior-payment-note>Payment is required online before this place is confirmed.</p>
+                <p class="form-message" data-junior-eligibility-message hidden></p>
+                <button class="btn btn-primary full" type="submit">Book and Pay Online</button>
+                <p class="form-message" data-junior-group-status role="status" aria-live="polite"></p>
+              </form>
+            </aside>
+          </div>
+          <div class="booking-card junior-schedule-card" data-junior-my-sessions hidden>
+            <h3>My Junior Group Sessions</h3>
+            <div class="admin-data-list" data-junior-my-session-list>
+              <p class="helper-text">Loading your junior group sessions...</p>
+            </div>
           </div>
         </div>
       </section>
@@ -247,6 +343,7 @@
     <script src="email-service.js?v=20260626-lesson-rules"></script>
     <script src="booking-notifications.js?v=20260626-lesson-rules"></script>
     <script src="booking.js?v=20260626-lesson-rules"></script>
+    <script src="junior-group-booking.js?v=20260627-junior-groups"></script>
     <script src="booking-compact.js?v=20260626-lesson-rules"></script>
     <script src="booking-duration-options.js?v=20260626-lesson-rules"></script>
   </body>
