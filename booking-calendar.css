@@ -128,6 +128,77 @@
   background: #e8f7ee;
 }
 .booking-success-card p { margin: 0; color: #177a3a; }
+
+.booking-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.booking-choice-card,
+.junior-programme-card {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  color: inherit;
+  text-decoration: none;
+}
+
+.booking-choice-card strong,
+.junior-programme-card h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1.05rem;
+}
+
+.booking-choice-card p,
+.junior-programme-card p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.junior-group-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.75fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.junior-group-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.junior-programme-card .btn {
+  justify-self: start;
+}
+
+.junior-member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--border);
+}
+
+.junior-schedule-card {
+  margin-top: 1.5rem;
+}
+
+@media (max-width: 820px) {
+  .booking-choice-grid,
+  .junior-group-layout,
+  .junior-group-grid,
+  .junior-member-row {
+    grid-template-columns: 1fr;
+  }
+}
 .booking-list { display: grid; gap: 0.75rem; }
 .booking-list-item {
   padding: 0.85rem;

@@ -45,12 +45,12 @@
   }
 
   function isLessonRulesSchemaError(error) {
-    return /minimum_players|pay_as_you_go_only|minimum_age|minimum_level|schema cache|PGRST204|42703/i.test(error?.message || error?.code || "");
+    return /programme_type|minimum_players|pay_as_you_go_only|minimum_age|minimum_level|schema cache|PGRST204|42703/i.test(error?.message || error?.code || "");
   }
 
   function getLessonRulesSchemaMessage(error) {
     const detail = error?.message ? ` Supabase said: ${error.message}` : "";
-    return `Lesson type rules are not fully set up in Supabase yet. Run ${lessonRulesMigration} in Supabase SQL Editor, then refresh this page.${detail}`;
+    return `Lesson type rules are not fully set up in Supabase yet. Run ${lessonRulesMigration} and supabase/migrations/20260627010000_junior_group_coaching.sql in Supabase SQL Editor, then refresh this page.${detail}`;
   }
 
   function getLessonName(id) {
@@ -132,7 +132,7 @@
     if (!client) return;
     const { data, error } = await client
       .from("lesson_types")
-      .select("id,name,duration,price,description,capacity,minimum_players,minimum_age,minimum_level,pay_as_you_go_only,is_active")
+      .select("id,name,duration,price,description,capacity,minimum_players,minimum_age,minimum_level,pay_as_you_go_only,is_active,programme_type")
       .order("name", { ascending: true });
 
     if (error) {
@@ -188,6 +188,7 @@
     const id = formData.get("lesson_type_id");
     const payload = {
       name: formData.get("name")?.trim(),
+      programme_type: formData.get("programme_type") || "private_lesson",
       duration: Number(formData.get("duration") || 60),
       price: Number(formData.get("price") || 0),
       capacity: Math.max(1, Number(formData.get("capacity") || 1)),
@@ -251,7 +252,7 @@
     if (!lessonTypeId) {
       const { data, error } = await client
         .from("lesson_types")
-        .insert({ name, duration: 60, price: 0, capacity: 1, minimum_players: 1, minimum_age: null, minimum_level: "", pay_as_you_go_only: false, description: "", is_active: true })
+        .insert({ name, programme_type: "private_lesson", duration: 60, price: 0, capacity: 1, minimum_players: 1, minimum_age: null, minimum_level: "", pay_as_you_go_only: false, description: "", is_active: true })
         .select("id")
         .single();
 
@@ -313,6 +314,7 @@
     if (!lesson || !lessonTypeFormEl) return;
     lessonTypeFormEl.elements.lesson_type_id.value = lesson.id;
     lessonTypeFormEl.elements.name.value = lesson.name || "";
+    if (lessonTypeFormEl.elements.programme_type) lessonTypeFormEl.elements.programme_type.value = lesson.programme_type || "private_lesson";
     lessonTypeFormEl.elements.duration.value = lesson.duration || 60;
     lessonTypeFormEl.elements.price.value = Number(lesson.price || 0).toFixed(2);
     lessonTypeFormEl.elements.capacity.value = lesson.capacity || 1;

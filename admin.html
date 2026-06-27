@@ -49,6 +49,11 @@
               <a href="#inventory" data-admin-tab="inventory">Inventory</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
               <a href="#waitlist" data-admin-tab="waitlist">Waitlist</a>
+              <a href="#junior-programmes" data-admin-tab="junior-programmes">Junior Programmes</a>
+              <a href="#junior-groups" data-admin-tab="junior-groups">Junior Groups</a>
+              <a href="#group-calendar" data-admin-tab="group-calendar">Group Calendar</a>
+              <a href="#session-plans" data-admin-tab="session-plans">Session Plans</a>
+              <a href="#junior-payments" data-admin-tab="junior-payments">Payments/Overdue</a>
               <a href="#settings" data-admin-tab="settings">Settings</a>
             </nav>
 
@@ -74,6 +79,12 @@
                     <input type="hidden" name="lesson_type_id" />
                     <div class="availability-grid">
                       <label>Name<input type="text" name="name" placeholder="e.g. Red Ball Group Training" required /></label>
+                      <label>Programme type
+                        <select name="programme_type">
+                          <option value="private_lesson">Private lesson</option>
+                          <option value="junior_group">Junior group coaching</option>
+                        </select>
+                      </label>
                       <label>Duration minutes<input type="number" name="duration" min="15" step="15" value="60" required /></label>
                       <label>Price<input type="number" name="price" min="0" step="0.01" value="0" required /></label>
                       <label>Default capacity<input type="number" name="capacity" min="1" step="1" value="1" required /></label>
@@ -422,6 +433,124 @@
               <div class="admin-list-panel"><div class="admin-data-list" data-admin-waitlist-list></div></div>
             </section>
 
+            <section class="admin-section" data-admin-section="junior-programmes" hidden>
+              <div class="admin-section-head">
+                <div><p class="eyebrow">Junior coaching</p><h2>Junior programmes</h2><p class="helper-text">Create the reusable junior coaching programmes customers can book online.</p></div>
+              </div>
+              <div class="admin-panel-grid">
+                <form class="owner-add-form" data-junior-programme-form>
+                  <h3>Programme details</h3>
+                  <input type="hidden" name="programme_id" />
+                  <label>Programme name<input type="text" name="programme_name" placeholder="e.g. Red Ball Group Training" required /></label>
+                  <label>Term name<input type="text" name="term_name" placeholder="e.g. Term 3" /></label>
+                  <label>Lesson type<select name="lesson_type_id" data-junior-lesson-type><option value="">Select lesson type</option></select></label>
+                  <div class="availability-grid">
+                    <label>Minimum age<input type="number" name="age_min" min="0" max="120" placeholder="Any" /></label>
+                    <label>Maximum age<input type="number" name="age_max" min="0" max="120" placeholder="Any" /></label>
+                    <label>Level<select name="level"><option value="">Any level</option><option>Beginner</option><option>Developing</option><option>Interclub</option><option>Tournament</option></select></label>
+                    <label>Coach<select name="coach_id" data-junior-coach><option value="">Select coach</option></select></label>
+                    <label>Club<select name="club_id" data-junior-club><option value="">Select club</option></select></label>
+                  </div>
+                  <label>Description<textarea name="description" rows="4" placeholder="Shown on the public group coaching card"></textarea></label>
+                  <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                  <label class="availability-repeat"><span>Show publicly</span><input type="checkbox" name="is_public" /></label>
+                  <div class="availability-actions">
+                    <button class="btn btn-primary" type="submit">Save Programme</button>
+                    <button class="btn btn-secondary" type="button" data-junior-programme-clear>Clear</button>
+                  </div>
+                  <p class="form-message" data-junior-programme-message></p>
+                </form>
+                <div class="admin-list-panel">
+                  <h3>Saved programmes</h3>
+                  <div class="admin-data-list" data-junior-programme-list><p class="helper-text">Loading programmes...</p></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="junior-groups" hidden>
+              <div class="admin-section-head">
+                <div><p class="eyebrow">Junior coaching</p><h2>Junior groups</h2><p class="helper-text">Publish bookable junior groups, generate weekly sessions, and manage players.</p></div>
+              </div>
+              <div class="admin-panel-grid">
+                <form class="owner-add-form" data-junior-group-form>
+                  <h3>Group setup</h3>
+                  <input type="hidden" name="group_id" />
+                  <label>Programme<select name="programme_id" data-junior-programme-select><option value="">Select programme</option></select></label>
+                  <label>Group name<input type="text" name="group_name" placeholder="e.g. Red Ball Tuesday 4pm" required /></label>
+                  <label>Term name<input type="text" name="term_name" placeholder="e.g. Term 3" /></label>
+                  <div class="availability-grid">
+                    <label>Minimum age<input type="number" name="age_min" min="0" max="120" placeholder="Any" /></label>
+                    <label>Maximum age<input type="number" name="age_max" min="0" max="120" placeholder="Any" /></label>
+                    <label>Level<select name="level"><option value="">Any level</option><option>Beginner</option><option>Developing</option><option>Interclub</option><option>Tournament</option></select></label>
+                    <label>Coach<select name="coach_id" data-junior-coach><option value="">Select coach</option></select></label>
+                    <label>Club<select name="club_id" data-junior-club><option value="">Select club</option></select></label>
+                    <label>Start date<input type="date" name="start_date" required /></label>
+                    <label>End date<input type="date" name="end_date" /></label>
+                    <label>Recurring day<select name="recurring_day"><option value="1">Monday</option><option value="2">Tuesday</option><option value="3">Wednesday</option><option value="4">Thursday</option><option value="5">Friday</option><option value="6">Saturday</option><option value="0">Sunday</option></select></label>
+                    <label>Start time<select name="start_time" data-time-select required><option value="">Select start time</option></select></label>
+                    <label>Number of sessions<input type="number" name="session_count" min="1" step="1" value="8" required /></label>
+                    <label>Session duration<input type="number" name="session_duration_minutes" min="15" step="15" value="60" required /></label>
+                    <label>Capacity / max players<input type="number" name="capacity" min="1" step="1" value="8" required /></label>
+                    <label>Price<input type="number" name="price" min="0" step="0.01" value="0" required /></label>
+                  </div>
+                  <label>Stripe/payment link<input type="url" name="payment_link_url" placeholder="https://buy.stripe.com/..." /></label>
+                  <label>WhatsApp group link<input type="url" name="whatsapp_group_link" placeholder="https://chat.whatsapp.com/..." /></label>
+                  <label>Description<textarea name="description" rows="4" placeholder="Shown to parents before booking"></textarea></label>
+                  <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                  <label class="availability-repeat"><span>Show on Book Coaching page</span><input type="checkbox" name="is_public" /></label>
+                  <div class="availability-actions">
+                    <button class="btn btn-primary" type="submit">Save Group</button>
+                    <button class="btn btn-secondary" type="button" data-junior-group-clear>Clear</button>
+                  </div>
+                  <p class="form-message" data-junior-group-message></p>
+                </form>
+                <div class="admin-list-panel">
+                  <h3>Groups and players</h3>
+                  <div class="admin-data-list" data-junior-group-list><p class="helper-text">Loading groups...</p></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="group-calendar" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Calendar</p><h2>Group calendar</h2><p class="helper-text">Junior group sessions and confirmed private lessons in one admin view.</p></div></div>
+              <div class="admin-list-panel"><div class="admin-data-list" data-junior-calendar-list><p class="helper-text">Loading calendar...</p></div></div>
+            </section>
+
+            <section class="admin-section" data-admin-section="session-plans" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Planning</p><h2>Session plans</h2></div></div>
+              <div class="admin-panel-grid">
+                <form class="owner-add-form" data-session-plan-form>
+                  <h3>Plan a session</h3>
+                  <input type="hidden" name="plan_id" />
+                  <label>Group<select name="group_id" data-session-plan-group><option value="">Select group</option></select></label>
+                  <label>Session<select name="session_id" data-session-plan-session><option value="">Whole group / no specific session</option></select></label>
+                  <label>Title<input type="text" name="title" placeholder="e.g. Red ball rally shape" required /></label>
+                  <label>Session date<input type="date" name="session_date" /></label>
+                  <label>Warm-up<textarea name="warm_up" rows="2"></textarea></label>
+                  <label>Technical focus<textarea name="technical_focus" rows="2"></textarea></label>
+                  <label>Drills<textarea name="drills" rows="3"></textarea></label>
+                  <label>Games / point play<textarea name="games" rows="3"></textarea></label>
+                  <label>Equipment needed<textarea name="equipment_needed" rows="2"></textarea></label>
+                  <label>Notes<textarea name="notes" rows="3"></textarea></label>
+                  <label>Coach notes / internal<textarea name="coach_notes" rows="3"></textarea></label>
+                  <div class="availability-actions">
+                    <button class="btn btn-primary" type="submit">Save Plan</button>
+                    <button class="btn btn-secondary" type="button" data-copy-session-plan>Copy WhatsApp Message</button>
+                  </div>
+                  <p class="form-message" data-session-plan-message></p>
+                </form>
+                <div class="admin-list-panel">
+                  <h3>Saved plans</h3>
+                  <div class="admin-data-list" data-session-plan-list><p class="helper-text">Loading session plans...</p></div>
+                </div>
+              </div>
+            </section>
+
+            <section class="admin-section" data-admin-section="junior-payments" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Payments</p><h2>Junior payments and overdue</h2><p class="helper-text">Group places are confirmed only when payment is marked paid by Stripe webhook or admin confirmation.</p></div></div>
+              <div class="admin-list-panel"><div class="admin-data-list" data-junior-payment-list><p class="helper-text">Loading payments...</p></div></div>
+            </section>
+
             <section class="admin-section" data-admin-section="settings" hidden>
               <div class="settings-grid">
                 <div class="settings-workspace-head">
@@ -551,6 +680,7 @@
     <script src="admin-dashboard.js?v=20260626-slot-defaults"></script>
     <script src="admin-lessons.js?v=20260626-slot-defaults"></script>
     <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>
+    <script src="admin-junior-groups.js?v=20260627-junior-groups"></script>
     <script src="admin-settings-tabs.js?v=20260626-slot-defaults"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
