@@ -250,6 +250,28 @@
     if (!error) state.profile = profile;
   }
 
+  async function getAccessToken() {
+    if (!client) return "";
+    const { data } = await client.auth.getSession();
+    return data?.session?.access_token || "";
+  }
+
+  async function startStripeCheckout(payload) {
+    const token = await getAccessToken();
+    const response = await fetch("/api/stripe/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
+    try { sessionStorage.setItem("kims_pending_checkout_type", payload.booking_type || "private_lesson"); } catch (error) {}
+    window.location.href = data.url;
+  }
+
   async function loadPrivateLessonType() {
     if (!client) return null;
     const { data, error } = await client
@@ -1068,7 +1090,7 @@
       availability_id: state.selectedSlot.id,
       club_id: state.selectedSlot.club_id || null,
       coach_id: effectiveCoach?.id || null,
-      booking_status: "confirmed",
+      booking_status: formData.get("payment_option") === "pay_now" ? "pending_payment" : "confirmed",
       customer_name: formData.get("parent_name")?.trim(),
       player_name: formData.get("player_name")?.trim(),
       parent_name: formData.get("parent_name")?.trim(),
@@ -1158,6 +1180,20 @@
       customerEmail: payload.customer_email
     });
 
+    if (payload.payment_option === "pay_now") {
+      setStatus("Redirecting to secure Stripe Checkout...", "neutral");
+      try {
+        await startStripeCheckout({
+          booking_type: "private_lesson",
+          booking_id: result.data?.id,
+          player_id: getSelectedBookingPerson()?.id || ""
+        });
+      } catch (error) {
+        setStatus(error.message || "Could not start Stripe Checkout. Your booking is pending payment.", "error");
+      }
+      return;
+    }
+
     const notificationPayload = {
       traceId: emailTraceId,
       relatedType: "booking",
@@ -1235,7 +1271,7 @@
       .from("bookings")
       .select("*, availability:availability_id(start_time,end_time), lesson_type:lesson_type_id(name,duration), club:club_id(name,address), coach:coach_id(display_name)")
       .eq("user_id", state.user.id)
-      .in("booking_status", ["pending", "confirmed"])
+      .in("booking_status", ["pending", "pending_payment", "confirmed"])
       .order("created_at", { ascending: false })
       .limit(10);
 

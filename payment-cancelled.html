@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Payment Cancelled | Kim Jones Coaching</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand" aria-label="Kim Jones Coaching home">
+          <span class="brand-main">KIM JONES</span>
+          <span class="brand-sub">COACHING</span>
+        </a>
+        <button class="menu-toggle" type="button" aria-label="Open menu" aria-controls="primary-nav" aria-expanded="false" data-menu-toggle>
+          <span></span>
+          <span></span>
+          <span></span>
+        </button>
+        <div class="nav-links" id="primary-nav" data-nav-links></div>
+      </nav>
+    </header>
+
+    <main>
+      <section class="section">
+        <div class="container">
+          <div class="auth-card booking-success-card">
+            <p class="eyebrow">Payment Cancelled</p>
+            <h1>Your payment was not completed.</h1>
+            <p>No payment has been taken. You can return to booking or the shop and try again whenever you are ready.</p>
+            <div class="booking-hero-actions">
+              <a class="btn btn-primary" href="booking.html">Book Coaching</a>
+              <a class="btn btn-secondary" href="shop.html#cart">Return to Cart</a>
+              <a class="btn btn-secondary" href="account.html#customer-account">My Account</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="supabase-config.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
