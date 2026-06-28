@@ -198,6 +198,12 @@ async function createShopCheckout({ user, body }) {
     total,
     order_status: "pending_payment"
   });
+  console.info("[Stripe checkout] pending shop order created", {
+    orderId: order.id,
+    customerEmail: order.customer_email || "",
+    itemCount: items.length,
+    total
+  });
 
   const lineItems = items.map((item) => ({
     name: item.name,
