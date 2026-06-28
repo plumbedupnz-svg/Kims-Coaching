@@ -6,11 +6,26 @@ function getSiteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL || "https://www.kimjonescoaching.co.nz").replace(/\/+$/, "");
 }
 
+function trimUrl(value = "") {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function getSupabaseProjectUrl(value = "") {
+  const trimmed = trimUrl(value);
+  return trimmed.endsWith("/rest/v1") ? trimmed.slice(0, -"/rest/v1".length) : trimmed;
+}
+
+function getSupabaseRestUrl(value = "") {
+  const projectUrl = getSupabaseProjectUrl(value);
+  return projectUrl ? `${projectUrl}/rest/v1` : "";
+}
+
 function getSupabaseConfig() {
-  const projectUrl = (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tbvfpaikyxqhncjvnusr.supabase.co").replace(/\/+$/, "");
+  const configuredUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || "https://tbvfpaikyxqhncjvnusr.supabase.co";
+  const projectUrl = getSupabaseProjectUrl(configuredUrl);
   return {
     projectUrl,
-    restUrl: `${projectUrl}/rest/v1`,
+    restUrl: getSupabaseRestUrl(configuredUrl),
     anonKey: process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || publicSupabaseAnonKey,
     serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY
   };
