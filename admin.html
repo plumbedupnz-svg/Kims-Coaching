@@ -85,23 +85,41 @@
                           <option value="junior_group">Junior group coaching</option>
                         </select>
                       </label>
-                      <label>Duration minutes<input type="number" name="duration" min="15" step="15" value="60" required /></label>
-                      <label>Price<input type="number" name="price" min="0" step="0.01" value="0" required /></label>
-                      <label>Default capacity<input type="number" name="capacity" min="1" step="1" value="1" required /></label>
-                      <label>Minimum players required<input type="number" name="minimum_players" min="1" step="1" value="1" required /></label>
-                      <label>Minimum age<input type="number" name="minimum_age" min="0" max="120" step="1" placeholder="Any age" /></label>
-                      <label>Minimum level
-                        <select name="minimum_level">
-                          <option value="">Any level</option>
-                          <option value="Beginner">Beginner</option>
-                          <option value="Developing">Developing</option>
-                          <option value="Interclub">Interclub</option>
-                          <option value="Tournament">Tournament</option>
-                        </select>
-                      </label>
                       <label class="availability-wide">Description<textarea name="description" rows="3" placeholder="Short description shown to customers"></textarea></label>
-                      <label class="availability-repeat"><span>Pay as you go only</span><input type="checkbox" name="pay_as_you_go_only" /></label>
                       <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                    </div>
+                    <div class="lesson-settings-panels">
+                      <details class="lesson-settings-panel" data-lesson-settings-panel="private" open>
+                        <summary>
+                          <span>Private lesson settings</span>
+                          <small>Duration, price and normal booking capacity</small>
+                        </summary>
+                        <div class="availability-grid lesson-settings-grid">
+                          <label>Duration minutes<input type="number" name="duration" min="15" step="15" value="60" required /></label>
+                          <label>Price<input type="number" name="price" min="0" step="0.01" value="0" required /></label>
+                          <label>Default capacity<input type="number" name="capacity" min="1" step="1" value="1" required /></label>
+                        </div>
+                      </details>
+                      <details class="lesson-settings-panel" data-lesson-settings-panel="junior">
+                        <summary>
+                          <span>Junior group rules</span>
+                          <small>Minimum players, age, level and payment rules</small>
+                        </summary>
+                        <div class="availability-grid lesson-settings-grid">
+                          <label>Minimum players required<input type="number" name="minimum_players" min="1" step="1" value="1" required /></label>
+                          <label>Minimum age<input type="number" name="minimum_age" min="0" max="120" step="1" placeholder="Any age" /></label>
+                          <label>Minimum level
+                            <select name="minimum_level">
+                              <option value="">Any level</option>
+                              <option value="Beginner">Beginner</option>
+                              <option value="Developing">Developing</option>
+                              <option value="Interclub">Interclub</option>
+                              <option value="Tournament">Tournament</option>
+                            </select>
+                          </label>
+                          <label class="availability-repeat"><span>Pay as you go only</span><input type="checkbox" name="pay_as_you_go_only" /></label>
+                        </div>
+                      </details>
                     </div>
                     <div class="availability-actions">
                       <button class="btn btn-primary" type="submit">Save lesson type</button>
