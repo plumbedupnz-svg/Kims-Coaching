@@ -17,6 +17,8 @@
   const bundleMessageEl = document.querySelector("[data-bundle-message]");
   const clearBundleEl = document.querySelector("[data-clear-bundle]");
   const bundleLessonTypeEl = document.querySelector("[data-bundle-lesson-type]");
+  const privateSettingsPanelEl = document.querySelector('[data-lesson-settings-panel="private"]');
+  const juniorSettingsPanelEl = document.querySelector('[data-lesson-settings-panel="junior"]');
 
   if (!lessonTypeFormEl && !bundleFormEl) return;
 
@@ -172,7 +174,14 @@
     lessonTypeFormEl?.reset();
     if (lessonTypeFormEl?.elements.lesson_type_id) lessonTypeFormEl.elements.lesson_type_id.value = "";
     if (lessonTypeFormEl?.elements.is_active) lessonTypeFormEl.elements.is_active.checked = true;
+    syncLessonSettingsPanels();
     setMessage(lessonTypeMessageEl, "");
+  }
+
+  function syncLessonSettingsPanels() {
+    const type = lessonTypeFormEl?.elements.programme_type?.value || "private_lesson";
+    if (privateSettingsPanelEl) privateSettingsPanelEl.open = true;
+    if (juniorSettingsPanelEl) juniorSettingsPanelEl.open = type === "junior_group";
   }
 
   function resetBundleForm() {
@@ -324,6 +333,7 @@
     lessonTypeFormEl.elements.pay_as_you_go_only.checked = lesson.pay_as_you_go_only === true;
     lessonTypeFormEl.elements.description.value = lesson.description || "";
     lessonTypeFormEl.elements.is_active.checked = lesson.is_active !== false;
+    syncLessonSettingsPanels();
     lessonTypeFormEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
@@ -390,6 +400,7 @@
   }
 
   lessonTypeFormEl?.addEventListener("submit", saveLessonType);
+  lessonTypeFormEl?.elements.programme_type?.addEventListener("change", syncLessonSettingsPanels);
   clearLessonTypeEl?.addEventListener("click", resetLessonTypeForm);
   lessonTypeListEl?.addEventListener("click", handleLessonTypeAction);
   quickLessonTypeAddEl?.addEventListener("click", addQuickLessonType);
@@ -408,5 +419,6 @@
     return;
   }
 
+  syncLessonSettingsPanels();
   Promise.all([loadLessonTypes(), loadBundles()]);
 })();
