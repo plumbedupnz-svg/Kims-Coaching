@@ -215,7 +215,13 @@ async function callEmail(type, payload) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type, payload })
     });
-    return await response.json().catch(() => ({}));
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = json?.error || json?.message || `Email API returned ${response.status}`;
+      console.error("[Stripe webhook] email API returned an error", { type, status: response.status, message });
+      return { ...json, sent: false, status: "failed", statusCode: response.status, error: message };
+    }
+    return { ...json, statusCode: response.status };
   } catch (error) {
     console.error("[Stripe webhook] email failed safely", { type, message: error.message });
     return { sent: false, status: "failed", error: error.message };

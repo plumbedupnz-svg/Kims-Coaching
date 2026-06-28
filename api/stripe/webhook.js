@@ -190,10 +190,74 @@ async function sendShopEmails(order) {
     total: moneyText(order.total),
     orderStatus: "paid"
   };
-  await Promise.allSettled([
-    callEmail("shop_order_admin_notification", payload),
-    callEmail("shop_order_customer_confirmation", payload)
-  ]);
+  const updates = {};
+
+  if (!order.admin_notification_email_sent_at) {
+    console.info("Sending shop notification email to admin", {
+      orderId: order.id,
+      customerEmail: order.customer_email || ""
+    });
+    const adminResult = await callEmail("shop_order_admin_notification", payload);
+    if (adminResult?.sent === true || adminResult?.status === "sent") {
+      console.info("Email sent successfully", {
+        orderId: order.id,
+        emailType: "shop_order_admin_notification",
+        traceId: adminResult.traceId || payload.traceId
+      });
+      updates.admin_notification_email_sent_at = new Date().toISOString();
+    } else {
+      const message = adminResult?.error || adminResult?.reason || adminResult?.status || "Unknown admin email failure";
+      console.error(`Email send failed: ${message}`, {
+        orderId: order.id,
+        emailType: "shop_order_admin_notification",
+        traceId: adminResult?.traceId || payload.traceId
+      });
+    }
+  } else {
+    console.info("[Stripe webhook] shop admin email already sent, skipping duplicate", {
+      orderId: order.id,
+      sentAt: order.admin_notification_email_sent_at
+    });
+  }
+
+  if (!order.customer_confirmation_email_sent_at) {
+    console.info("Sending shop confirmation email to customer", {
+      orderId: order.id,
+      customerEmail: order.customer_email || ""
+    });
+    const customerResult = await callEmail("shop_order_customer_confirmation", payload);
+    if (customerResult?.sent === true || customerResult?.status === "sent") {
+      console.info("Email sent successfully", {
+        orderId: order.id,
+        emailType: "shop_order_customer_confirmation",
+        traceId: customerResult.traceId || payload.traceId
+      });
+      updates.customer_confirmation_email_sent_at = new Date().toISOString();
+    } else {
+      const message = customerResult?.error || customerResult?.reason || customerResult?.status || "Unknown customer email failure";
+      console.error(`Email send failed: ${message}`, {
+        orderId: order.id,
+        emailType: "shop_order_customer_confirmation",
+        traceId: customerResult?.traceId || payload.traceId
+      });
+    }
+  } else {
+    console.info("[Stripe webhook] shop customer email already sent, skipping duplicate", {
+      orderId: order.id,
+      sentAt: order.customer_confirmation_email_sent_at
+    });
+  }
+
+  if (Object.keys(updates).length) {
+    try {
+      await restUpdate("shop_orders", { id: `eq.${order.id}` }, updates, "");
+    } catch (error) {
+      console.error("[Stripe webhook] could not update shop email sent markers", {
+        orderId: order.id,
+        message: error.message
+      });
+    }
+  }
 }
 
 async function handleShopOrder(session) {
@@ -202,12 +266,24 @@ async function handleShopOrder(session) {
   const rows = await restSelect("shop_orders", "*", { id: `eq.${orderId}`, limit: "1" });
   const existingOrder = rows[0];
   if (!existingOrder) throw new Error("Shop order was not found.");
+  console.info("[Stripe webhook] processing paid shop order", {
+    orderId,
+    currentStatus: existingOrder.order_status,
+    customerEmail: existingOrder.customer_email || "",
+    adminEmailSent: Boolean(existingOrder.admin_notification_email_sent_at),
+    customerEmailSent: Boolean(existingOrder.customer_confirmation_email_sent_at)
+  });
   if (existingOrder.order_status !== "paid") await deductInventoryForOrder(existingOrder);
   const order = await restUpdate("shop_orders", { id: `eq.${orderId}` }, {
     order_status: "paid",
     stripe_session_id: session.id,
     payment_intent_id: session.payment_intent || null,
     paid_at: new Date().toISOString()
+  });
+  console.info("[Stripe webhook] shop order marked paid", {
+    orderId,
+    stripeSessionId: session.id,
+    paymentIntentId: session.payment_intent || ""
   });
   await sendShopEmails(order || existingOrder);
 }
