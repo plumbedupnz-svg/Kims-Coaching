@@ -6,6 +6,8 @@
     { "source": "/book-private-lesson", "destination": "/booking.html" },
     { "source": "/booking", "destination": "/booking.html" },
     { "source": "/booking-confirmation", "destination": "/booking-confirmation.html" },
+    { "source": "/payment-success", "destination": "/payment-success.html" },
+    { "source": "/payment-cancelled", "destination": "/payment-cancelled.html" },
     { "source": "/email-verified", "destination": "/email-verified.html" },
     { "source": "/shop", "destination": "/shop.html" },
     { "source": "/account", "destination": "/account.html" },

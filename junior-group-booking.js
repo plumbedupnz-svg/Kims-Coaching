@@ -161,6 +161,31 @@
     return getBookingPeople().find((person) => person.id === personSelectEl?.value) || null;
   }
 
+  async function getAccessToken() {
+    if (!client) return "";
+    const { data } = await client.auth.getSession();
+    return data?.session?.access_token || "";
+  }
+
+  async function startStripeCheckout(memberId) {
+    const token = await getAccessToken();
+    const response = await fetch("/api/stripe/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        booking_type: "junior_group",
+        member_id: memberId
+      })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
+    try { sessionStorage.setItem("kims_pending_checkout_type", "junior_group"); } catch (error) {}
+    window.location.href = data.url;
+  }
+
   function eligibilityIssue(group = state.selectedGroup) {
     if (!group || !formEl) return "";
     const person = selectedPerson();
@@ -339,7 +364,6 @@
     }
 
     const result = Array.isArray(data) ? data[0] : data;
-    const paymentLink = result?.payment_link_url || state.selectedGroup.payment_link_url || "";
     const emailPayload = {
       email: params.p_email,
       customerName: params.p_parent_name,
@@ -354,21 +378,17 @@
       sessionCount: state.selectedGroup.session_count,
       durationMinutes: state.selectedGroup.session_duration_minutes,
       amount: result?.amount || state.selectedGroup.price,
-      paymentLinkUrl: paymentLink,
+      paymentLinkUrl: "",
       relatedId: result?.member_id || "",
       traceId: `junior-group-${Date.now()}`
     };
 
-    await Promise.allSettled([
-      window.KimsEmailService?.sendJuniorGroupAdminNotification?.(emailPayload),
-      window.KimsEmailService?.sendJuniorGroupPaymentRequest?.(emailPayload)
-    ]);
-
-    if (paymentLink) {
-      setStatus("Your place is held temporarily. Complete online payment now to confirm the booking.", "success");
-      window.open(paymentLink, "_blank", "noopener,noreferrer");
-    } else {
-      setStatus("Your place is pending payment, but no online payment link is configured for this group yet. Kim has been notified.", "warning");
+    console.info("[Kim Junior Group] pending member created before Stripe checkout", emailPayload);
+    setStatus("Your place is held temporarily. Redirecting to secure Stripe Checkout...", "success");
+    try {
+      await startStripeCheckout(result?.member_id);
+    } catch (checkoutError) {
+      setStatus(checkoutError.message || "Could not start Stripe Checkout. Your place is pending payment.", "error");
     }
     await loadGroups();
     await loadMySessions();

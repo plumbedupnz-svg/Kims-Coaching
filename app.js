@@ -2093,19 +2093,13 @@ if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
 if (checkoutBtnEl) checkoutBtnEl.addEventListener("click", () => {
   const cart = loadCart();
   const account = activeAccount();
-  const link = safeStorageGet(STRIPE_KEY, "").trim();
   if (!cart.length) return alert("Your cart is empty. Add items before checkout.");
   if (!account) {
     if (checkoutAccountMessageEl) checkoutAccountMessageEl.textContent = "Please log in or create an account before checkout.";
     window.location.href = "account.html?mode=signup";
     return;
   }
-  if (!link) {
-    alert("Please add your Stripe checkout link first.");
-    stripeInputEl.focus();
-    return;
-  }
-  window.location.href = link;
+  if (checkoutAccountMessageEl) checkoutAccountMessageEl.textContent = "Preparing secure Stripe Checkout...";
 });
 
 if (ownerPromoFormEl) ownerPromoFormEl.addEventListener("submit", (event) => {
