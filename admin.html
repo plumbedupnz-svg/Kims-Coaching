@@ -225,7 +225,15 @@
                   <button type="submit" class="btn btn-primary" data-product-submit>Add Product</button>
                   <button type="button" class="btn btn-secondary" data-product-cancel-edit hidden>Cancel Edit</button>
                 </form>
-                <div class="owner-products" id="owner-products-list"></div>
+                <div>
+                  <div class="owner-products" id="owner-products-list"></div>
+                  <div class="admin-list-panel">
+                    <h3>Shop Orders</h3>
+                    <div class="admin-data-list" data-shop-orders-list>
+                      <p class="helper-text">Loading shop orders...</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </section>
 
@@ -576,6 +584,7 @@
                   <div class="settings-subtabs" role="tablist" aria-label="Settings areas">
                     <button type="button" data-settings-tab="clubs">Clubs</button>
                     <button type="button" data-settings-tab="coaches">Coaches</button>
+                    <button type="button" data-settings-tab="shop">Shop Checkout</button>
                     <button type="button" data-settings-tab="promo">Promo Codes</button>
                     <button type="button" data-settings-tab="photo">Front Page Photo</button>
                     <button type="button" data-settings-tab="email">Email</button>
@@ -618,6 +627,29 @@
                   <h3>Saved Coaches</h3>
                   <div class="admin-data-list" data-coach-list><p class="helper-text">Loading coaches...</p></div>
                 </div>
+                <form class="owner-add-form settings-panel-wide" data-settings-panel="shop" data-shop-checkout-settings-form hidden>
+                  <h3>Shop Checkout Settings</h3>
+                  <p class="helper-text">Set pickup instructions and fixed delivery fees used by Stripe Checkout. Final totals are calculated on the server.</p>
+                  <label>Pickup label
+                    <input name="pickup_label" type="text" placeholder="Pick up from coaching / club" />
+                  </label>
+                  <label>Pickup instructions
+                    <textarea name="pickup_instructions" rows="3" placeholder="Where and when customers can collect orders"></textarea>
+                  </label>
+                  <label class="availability-repeat"><span>Local delivery enabled</span><input name="local_delivery_enabled" type="checkbox" /></label>
+                  <label>Local delivery fee
+                    <input name="local_delivery_fee" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label class="availability-repeat"><span>NZ courier delivery enabled</span><input name="courier_delivery_enabled" type="checkbox" /></label>
+                  <label>NZ courier delivery fee
+                    <input name="courier_delivery_fee" type="number" min="0" step="0.01" placeholder="0.00" />
+                  </label>
+                  <label>Free shipping threshold optional
+                    <input name="free_shipping_threshold" type="number" min="0" step="0.01" placeholder="Leave blank for no threshold" />
+                  </label>
+                  <button type="submit" class="btn btn-primary">Save Shop Checkout Settings</button>
+                  <p class="form-message" data-shop-checkout-settings-message></p>
+                </form>
                 <form id="owner-promo-form" class="owner-add-form settings-panel-wide" data-settings-panel="promo" hidden>
                   <h3>Promo Code Settings</h3>
                   <label for="owner-promo-code">Promo code</label>
@@ -700,6 +732,8 @@
     <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>
     <script src="admin-junior-groups.js?v=20260627-junior-groups"></script>
     <script src="admin-settings-tabs.js?v=20260626-slot-defaults"></script>
+    <script src="admin-shop-settings.js?v=20260629-shop-checkout"></script>
+    <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
     <script src="admin-inventory.js?v=20260626-slot-defaults"></script>

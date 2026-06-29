@@ -178,16 +178,36 @@ async function deductInventoryForOrder(order) {
 }
 
 async function sendShopEmails(order) {
+  const address = order.delivery_address || {};
+  const fulfilmentMethod = order.fulfilment_method || "pickup";
   const payload = {
     traceId: `stripe-shop-${order.id}`,
     relatedType: "shop_order",
     relatedId: order.id,
     customerName: order.customer_name,
     email: order.customer_email,
-    mobile: order.mobile,
+    mobile: order.customer_phone || order.mobile,
     items: order.items || [],
-    subtotal: moneyText(order.subtotal),
-    total: moneyText(order.total),
+    fulfilmentMethod,
+    fulfilmentLabel: fulfilmentMethod === "local_delivery"
+      ? "Local delivery"
+      : fulfilmentMethod === "courier"
+        ? "NZ courier delivery"
+        : "Pick up from coaching / club",
+    deliveryAddress: [
+      address.address_line1,
+      address.address_line2,
+      address.suburb,
+      address.city,
+      address.postcode,
+      address.country
+    ].filter(Boolean).join(", "),
+    pickupInstructions: order.pickup_instructions || "",
+    shipping: moneyText(order.shipping_amount),
+    subtotal: moneyText(order.subtotal_amount ?? order.subtotal),
+    tax: moneyText(order.tax_amount),
+    discount: moneyText(order.discount_amount),
+    total: moneyText(order.total_amount ?? order.total),
     orderStatus: "paid"
   };
   const updates = {};
@@ -276,6 +296,7 @@ async function handleShopOrder(session) {
   if (existingOrder.order_status !== "paid") await deductInventoryForOrder(existingOrder);
   const order = await restUpdate("shop_orders", { id: `eq.${orderId}` }, {
     order_status: "paid",
+    payment_status: "paid",
     stripe_session_id: session.id,
     payment_intent_id: session.payment_intent || null,
     paid_at: new Date().toISOString()

@@ -14,6 +14,7 @@ const productListEl = document.getElementById("product-list");
 const cartItemsEl = document.getElementById("cart-items");
 const subtotalEl = document.getElementById("subtotal");
 const taxEl = document.getElementById("tax");
+const shippingEl = document.getElementById("shipping");
 const totalEl = document.getElementById("total");
 const stripeInputEl = document.getElementById("stripe-link");
 const checkoutBtnEl = document.getElementById("checkout-btn");
@@ -1408,10 +1409,25 @@ function setProfileMessage(message, tone = "neutral") {
 
 function populateProfileForm() {
   if (!profileFormEl || !currentProfile) return;
-  const fields = ["first_name", "last_name", "phone", "account_holder_age", "parent_name", "notes"];
+  const fields = [
+    "first_name",
+    "last_name",
+    "phone",
+    "account_holder_age",
+    "delivery_full_name",
+    "delivery_phone",
+    "delivery_address_line1",
+    "delivery_address_line2",
+    "delivery_suburb",
+    "delivery_city",
+    "delivery_postcode",
+    "delivery_country",
+    "parent_name",
+    "notes"
+  ];
   fields.forEach((field) => {
     if (!profileFormEl.elements[field]) return;
-    profileFormEl.elements[field].value = currentProfile[field] ?? "";
+    profileFormEl.elements[field].value = currentProfile[field] ?? (field === "delivery_country" ? "New Zealand" : "");
   });
 
   const players = getProfilePlayers(currentProfile);
@@ -1559,6 +1575,14 @@ async function saveProfile(formData) {
     last_name: formData.get("last_name").trim(),
     phone: formData.get("phone").trim(),
     account_holder_age: formData.get("account_holder_age") ? Number(formData.get("account_holder_age")) : null,
+    delivery_full_name: formData.get("delivery_full_name")?.trim() || "",
+    delivery_phone: formData.get("delivery_phone")?.trim() || "",
+    delivery_address_line1: formData.get("delivery_address_line1")?.trim() || "",
+    delivery_address_line2: formData.get("delivery_address_line2")?.trim() || "",
+    delivery_suburb: formData.get("delivery_suburb")?.trim() || "",
+    delivery_city: formData.get("delivery_city")?.trim() || "",
+    delivery_postcode: formData.get("delivery_postcode")?.trim() || "",
+    delivery_country: formData.get("delivery_country")?.trim() || "New Zealand",
     parent_name: formData.get("parent_name").trim(),
     player_name: primaryPlayer.name,
     player_age: primaryPlayer.age === "" ? null : primaryPlayer.age,
@@ -1905,12 +1929,17 @@ function renderCart() {
   const prePromoTotal = subtotal + tax;
   const promoPercent = getAppliedPromoPercent();
   const promoDiscount = prePromoTotal * (promoPercent / 100);
-  const finalTotal = Math.max(0, prePromoTotal - promoDiscount);
+  const shipping = Number(window.KimsShopCheckout?.getShippingAmount?.(subtotal) || 0);
+  const finalTotal = Math.max(0, prePromoTotal - promoDiscount + shipping);
 
   subtotalEl.textContent = money(subtotal);
   taxEl.textContent = money(tax);
   if (promoDiscountEl) promoDiscountEl.textContent = `-${money(promoDiscount)}`;
+  if (shippingEl) shippingEl.textContent = money(shipping);
   totalEl.textContent = money(finalTotal);
+  window.dispatchEvent(new CustomEvent("kims:cart-rendered", {
+    detail: { subtotal, tax, promoDiscount, shipping, total: finalTotal }
+  }));
 }
 
 function addToCart(product) {
@@ -2092,13 +2121,7 @@ if (applyPromoBtnEl) applyPromoBtnEl.addEventListener("click", () => {
 
 if (checkoutBtnEl) checkoutBtnEl.addEventListener("click", () => {
   const cart = loadCart();
-  const account = activeAccount();
   if (!cart.length) return alert("Your cart is empty. Add items before checkout.");
-  if (!account) {
-    if (checkoutAccountMessageEl) checkoutAccountMessageEl.textContent = "Please log in or create an account before checkout.";
-    window.location.href = "account.html?mode=signup";
-    return;
-  }
   if (checkoutAccountMessageEl) checkoutAccountMessageEl.textContent = "Preparing secure Stripe Checkout...";
 });
 
