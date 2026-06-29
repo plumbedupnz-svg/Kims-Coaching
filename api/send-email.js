@@ -268,13 +268,19 @@ function renderShopText(title, payload = {}) {
     line("Email", getCustomerEmail(payload)),
     line("Mobile", payload.mobile),
     line("Order status", payload.orderStatus || payload.order_status),
+    lineIf("Fulfilment", payload.fulfilmentLabel || payload.fulfilment_method || payload.fulfilmentMethod),
+    lineIf("Delivery address", payload.deliveryAddress || payload.delivery_address),
+    lineIf("Pickup instructions", payload.pickupInstructions || payload.pickup_instructions),
     "",
     renderItems(payload),
     "",
     line("Subtotal", payload.subtotal),
+    lineIf("Shipping", payload.shipping),
+    lineIf("Tax", payload.tax),
+    lineIf("Discount", payload.discount),
     line("Total", payload.total),
     line("Notes", payload.notes)
-  ].join("\n");
+  ].filter((line) => line !== "").join("\n");
 }
 
 function renderText(type, payload = {}) {

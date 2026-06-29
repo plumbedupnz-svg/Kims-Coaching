@@ -65,8 +65,38 @@
             <div class="summary-row"><span>Subtotal</span><strong id="subtotal">$0.00</strong></div>
             <div class="summary-row"><span>Estimated Tax (10%)</span><strong id="tax">$0.00</strong></div>
             <div class="summary-row"><span>Promo Discount</span><strong id="promo-discount">-$0.00</strong></div>
+            <div class="summary-row"><span>Shipping / pickup</span><strong id="shipping">$0.00</strong></div>
             <div class="summary-row total"><span>Total</span><strong id="total">$0.00</strong></div>
             
+            <div class="checkout-details" data-checkout-details>
+              <h4>Checkout details</h4>
+              <label for="checkout-full-name">Full name</label>
+              <input id="checkout-full-name" type="text" autocomplete="name" placeholder="Full name" />
+              <label for="checkout-email">Email</label>
+              <input id="checkout-email" type="email" autocomplete="email" placeholder="you@example.com" />
+              <label for="checkout-phone">Phone</label>
+              <input id="checkout-phone" type="tel" autocomplete="tel" placeholder="Phone number" />
+              <label for="fulfilment-method">Fulfilment</label>
+              <select id="fulfilment-method" data-fulfilment-method>
+                <option value="pickup">Pick up from coaching / club</option>
+              </select>
+              <p class="helper-text" data-fulfilment-help></p>
+              <div data-delivery-address-fields>
+                <label for="delivery-address-line1">Address line 1</label>
+                <input id="delivery-address-line1" type="text" autocomplete="address-line1" placeholder="Street address" />
+                <label for="delivery-address-line2">Address line 2 optional</label>
+                <input id="delivery-address-line2" type="text" autocomplete="address-line2" placeholder="Apartment, unit, building" />
+                <label for="delivery-suburb">Suburb</label>
+                <input id="delivery-suburb" type="text" autocomplete="address-level3" placeholder="Suburb" />
+                <label for="delivery-city">City</label>
+                <input id="delivery-city" type="text" autocomplete="address-level2" placeholder="City" />
+                <label for="delivery-postcode">Postcode</label>
+                <input id="delivery-postcode" type="text" autocomplete="postal-code" placeholder="Postcode" />
+                <label for="delivery-country">Country</label>
+                <input id="delivery-country" type="text" autocomplete="country-name" value="New Zealand" />
+              </div>
+            </div>
+
             <label for="promo-code">Promo Code</label>
             <div class="category-add-row">
               <input id="promo-code" type="text" placeholder="Enter promo code" />
