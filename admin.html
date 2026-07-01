@@ -70,8 +70,8 @@
             </section>
 
             <section class="admin-section" data-admin-section="availability" hidden>
-              <div class="admin-panel-grid">
-                <section class="admin-primary">
+              <div class="availability-admin-layout">
+                <div class="availability-form-grid">
                   <form class="availability-form" data-lesson-type-form>
                     <div class="availability-form-head">
                       <div><h2>Lesson types</h2><p class="helper-text">Create the coaching options customers can book, such as coachings, squad training, or specific clinics.</p></div>
@@ -127,7 +127,6 @@
                     </div>
                     <p class="form-message" data-lesson-type-message></p>
                   </form>
-                  <div class="availability-list compact-list" data-lesson-type-list></div>
                   <form class="availability-form" data-availability-form>
                     <div class="availability-form-head">
                       <div><h2>Lesson times</h2><p class="helper-text">Create open lesson slots or block out times Kim is unavailable.</p></div>
@@ -156,8 +155,45 @@
                     <button class="btn btn-primary" type="submit" data-save-availability>Save lesson time</button>
                     <p class="form-message" data-availability-message></p>
                   </form>
-                  <div class="availability-list" data-availability-list></div>
-                </section>
+                </div>
+
+                <div class="availability-saved-grid">
+                  <section class="availability-list compact-list">
+                    <div class="availability-list-head">
+                      <div>
+                        <h3>Saved lesson types</h3>
+                        <p class="helper-text" data-lesson-type-list-summary></p>
+                      </div>
+                      <label class="availability-page-size">Show
+                        <select data-lesson-type-page-size>
+                          <option value="5">5</option>
+                          <option value="10">10</option>
+                          <option value="15">15</option>
+                          <option value="25">25</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="availability-list-items" data-lesson-type-list></div>
+                  </section>
+
+                  <section class="availability-list">
+                    <div class="availability-list-head">
+                      <div>
+                        <h3>Saved lesson times</h3>
+                        <p class="helper-text" data-availability-list-summary></p>
+                      </div>
+                      <label class="availability-page-size">Show
+                        <select data-availability-page-size>
+                          <option value="5">5</option>
+                          <option value="10">10</option>
+                          <option value="15">15</option>
+                          <option value="25">25</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="availability-list-items" data-availability-list></div>
+                  </section>
+                </div>
               </div>
             </section>
 

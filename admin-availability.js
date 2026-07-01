@@ -2,16 +2,25 @@
   const admin = window.KimsAvailability;
   if (!admin?.formEl || !admin?.listEl) return;
   const { client, state, formEl, listEl } = admin;
+  const listSummaryEl = document.querySelector("[data-availability-list-summary]");
+  const pageSizeEl = document.querySelector("[data-availability-page-size]");
+  let availabilityPageSize = Number(pageSizeEl?.value || 5);
 
   function renderSlots() {
     if (!state.slots.length) {
       listEl.innerHTML = '<div class="empty-state">No lesson times have been created yet.</div>';
+      if (listSummaryEl) listSummaryEl.textContent = "Showing 0 of 0 lesson times.";
       return;
     }
 
     const lessonTypes = window.KimsLessonTypes || [];
     const coachingSettings = window.KimsCoachingSettings || { clubs: [], coaches: [] };
-    listEl.innerHTML = state.slots.map((slot) => {
+    const visibleSlots = state.slots.slice(0, availabilityPageSize);
+    if (listSummaryEl) {
+      listSummaryEl.textContent = `Showing 1 - ${visibleSlots.length} of ${state.slots.length} lesson time${state.slots.length === 1 ? "" : "s"}.`;
+    }
+
+    listEl.innerHTML = visibleSlots.map((slot) => {
       const statusClass = slot.is_available ? "available" : "blocked";
       const statusText = slot.is_available ? "Available" : "Blocked";
       const label = admin.escapeHtml(slot.recurrence_label || "");
@@ -155,6 +164,10 @@
 
   formEl.addEventListener("submit", saveAvailability);
   listEl.addEventListener("click", handleAction);
+  pageSizeEl?.addEventListener("change", () => {
+    availabilityPageSize = Number(pageSizeEl.value || 5);
+    renderSlots();
+  });
   if (admin.cancelEditEl) admin.cancelEditEl.addEventListener("click", admin.resetForm);
   if (admin.recurringEl) admin.recurringEl.addEventListener("change", admin.setRepeatControls);
   window.addEventListener("kims:lesson-types-ready", renderSlots);

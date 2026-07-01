@@ -35,6 +35,9 @@
 .settings-grid > [data-settings-panel][hidden] { display: none; }
 .admin-panel-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 1rem; align-items: start; }
 .admin-primary, .admin-secondary { display: grid; gap: 1rem; }
+.availability-admin-layout { display: grid; gap: 1rem; min-width: 0; }
+.availability-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.availability-saved-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 1rem; align-items: start; }
 .availability-form, .availability-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
 .availability-form { display: grid; gap: 1rem; padding: 1rem; }
 .availability-form h2, .availability-form p { margin: 0; }
@@ -51,6 +54,11 @@
 .lesson-settings-panel[open] summary { border-bottom: 1px solid var(--border); background: var(--surface-strong); }
 .lesson-settings-grid { padding: 0.85rem; grid-template-columns: 1fr; }
 .availability-list { display: grid; gap: 0.8rem; padding: 1rem; }
+.availability-list-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.availability-list-head h3, .availability-list-head p { margin: 0; }
+.availability-list-items { display: grid; gap: 0.8rem; }
+.availability-page-size { display: inline-flex; align-items: center; gap: 0.45rem; color: var(--muted); font-weight: 800; white-space: nowrap; }
+.availability-page-size select { min-width: 76px; padding: 0.45rem 0.65rem; }
 .availability-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.9rem; align-items: center; padding: 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .availability-row h3 { margin: 0.35rem 0 0; font-size: 1rem; }
 .availability-row p { margin: 0.25rem 0 0; color: var(--muted); }
@@ -111,5 +119,5 @@
 .inventory-action-list button { width: 100%; padding: 0.45rem 0.55rem; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
 .inventory-action-list button:hover { background: var(--surface-strong); }
 .empty-state { padding: 1rem; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); background: #fff; }
-@media (max-width: 980px) { .admin-panel-grid, .availability-row, .admin-stat-grid, .settings-grid, .inventory-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; } .availability-actions { justify-content: flex-start; } }
-@media (max-width: 760px) { .admin-tabs { margin-inline: -4%; border-radius: 0; border-left: 0; border-right: 0; } .admin-section-head, .admin-data-row, .inventory-toolbar-head { display: grid; } .admin-section-head .btn, .inventory-toolbar-head .btn { width: 100%; } .settings-grid, .availability-grid, .lesson-settings-panels, .inventory-review-controls, .inventory-filters, .inventory-form-section, .inventory-dashboard-grid { grid-template-columns: 1fr; } .settings-editor, .settings-list, .settings-panel-wide { grid-column: 1; } .availability-form-head { display: grid; } .availability-actions .btn { width: 100%; } .inventory-table-row { grid-template-columns: minmax(92px, 1.15fr) minmax(52px, 0.55fr) minmax(64px, 0.68fr) minmax(48px, 0.38fr) minmax(38px, 0.3fr) 34px; } .inventory-table-row span:nth-child(4), .inventory-table-row span:nth-child(6), .inventory-table-row span:nth-child(7) { display: none; } }
+@media (max-width: 980px) { .admin-panel-grid, .availability-row, .admin-stat-grid, .settings-grid, .availability-form-grid, .availability-saved-grid, .inventory-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; } .availability-actions { justify-content: flex-start; } }
+@media (max-width: 760px) { .admin-tabs { margin-inline: -4%; border-radius: 0; border-left: 0; border-right: 0; } .admin-section-head, .admin-data-row, .inventory-toolbar-head, .availability-list-head { display: grid; } .admin-section-head .btn, .inventory-toolbar-head .btn { width: 100%; } .settings-grid, .availability-grid, .lesson-settings-panels, .availability-form-grid, .availability-saved-grid, .inventory-review-controls, .inventory-filters, .inventory-form-section, .inventory-dashboard-grid { grid-template-columns: 1fr; } .settings-editor, .settings-list, .settings-panel-wide { grid-column: 1; } .availability-form-head { display: grid; } .availability-actions .btn { width: 100%; } .inventory-table-row { grid-template-columns: minmax(92px, 1.15fr) minmax(52px, 0.55fr) minmax(64px, 0.68fr) minmax(48px, 0.38fr) minmax(38px, 0.3fr) 34px; } .inventory-table-row span:nth-child(4), .inventory-table-row span:nth-child(6), .inventory-table-row span:nth-child(7) { display: none; } }
