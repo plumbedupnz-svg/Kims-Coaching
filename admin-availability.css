@@ -36,10 +36,10 @@
 .admin-panel-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr); gap: 1rem; align-items: start; }
 .admin-primary, .admin-secondary { display: grid; gap: 1rem; }
 .availability-admin-layout { display: grid; gap: 1rem; min-width: 0; }
-.availability-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
+.availability-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: stretch; }
 .availability-saved-grid { display: grid; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); gap: 1rem; align-items: start; }
 .availability-form, .availability-list { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
-.availability-form { display: grid; gap: 1rem; padding: 1rem; }
+.availability-form { display: grid; gap: 1rem; align-content: start; height: 100%; padding: 1rem; }
 .availability-form h2, .availability-form p { margin: 0; }
 .availability-form-head { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
 .availability-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; }
@@ -47,12 +47,13 @@
 .availability-wide { grid-column: 1 / -1; }
 .availability-repeat { grid-template-columns: minmax(0, 1fr) auto; align-items: center; min-height: 45px; padding: 0.6rem 0.7rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .availability-repeat input { width: 20px; height: 20px; margin: 0; }
-.lesson-settings-panels { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.85rem; align-items: start; }
+.lesson-settings-panels { display: grid; grid-template-columns: 1fr; gap: 0.85rem; align-items: start; }
 .lesson-settings-panel { min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: #fff; overflow: hidden; }
 .lesson-settings-panel summary { display: grid; gap: 0.15rem; padding: 0.8rem 0.9rem; color: var(--text); font-weight: 900; cursor: pointer; list-style-position: inside; }
 .lesson-settings-panel summary small { color: var(--muted); font-size: 0.78rem; font-weight: 700; line-height: 1.35; }
 .lesson-settings-panel[open] summary { border-bottom: 1px solid var(--border); background: var(--surface-strong); }
-.lesson-settings-grid { padding: 0.85rem; grid-template-columns: 1fr; }
+.lesson-settings-grid { padding: 0.85rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.lesson-settings-grid .availability-repeat { grid-column: 1 / -1; }
 .availability-list { display: grid; gap: 0.8rem; padding: 1rem; }
 .availability-list-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
 .availability-list-head h3, .availability-list-head p { margin: 0; }
@@ -63,7 +64,7 @@
 .availability-row h3 { margin: 0.35rem 0 0; font-size: 1rem; }
 .availability-row p { margin: 0.25rem 0 0; color: var(--muted); }
 .availability-row-main { min-width: 0; }
-.availability-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.45rem; }
+.availability-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.45rem; margin-top: auto; }
 .availability-actions .btn { padding: 0.55rem 0.75rem; }
 .status-pill { display: inline-flex; width: fit-content; align-items: center; border-radius: 999px; padding: 0.25rem 0.55rem; font-size: 0.76rem; font-weight: 800; }
 .status-pill.available { color: #177a3a; background: #e7f7ed; }
