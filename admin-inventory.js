@@ -310,6 +310,7 @@
       const isActive = button.dataset.inventoryTab === tabName;
       button.classList.toggle("active", isActive);
       button.setAttribute("aria-selected", String(isActive));
+      button.setAttribute("aria-expanded", String(isActive));
     });
 
     inventoryPanelEls.forEach((panel) => {
@@ -1457,7 +1458,11 @@
     button.addEventListener("click", () => showProductForm());
   });
   inventoryTabEls.forEach((button) => {
-    button.addEventListener("click", () => setInventoryTab(button.dataset.inventoryTab));
+    button.addEventListener("click", () => {
+      const selectedTab = button.dataset.inventoryTab;
+      const shouldCollapse = button.classList.contains("active") && selectedTab !== "dashboard";
+      setInventoryTab(shouldCollapse ? "dashboard" : selectedTab);
+    });
   });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
