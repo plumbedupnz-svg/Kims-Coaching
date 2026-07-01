@@ -1482,7 +1482,7 @@ function renderPlayerFields(players = []) {
       const label = player.name?.trim() || `Player ${index + 1}`;
       const isActive = index === activeProfilePlayerIndex;
       return `
-        <button type="button" class="player-tab${isActive ? " active" : ""}" data-player-tab="${index}" aria-selected="${isActive}">
+        <button type="button" class="player-tab${isActive ? " active" : ""}" data-player-tab="${index}" aria-selected="${isActive}" aria-expanded="${isActive}" aria-controls="profile-player-${index}">
           <span>Player ${index + 1}</span>
           <strong>${escapeAttribute(label)}</strong>
         </button>`;
@@ -1498,7 +1498,7 @@ function renderPlayerFields(players = []) {
       ].join("");
 
       return `
-        <article class="player-card" ${index === activeProfilePlayerIndex ? "" : "hidden"}>
+        <article class="player-card" id="profile-player-${index}" ${index === activeProfilePlayerIndex ? "" : "hidden"}>
           <h4>Player ${index + 1}</h4>
           <div class="player-grid">
             <label>
@@ -2314,7 +2314,8 @@ if (playersListEl) playersListEl.addEventListener("click", (event) => {
   const players = formData ? getPlayersFromForm(formData) : getProfilePlayers(currentProfile);
 
   if (tab) {
-    activeProfilePlayerIndex = Number(tab.dataset.playerTab || 0);
+    const selectedIndex = Number(tab.dataset.playerTab || 0);
+    activeProfilePlayerIndex = activeProfilePlayerIndex === selectedIndex ? -1 : selectedIndex;
     renderPlayerFields(players);
     return;
   }
