@@ -64,12 +64,19 @@
 .inventory-row-main { display: grid; gap: 0.25rem; min-width: 0; }
 .inventory-review-row { align-items: start; }
 .inventory-review-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin-top: 0.55rem; }
-.inventory-workspace { display: grid; gap: 1rem; }
-.inventory-subtabs { display: flex; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
-.inventory-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.inventory-workspace, .junior-workspace { display: grid; gap: 1rem; min-width: 0; }
+.inventory-subtabs, .junior-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
+.inventory-subtabs button, .junior-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .inventory-subtabs button.active,
-.inventory-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
-.inventory-tab-panel { display: grid; gap: 1rem; min-width: 0; }
+.inventory-subtabs button:hover,
+.junior-subtabs button.active,
+.junior-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
+.inventory-tab-panel, .junior-tab-panel { display: grid; gap: 1rem; min-width: 0; }
+.junior-dashboard-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0.75rem; }
+.junior-dashboard-card { display: grid; gap: 0.35rem; min-height: 108px; padding: 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.junior-dashboard-card:hover { background: var(--surface-strong); }
+.junior-dashboard-card strong { font-size: 1rem; line-height: 1.1; }
+.junior-dashboard-card span { color: var(--muted); font-weight: 700; line-height: 1.35; }
 .inventory-stock-panel { width: 100%; min-width: 0; }
 .inventory-wide-form { max-width: 920px; }
 .inventory-stacked-panels { display: grid; gap: 1rem; }
@@ -107,5 +114,5 @@
 .inventory-action-list button { width: 100%; padding: 0.45rem 0.55rem; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
 .inventory-action-list button:hover { background: var(--surface-strong); }
 .empty-state { padding: 1rem; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); background: #fff; }
-@media (max-width: 980px) { .admin-panel-grid, .availability-row, .admin-stat-grid, .settings-grid, .inventory-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; } .availability-actions { justify-content: flex-start; } }
-@media (max-width: 760px) { .admin-tabs { margin-inline: -4%; border-radius: 0; border-left: 0; border-right: 0; } .admin-section-head, .admin-data-row, .inventory-toolbar-head { display: grid; } .admin-section-head .btn, .inventory-toolbar-head .btn { width: 100%; } .settings-grid, .availability-grid, .lesson-settings-panels, .inventory-review-controls, .inventory-filters, .inventory-form-section, .inventory-dashboard-grid { grid-template-columns: 1fr; } .settings-editor, .settings-list, .settings-panel-wide { grid-column: 1; } .availability-form-head { display: grid; } .availability-actions .btn { width: 100%; } .inventory-table-row { grid-template-columns: minmax(92px, 1.15fr) minmax(52px, 0.55fr) minmax(64px, 0.68fr) minmax(48px, 0.38fr) minmax(38px, 0.3fr) 34px; } .inventory-table-row span:nth-child(4), .inventory-table-row span:nth-child(6), .inventory-table-row span:nth-child(7) { display: none; } }
+@media (max-width: 980px) { .admin-panel-grid, .availability-row, .admin-stat-grid, .settings-grid, .inventory-dashboard-grid, .junior-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; } .availability-actions { justify-content: flex-start; } }
+@media (max-width: 760px) { .admin-tabs { margin-inline: -4%; border-radius: 0; border-left: 0; border-right: 0; } .admin-section-head, .admin-data-row, .inventory-toolbar-head { display: grid; } .admin-section-head .btn, .inventory-toolbar-head .btn { width: 100%; } .settings-grid, .availability-grid, .lesson-settings-panels, .inventory-review-controls, .inventory-filters, .inventory-form-section, .inventory-dashboard-grid, .junior-dashboard-grid { grid-template-columns: 1fr; } .settings-editor, .settings-list, .settings-panel-wide { grid-column: 1; } .availability-form-head { display: grid; } .availability-actions .btn { width: 100%; } .inventory-table-row { grid-template-columns: minmax(92px, 1.15fr) minmax(52px, 0.55fr) minmax(64px, 0.68fr) minmax(48px, 0.38fr) minmax(38px, 0.3fr) 34px; } .inventory-table-row span:nth-child(4), .inventory-table-row span:nth-child(6), .inventory-table-row span:nth-child(7) { display: none; } }

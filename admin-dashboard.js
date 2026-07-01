@@ -1,7 +1,7 @@
 (function () {
-  const tabLinks = document.querySelectorAll("[data-admin-tab]");
+  let tabLinks = document.querySelectorAll("[data-admin-tab]");
   const tabLinkButtons = document.querySelectorAll("[data-admin-tab-link]");
-  const sections = document.querySelectorAll("[data-admin-section]");
+  let sections = document.querySelectorAll("[data-admin-section]");
   const statsEl = document.querySelector("[data-admin-stats]");
   const bookingsPreviewEl = document.querySelector("[data-admin-bookings-preview]");
   const bookingsListEl = document.querySelector("[data-admin-bookings-list]");
@@ -11,6 +11,118 @@
   const client = settings.url && settings.anonKey && window.supabase
     ? window.supabase.createClient(settings.url, settings.anonKey)
     : null;
+  const adminTabAliases = {
+    "junior-programmes": "junior-coaching",
+    "junior-groups": "junior-coaching",
+    "group-calendar": "junior-coaching",
+    "session-plans": "junior-coaching",
+    "junior-payments": "junior-coaching"
+  };
+  const juniorPanelMap = {
+    "junior-programmes": "programmes",
+    "junior-groups": "groups",
+    "group-calendar": "calendar",
+    "session-plans": "session-plans",
+    "junior-payments": "payments"
+  };
+  const juniorHashToTab = {
+    "junior-coaching": "dashboard",
+    ...juniorPanelMap
+  };
+  const juniorStorageKey = "kims_admin_junior_tab";
+
+  function setupJuniorWorkspace() {
+    const adminNav = document.querySelector(".admin-tabs");
+    const firstJuniorSection = document.querySelector('[data-admin-section="junior-programmes"]');
+    if (!adminNav || !firstJuniorSection || document.querySelector('[data-admin-tab="junior-coaching"]')) return;
+
+    Object.keys(juniorPanelMap).forEach((tabName) => {
+      const navLink = adminNav.querySelector(`[data-admin-tab="${tabName}"]`);
+      if (navLink) navLink.remove();
+    });
+
+    const juniorLink = document.createElement("a");
+    juniorLink.href = "#junior-coaching";
+    juniorLink.dataset.adminTab = "junior-coaching";
+    juniorLink.textContent = "Junior Coaching";
+    const settingsLink = adminNav.querySelector('[data-admin-tab="settings"]');
+    adminNav.insertBefore(juniorLink, settingsLink || null);
+
+    const workspace = document.createElement("section");
+    workspace.className = "admin-section junior-workspace";
+    workspace.dataset.adminSection = "junior-coaching";
+    workspace.hidden = true;
+    workspace.innerHTML = `
+      <div class="admin-section-head">
+        <div>
+          <p class="eyebrow">Junior coaching</p>
+          <h2>Junior Coaching</h2>
+          <p class="helper-text">Manage junior programmes, group calendars, session plans, and overdue payments from one place.</p>
+        </div>
+      </div>
+      <nav class="junior-subtabs" aria-label="Junior Coaching sections">
+        <button type="button" class="active" data-junior-tab="dashboard">Junior Dashboard</button>
+        <button type="button" data-junior-tab="programmes">Junior Programmes</button>
+        <button type="button" data-junior-tab="groups">Junior Groups</button>
+        <button type="button" data-junior-tab="calendar">Group Calendar</button>
+        <button type="button" data-junior-tab="session-plans">Session Plans</button>
+        <button type="button" data-junior-tab="payments">Payments / Overdue</button>
+      </nav>
+      <section class="junior-tab-panel" data-junior-panel="dashboard">
+        <div class="junior-dashboard-grid">
+          <button type="button" class="junior-dashboard-card" data-junior-tab-link="programmes"><strong>Programmes</strong><span>Create reusable coaching programmes.</span></button>
+          <button type="button" class="junior-dashboard-card" data-junior-tab-link="groups"><strong>Groups</strong><span>Publish groups and manage players.</span></button>
+          <button type="button" class="junior-dashboard-card" data-junior-tab-link="calendar"><strong>Calendar</strong><span>Review junior sessions and coaching dates.</span></button>
+          <button type="button" class="junior-dashboard-card" data-junior-tab-link="session-plans"><strong>Session Plans</strong><span>Prepare drills, notes and WhatsApp updates.</span></button>
+          <button type="button" class="junior-dashboard-card" data-junior-tab-link="payments"><strong>Payments</strong><span>Check paid places and overdue balances.</span></button>
+        </div>
+      </section>
+    `;
+    firstJuniorSection.parentNode.insertBefore(workspace, firstJuniorSection);
+
+    Object.entries(juniorPanelMap).forEach(([sectionName, panelName]) => {
+      const section = document.querySelector(`[data-admin-section="${sectionName}"]`);
+      if (!section) return;
+      section.classList.add("junior-tab-panel");
+      section.dataset.adminSection = "junior-coaching";
+      section.dataset.juniorPanel = panelName;
+      section.hidden = true;
+    });
+
+    workspace.querySelectorAll("[data-junior-tab]").forEach((tab) => {
+      tab.addEventListener("click", () => setActiveJuniorTab(tab.dataset.juniorTab));
+    });
+    workspace.querySelectorAll("[data-junior-tab-link]").forEach((tabLink) => {
+      tabLink.addEventListener("click", () => setActiveJuniorTab(tabLink.dataset.juniorTabLink));
+    });
+
+    tabLinks = document.querySelectorAll("[data-admin-tab]");
+    sections = document.querySelectorAll("[data-admin-section]");
+  }
+
+  function setActiveJuniorTab(tabName) {
+    const tabs = Array.from(document.querySelectorAll("[data-junior-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-junior-panel]"));
+    const activeTab = tabs.some((tab) => tab.dataset.juniorTab === tabName) ? tabName : "dashboard";
+
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.juniorTab === activeTab;
+      tab.classList.toggle("active", isActive);
+      tab.setAttribute("aria-current", isActive ? "page" : "false");
+    });
+
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.juniorPanel !== activeTab;
+    });
+
+    try {
+      sessionStorage.setItem(juniorStorageKey, activeTab);
+    } catch (error) {
+      // Non-critical: private browsing can block storage.
+    }
+  }
+
+  setupJuniorWorkspace();
 
   function escapeHtml(value = "") {
     return String(value)
@@ -32,7 +144,8 @@
   }
 
   function setActiveTab(tabName) {
-    const activeTab = tabName || "dashboard";
+    const requestedTab = tabName || "dashboard";
+    const activeTab = adminTabAliases[requestedTab] || requestedTab;
     sections.forEach((section) => {
       section.hidden = section.dataset.adminSection !== activeTab;
     });
@@ -41,8 +154,15 @@
       link.classList.toggle("active", isActive);
       link.setAttribute("aria-current", isActive ? "page" : "false");
     });
-    if (window.location.hash.replace("#", "") !== activeTab) {
-      history.replaceState(null, "", `#${activeTab}`);
+    if (window.location.hash.replace("#", "") !== requestedTab) {
+      history.replaceState(null, "", `#${requestedTab}`);
+    }
+    window.dispatchEvent(new CustomEvent("kims:admin-tab-changed", {
+      detail: { activeTab, requestedTab }
+    }));
+    if (activeTab === "junior-coaching") {
+      const storedTab = sessionStorage.getItem(juniorStorageKey);
+      setActiveJuniorTab(juniorHashToTab[requestedTab] || storedTab || "dashboard");
     }
   }
 
