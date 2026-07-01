@@ -785,13 +785,35 @@
   function openWaitlistForm() {
     if (!waitlistFormEl) return;
     waitlistFormEl.hidden = false;
-    if (waitlistOpenEl) waitlistOpenEl.hidden = true;
+    if (waitlistOpenEl) {
+      waitlistOpenEl.setAttribute("aria-expanded", "true");
+      waitlistOpenEl.textContent = "Hide Request Form";
+    }
     prefillWaitlistForm();
     const focusTarget = waitlistPlayerSelectEl && !waitlistPlayerSelectEl.closest("[hidden]")
       ? waitlistPlayerSelectEl
       : waitlistFormEl.elements.player_name;
     focusTarget?.focus?.({ preventScroll: true });
     waitlistFormEl.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function closeWaitlistForm() {
+    if (!waitlistFormEl) return;
+    waitlistFormEl.hidden = true;
+    if (waitlistOpenEl) {
+      waitlistOpenEl.setAttribute("aria-expanded", "false");
+      waitlistOpenEl.textContent = "Request a Time";
+      waitlistOpenEl.focus?.({ preventScroll: true });
+    }
+  }
+
+  function toggleWaitlistForm() {
+    if (!waitlistFormEl) return;
+    if (waitlistFormEl.hidden) {
+      openWaitlistForm();
+    } else {
+      closeWaitlistForm();
+    }
   }
 
   function applyWaitlistPlayerSelection() {
@@ -922,8 +944,7 @@
       waitlistFormEl.reset();
       populateWaitlistSelects();
       prefillWaitlistForm();
-      if (waitlistOpenEl) waitlistOpenEl.hidden = false;
-      waitlistFormEl.hidden = true;
+      closeWaitlistForm();
       setWaitlistStatus("Thanks, your request has been received. Kim will be in touch soon.", "success");
     } catch (error) {
       console.error("Could not submit waitlist request", error);
@@ -1361,7 +1382,7 @@
   }));
 
   if (bookingFormEl) bookingFormEl.addEventListener("submit", createBooking);
-  if (waitlistOpenEl) waitlistOpenEl.addEventListener("click", openWaitlistForm);
+  if (waitlistOpenEl) waitlistOpenEl.addEventListener("click", toggleWaitlistForm);
   if (waitlistPlayerSelectEl) waitlistPlayerSelectEl.addEventListener("change", applyWaitlistPlayerSelection);
   if (waitlistFormEl) waitlistFormEl.addEventListener("submit", submitWaitlistRequest);
 

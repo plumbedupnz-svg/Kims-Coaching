@@ -254,8 +254,8 @@
           </div>
           <div class="rich-copy waitlist-request-panel">
             <p>Tell Kim what you are looking for and she will be in touch when a suitable coaching option is available.</p>
-            <button class="btn btn-primary waitlist-open-button" type="button" data-waitlist-open>Request a Time</button>
-            <form class="booking-form waitlist-form" data-waitlist-form hidden>
+            <button class="btn btn-primary waitlist-open-button" type="button" data-waitlist-open aria-expanded="false" aria-controls="waitlist-request-form">Request a Time</button>
+            <form class="booking-form waitlist-form" id="waitlist-request-form" data-waitlist-form hidden>
               <label data-waitlist-player-row hidden>
                 Select saved player
                 <select name="saved_player" data-waitlist-player-select>
