@@ -6,6 +6,8 @@
 
   const lessonTypeFormEl = document.querySelector("[data-lesson-type-form]");
   const lessonTypeListEl = document.querySelector("[data-lesson-type-list]");
+  const lessonTypeListSummaryEl = document.querySelector("[data-lesson-type-list-summary]");
+  const lessonTypePageSizeEl = document.querySelector("[data-lesson-type-page-size]");
   const lessonTypeMessageEl = document.querySelector("[data-lesson-type-message]");
   const clearLessonTypeEl = document.querySelector("[data-clear-lesson-type]");
   const availabilityLessonTypeEl = document.querySelector("[data-availability-lesson-type]");
@@ -25,6 +27,7 @@
   const lessonRulesMigration = "supabase/migrations/20260626060000_lesson_type_age_level_rules.sql";
   let lessonTypes = [];
   let bundles = [];
+  let lessonTypePageSize = Number(lessonTypePageSizeEl?.value || 5);
   window.KimsLessonTypes = window.KimsLessonTypes || [];
 
   function escapeHtml(value = "") {
@@ -85,10 +88,16 @@
     if (!lessonTypeListEl) return;
     if (!lessonTypes.length) {
       lessonTypeListEl.innerHTML = '<div class="empty-state">No lesson types yet.</div>';
+      if (lessonTypeListSummaryEl) lessonTypeListSummaryEl.textContent = "Showing 0 of 0 lesson types.";
       return;
     }
 
-    lessonTypeListEl.innerHTML = lessonTypes.map((lesson) => `
+    const visibleLessonTypes = lessonTypes.slice(0, lessonTypePageSize);
+    if (lessonTypeListSummaryEl) {
+      lessonTypeListSummaryEl.textContent = `Showing 1 - ${visibleLessonTypes.length} of ${lessonTypes.length} lesson type${lessonTypes.length === 1 ? "" : "s"}.`;
+    }
+
+    lessonTypeListEl.innerHTML = visibleLessonTypes.map((lesson) => `
       <article class="availability-row">
         <div class="availability-row-main">
           <span class="status-pill ${lesson.is_active === false ? "blocked" : "available"}">${lesson.is_active === false ? "Inactive" : "Active"}</span>
@@ -403,6 +412,10 @@
   lessonTypeFormEl?.elements.programme_type?.addEventListener("change", syncLessonSettingsPanels);
   clearLessonTypeEl?.addEventListener("click", resetLessonTypeForm);
   lessonTypeListEl?.addEventListener("click", handleLessonTypeAction);
+  lessonTypePageSizeEl?.addEventListener("change", () => {
+    lessonTypePageSize = Number(lessonTypePageSizeEl.value || 5);
+    renderLessonTypes();
+  });
   quickLessonTypeAddEl?.addEventListener("click", addQuickLessonType);
   quickLessonTypeNameEl?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
