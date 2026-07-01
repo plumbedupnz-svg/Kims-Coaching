@@ -69,12 +69,8 @@
         <button type="button" data-junior-tab="payments">Payments / Overdue</button>
       </nav>
       <section class="junior-tab-panel" data-junior-panel="dashboard">
-        <div class="junior-dashboard-grid">
-          <button type="button" class="junior-dashboard-card" data-junior-tab-link="programmes"><strong>Programmes</strong><span>Create reusable coaching programmes.</span></button>
-          <button type="button" class="junior-dashboard-card" data-junior-tab-link="groups"><strong>Groups</strong><span>Publish groups and manage players.</span></button>
-          <button type="button" class="junior-dashboard-card" data-junior-tab-link="calendar"><strong>Calendar</strong><span>Review junior sessions and coaching dates.</span></button>
-          <button type="button" class="junior-dashboard-card" data-junior-tab-link="session-plans"><strong>Session Plans</strong><span>Prepare drills, notes and WhatsApp updates.</span></button>
-          <button type="button" class="junior-dashboard-card" data-junior-tab-link="payments"><strong>Payments</strong><span>Check paid places and overdue balances.</span></button>
+        <div class="junior-dashboard-intro">
+          <p>Choose a Junior Coaching section above to manage programmes, groups, calendars, session plans, or payments.</p>
         </div>
       </section>
     `;
@@ -90,10 +86,11 @@
     });
 
     workspace.querySelectorAll("[data-junior-tab]").forEach((tab) => {
-      tab.addEventListener("click", () => setActiveJuniorTab(tab.dataset.juniorTab));
-    });
-    workspace.querySelectorAll("[data-junior-tab-link]").forEach((tabLink) => {
-      tabLink.addEventListener("click", () => setActiveJuniorTab(tabLink.dataset.juniorTabLink));
+      tab.addEventListener("click", () => {
+        const selectedTab = tab.dataset.juniorTab;
+        const shouldCollapse = tab.classList.contains("active") && selectedTab !== "dashboard";
+        setActiveJuniorTab(shouldCollapse ? "dashboard" : selectedTab);
+      });
     });
 
     tabLinks = document.querySelectorAll("[data-admin-tab]");
@@ -108,7 +105,12 @@
     tabs.forEach((tab) => {
       const isActive = tab.dataset.juniorTab === activeTab;
       tab.classList.toggle("active", isActive);
-      tab.setAttribute("aria-current", isActive ? "page" : "false");
+      tab.setAttribute("aria-expanded", isActive ? "true" : "false");
+      if (isActive) {
+        tab.setAttribute("aria-current", "page");
+      } else {
+        tab.removeAttribute("aria-current");
+      }
     });
 
     panels.forEach((panel) => {
