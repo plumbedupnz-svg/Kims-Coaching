@@ -17,6 +17,8 @@
     "lesson-types": "lessons",
     "lesson-times": "lessons",
     "lesson-bookings": "lessons",
+    "shop-orders": "products",
+    "product-orders": "products",
     "junior-programmes": "junior-coaching",
     "junior-groups": "junior-coaching",
     "group-calendar": "junior-coaching",
@@ -41,6 +43,20 @@
     bookings: "lesson-bookings"
   };
   const lessonsStorageKey = "kims_admin_lessons_tab";
+  const productsPanelMap = {
+    "shop-orders": "orders",
+    "product-orders": "orders"
+  };
+  const productsHashToTab = {
+    products: "catalog",
+    ...productsPanelMap
+  };
+  const productsTabToHash = {
+    overview: "products",
+    catalog: "products",
+    orders: "shop-orders"
+  };
+  const productsStorageKey = "kims_admin_products_tab";
   const juniorPanelMap = {
     "junior-programmes": "programmes",
     "junior-groups": "groups",
@@ -191,6 +207,48 @@
     });
   });
 
+  function setActiveProductsTab(tabName, options = {}) {
+    const tabs = Array.from(document.querySelectorAll("[data-products-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-products-panel]"));
+    const activeTab = tabs.some((tab) => tab.dataset.productsTab === tabName) ? tabName : "overview";
+
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.productsTab === activeTab;
+      tab.classList.toggle("active", isActive);
+      tab.setAttribute("aria-expanded", isActive ? "true" : "false");
+      if (isActive) {
+        tab.setAttribute("aria-current", "page");
+      } else {
+        tab.removeAttribute("aria-current");
+      }
+    });
+
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.productsPanel !== activeTab;
+    });
+
+    try {
+      sessionStorage.setItem(productsStorageKey, activeTab);
+    } catch (error) {
+      // Non-critical: private browsing can block storage.
+    }
+
+    if (options.updateHash) {
+      const nextHash = productsTabToHash[activeTab] || "products";
+      if (window.location.hash.replace("#", "") !== nextHash) {
+        history.replaceState(null, "", `#${nextHash}`);
+      }
+    }
+  }
+
+  document.querySelectorAll("[data-products-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const selectedTab = tab.dataset.productsTab;
+      const shouldCollapse = tab.classList.contains("active") && selectedTab !== "overview";
+      setActiveProductsTab(shouldCollapse ? "overview" : selectedTab, { updateHash: true });
+    });
+  });
+
   function escapeHtml(value = "") {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -234,6 +292,11 @@
     if (activeTab === "lessons") {
       const storedTab = sessionStorage.getItem(lessonsStorageKey);
       setActiveLessonsTab(lessonsHashToTab[requestedTab] || storedTab || "dashboard");
+    }
+    if (activeTab === "products") {
+      const storedTab = sessionStorage.getItem(productsStorageKey);
+      const requestedProductTab = productsHashToTab[requestedTab];
+      setActiveProductsTab(requestedProductTab || (requestedTab === "products" ? "catalog" : storedTab) || "catalog");
     }
   }
 

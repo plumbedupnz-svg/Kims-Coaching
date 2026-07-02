@@ -34,6 +34,7 @@
   }
 
   function formatAddress(address = {}) {
+    if (typeof address === "string") return address;
     return [
       address.address_line1,
       address.address_line2,
@@ -44,30 +45,89 @@
     ].filter(Boolean).join(", ");
   }
 
+  function statusClass(value = "") {
+    const normalized = String(value || "").toLowerCase();
+    if (["paid", "complete", "completed", "fulfilled"].includes(normalized)) return "available";
+    if (["pending", "pending_payment", "processing"].includes(normalized)) return "warning";
+    if (["cancelled", "canceled", "failed", "refunded"].includes(normalized)) return "blocked";
+    return "";
+  }
+
+  function formatStatus(value = "") {
+    return String(value || "pending")
+      .replace(/_/g, " ")
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+  }
+
+  function formatOrderId(id = "") {
+    return id ? `#${String(id).slice(0, 8)}` : "";
+  }
+
+  function formatItems(items = []) {
+    if (!Array.isArray(items) || !items.length) return "No items";
+    return items.map((item) => {
+      const name = item.name || item.product_name || item.title || "Product";
+      const quantity = Number(item.quantity || item.qty || 1);
+      return `${name} x ${quantity}`;
+    }).join(", ");
+  }
+
   function renderOrders(orders = []) {
     if (!orders.length) {
-      listEl.innerHTML = '<p class="helper-text">No shop orders yet.</p>';
+      listEl.innerHTML = '<p class="empty-state">No shop orders yet.</p>';
       return;
     }
-    listEl.innerHTML = orders.map((order) => {
+    const rows = orders.map((order) => {
       const items = Array.isArray(order.items) ? order.items : [];
+      const customerName = order.customer_name || "Shop customer";
+      const customerPhone = order.customer_phone || order.mobile || "";
+      const address = formatAddress(order.delivery_address || {});
+      const paymentStatus = order.payment_status || "pending_payment";
+      const orderStatus = order.order_status || "pending";
+      const total = order.total_amount ?? order.total;
       return `
-        <article class="admin-data-row">
-          <div>
-            <strong>${escapeHtml(order.customer_name || "Shop customer")}</strong>
-            <p>${escapeHtml(order.customer_email || "")}${order.customer_phone || order.mobile ? ` · ${escapeHtml(order.customer_phone || order.mobile)}` : ""}</p>
-            <p>${escapeHtml(fulfilmentLabel(order.fulfilment_method))} · Shipping ${money(order.shipping_amount)} · Total ${money(order.total_amount ?? order.total)}</p>
-            ${formatAddress(order.delivery_address || {}) ? `<p>${escapeHtml(formatAddress(order.delivery_address || {}))}</p>` : ""}
-            ${items.length ? `<p>${escapeHtml(items.map((item) => `${item.name || "Product"} x ${item.quantity || 1}`).join(", "))}</p>` : ""}
-            <p class="owner-meta">${escapeHtml(formatDate(order.created_at))}</p>
-          </div>
-          <div class="availability-actions">
-            <span class="status-pill ${order.payment_status === "paid" || order.order_status === "paid" ? "available" : "blocked"}">${escapeHtml(order.payment_status || "pending")}</span>
-            <span class="status-pill">${escapeHtml(order.order_status || "pending_payment")}</span>
-          </div>
-        </article>
+        <div class="shop-orders-table-row" role="row">
+          <span>
+            <strong>${escapeHtml(formatDate(order.created_at) || "No date")}</strong>
+            <small>${escapeHtml(formatOrderId(order.id))}</small>
+          </span>
+          <span>
+            <strong>${escapeHtml(customerName)}</strong>
+            <small>${escapeHtml([order.customer_email, customerPhone].filter(Boolean).join(" · ") || "No contact details")}</small>
+          </span>
+          <span>
+            <strong>${escapeHtml(fulfilmentLabel(order.fulfilment_method))}</strong>
+            <small>${escapeHtml(address || "No address")}</small>
+          </span>
+          <span>
+            <strong>${escapeHtml(formatItems(items))}</strong>
+          </span>
+          <span>
+            <strong>${money(total)}</strong>
+            <small>Shipping ${money(order.shipping_amount)}</small>
+          </span>
+          <span>
+            <span class="status-pill ${statusClass(paymentStatus)}">${escapeHtml(formatStatus(paymentStatus))}</span>
+          </span>
+          <span>
+            <span class="status-pill ${statusClass(orderStatus)}">${escapeHtml(formatStatus(orderStatus))}</span>
+          </span>
+        </div>
       `;
     }).join("");
+
+    listEl.innerHTML = `
+      <div class="shop-orders-table-row shop-orders-table-head" role="row">
+        <span>Date</span>
+        <span>Customer</span>
+        <span>Fulfilment</span>
+        <span>Items</span>
+        <span>Total</span>
+        <span>Payment</span>
+        <span>Status</span>
+      </div>
+      ${rows}
+    `;
   }
 
   async function loadOrders() {
