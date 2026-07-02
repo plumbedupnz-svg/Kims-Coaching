@@ -21,6 +21,19 @@
 .junior-member-list { display: grid; gap: 0.55rem; margin-top: 0.7rem; }
 .junior-member-row { cursor: grab; }
 .junior-member-row.dragging { opacity: 0.45; cursor: grabbing; }
+.junior-calendar-group { display: grid; gap: 0; padding: 0; overflow: hidden; }
+.junior-calendar-group-toggle { display: flex; align-items: center; justify-content: space-between; gap: 1rem; width: 100%; padding: 0.9rem; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.junior-calendar-group-toggle > div { display: grid; gap: 0.18rem; min-width: 0; }
+.junior-calendar-group-toggle strong,
+.junior-calendar-group-toggle p { margin: 0; }
+.junior-calendar-toggle-label { flex: 0 0 auto; color: var(--accent); font-weight: 900; white-space: nowrap; }
+.junior-calendar-toggle-label::after { content: " +"; }
+.junior-calendar-group.is-expanded .junior-calendar-toggle-label::after { content: " -"; }
+.junior-calendar-sessions { display: grid; gap: 0.55rem; padding: 0 0.9rem 0.9rem; }
+.junior-calendar-session { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.65rem 0.75rem; border: 1px solid var(--border); border-radius: 9px; background: #fff; }
+.junior-calendar-session strong,
+.junior-calendar-session p { margin: 0; }
+.junior-calendar-session p { color: var(--muted); }
 .settings-help-box { padding: 0.85rem; border: 1px solid rgba(39, 173, 255, 0.22); border-radius: 10px; background: #f4faff; color: var(--text); font-weight: 650; line-height: 1.45; }
 .advanced-settings-notes { padding: 0.75rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .advanced-settings-notes summary { cursor: pointer; color: var(--text); font-weight: 800; }
