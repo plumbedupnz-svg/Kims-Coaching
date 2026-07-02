@@ -158,6 +158,10 @@
     return sendEmail("junior_group_customer_confirmation", payload);
   }
 
+  function sendJuniorGroupAssignmentNotification(payload) {
+    return sendEmail("junior_group_assignment_notification", payload);
+  }
+
   function sendJuniorGroupSessionPlan(payload) {
     return sendEmail("junior_group_session_plan", payload);
   }
@@ -182,6 +186,7 @@
     sendJuniorGroupAdminNotification,
     sendJuniorGroupPaymentRequest,
     sendJuniorGroupCustomerConfirmation,
+    sendJuniorGroupAssignmentNotification,
     sendJuniorGroupSessionPlan,
     generateICSInvite,
     generateBookingICS: generateICSInvite

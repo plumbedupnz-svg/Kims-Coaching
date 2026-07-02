@@ -135,6 +135,33 @@
   gap: 1rem;
 }
 
+.booking-mode-tabs {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.45rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+.booking-mode-tabs button {
+  flex: 1 1 0;
+  min-height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 850;
+}
+
+.booking-mode-tabs button.active,
+.booking-mode-tabs button:hover {
+  background: var(--primary);
+  color: var(--text);
+}
+
 .booking-choice-card,
 .junior-programme-card {
   display: grid;
@@ -193,6 +220,7 @@
 
 @media (max-width: 820px) {
   .booking-choice-grid,
+  .booking-mode-tabs,
   .junior-group-layout,
   .junior-group-grid,
   .junior-member-row {

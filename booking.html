@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="booking-calendar.css" />
+    <link rel="stylesheet" href="booking-calendar.css?v=20260702-adult-junior-split" />
     <link rel="stylesheet" href="booking-compact.css" />
   </head>
   <body>
@@ -46,8 +46,8 @@
           <h1>Book a coaching session with Kim.</h1>
           <p>Choose an available coaching time opened by Kim, confirm player details, and keep your booking in My Account.</p>
           <div class="booking-hero-actions">
-            <a class="btn btn-primary" href="#calendar">View Available Times</a>
-            <a class="btn btn-secondary" href="#junior-group-coaching">Junior Group Coaching</a>
+            <a class="btn btn-primary" href="#calendar" data-booking-mode-link="adult">Adult Coaching</a>
+            <a class="btn btn-secondary" href="#junior-group-coaching" data-booking-mode-link="junior">Junior Group Coaching</a>
             <a class="btn btn-secondary" href="#waitlist">Join Waitlist</a>
           </div>
         </div>
@@ -55,27 +55,19 @@
 
       <section class="section alt" id="coaching-options">
         <div class="container">
-          <div class="booking-choice-grid">
-            <a class="booking-choice-card" href="#calendar">
-              <span class="eyebrow">Private Lessons</span>
-              <strong>Book a private coaching time</strong>
-              <p>Choose an open one-to-one coaching slot and confirm the player details.</p>
-            </a>
-            <a class="booking-choice-card" href="#junior-group-coaching">
-              <span class="eyebrow">Junior Group Coaching</span>
-              <strong>Join a junior programme</strong>
-              <p>Pick an active group, select a player, and pay online before the place is confirmed.</p>
-            </a>
+          <div class="booking-mode-tabs" role="tablist" aria-label="Choose coaching type">
+            <button class="active" type="button" role="tab" aria-selected="true" data-booking-mode-tab="adult">Adult Coaching</button>
+            <button type="button" role="tab" aria-selected="false" data-booking-mode-tab="junior">Junior Group Coaching</button>
           </div>
         </div>
       </section>
 
-      <section class="section" id="junior-group-coaching">
+      <section class="section" id="junior-group-coaching" data-booking-mode-panel="junior" hidden>
         <div class="container">
           <div class="section-head">
             <p class="eyebrow">Group Coaching</p>
             <h2>Junior Group Coaching</h2>
-            <p>Browse active junior programmes. Places are confirmed only after online payment is received.</p>
+            <p>Browse active junior programmes, select a saved player, and request a place for Kim to allocate into the right group.</p>
           </div>
           <div class="junior-group-layout">
             <div>
@@ -148,7 +140,7 @@
         </div>
       </section>
 
-      <section class="section" id="calendar">
+      <section class="section" id="calendar" data-booking-mode-panel="adult">
         <div class="container booking-layout">
           <div class="booking-shell">
             <div class="booking-toolbar">
@@ -340,10 +332,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260626-lesson-rules"></script>
     <script src="app.js?v=20260626-lesson-rules"></script>
-    <script src="email-service.js?v=20260626-lesson-rules"></script>
+    <script src="email-service.js?v=20260702-adult-junior-split"></script>
     <script src="booking-notifications.js?v=20260626-lesson-rules"></script>
+    <script src="booking-mode-tabs.js?v=20260702-adult-junior-split"></script>
     <script src="booking.js?v=20260626-lesson-rules"></script>
-    <script src="junior-group-booking.js?v=20260627-junior-groups"></script>
+    <script src="junior-group-booking.js?v=20260702-adult-junior-split"></script>
     <script src="booking-compact.js?v=20260626-lesson-rules"></script>
     <script src="booking-duration-options.js?v=20260626-lesson-rules"></script>
   </body>

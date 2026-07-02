@@ -299,7 +299,7 @@
             <p>${escapeHtml(dateText)} · ${money(group.price)}</p>
             ${group.description ? `<p>${escapeHtml(group.description)}</p>` : ""}
           </div>
-          <button class="btn btn-primary" type="button" data-junior-group-id="${escapeHtml(group.group_id)}" ${isFull ? "disabled" : ""}>Book Group</button>
+          <button class="btn btn-primary" type="button" data-junior-group-id="${escapeHtml(group.group_id)}" ${isFull ? "disabled" : ""}>Select Programme</button>
         </article>
       `;
     }).join("");
