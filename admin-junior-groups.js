@@ -123,6 +123,34 @@
     populatePlanSessions();
   }
 
+  function populateJuniorGroupTimes() {
+    if (!groupFormEl) return;
+    const populateSharedTimes = window.KimsAvailability?.populateTimeSelectors;
+    if (typeof populateSharedTimes === "function") {
+      populateSharedTimes(groupFormEl, { startTime: "08:00", endTime: "21:00" });
+      return;
+    }
+
+    const options = Array.from({ length: 27 }, (_item, index) => {
+      const totalMinutes = (8 * 60) + (index * 30);
+      const hours = Math.floor(totalMinutes / 60);
+      const minutes = totalMinutes % 60;
+      const value = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+      const label = new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit"
+      }).format(new Date(2000, 0, 1, hours, minutes));
+      return `<option value="${value}">${label}</option>`;
+    }).join("");
+
+    groupFormEl.querySelectorAll("[data-time-select]").forEach((select) => {
+      const current = select.value;
+      const placeholder = select.querySelector("option")?.outerHTML || '<option value="">Select time</option>';
+      select.innerHTML = `${placeholder}${options}`;
+      if ([...select.options].some((option) => option.value === current)) select.value = current;
+    });
+  }
+
   function populatePlanSessions() {
     const groupId = planFormEl?.elements.group_id?.value || "";
     const groupSessions = groupId ? sessions.filter((session) => session.group_id === groupId) : sessions;
@@ -714,5 +742,6 @@
     populateAllSelects();
   });
 
+  populateJuniorGroupTimes();
   refreshAll();
 })();

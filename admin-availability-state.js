@@ -60,8 +60,18 @@
     }).format(new Date(2000, 0, 1, hours, minutes));
   }
 
-  function buildHalfHourOptions() {
-    return Array.from({ length: 48 }, (_item, index) => {
+  function timeOptionIndex(value, fallback) {
+    const time = String(value || fallback || "00:00");
+    const [hours, minutes] = time.split(":").map(Number);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return timeOptionIndex(fallback || "00:00", "00:00");
+    return Math.max(0, Math.min(47, (hours * 2) + (minutes >= 30 ? 1 : 0)));
+  }
+
+  function buildHalfHourOptions(options = {}) {
+    const startIndex = timeOptionIndex(options.startTime, "00:00");
+    const endIndex = Math.max(startIndex, timeOptionIndex(options.endTime, "23:30"));
+    return Array.from({ length: endIndex - startIndex + 1 }, (_item, offset) => {
+      const index = startIndex + offset;
       const hours = Math.floor(index / 2);
       const minutes = index % 2 === 0 ? "00" : "30";
       const value = `${String(hours).padStart(2, "0")}:${minutes}`;
@@ -69,11 +79,16 @@
     }).join("");
   }
 
-  function populateTimeSelectors() {
-    if (!formEl) return;
-    formEl.querySelectorAll("[data-time-select]").forEach((select) => {
+  function populateTimeSelectors(root = formEl, options = {}) {
+    if (!root) return;
+    const selects = root.matches?.("[data-time-select]")
+      ? [root]
+      : Array.from(root.querySelectorAll("[data-time-select]"));
+    selects.forEach((select) => {
+      const current = select.value;
       const placeholder = select.querySelector("option")?.outerHTML || '<option value="">Select time</option>';
-      select.innerHTML = `${placeholder}${buildHalfHourOptions()}`;
+      select.innerHTML = `${placeholder}${buildHalfHourOptions(options)}`;
+      if ([...select.options].some((option) => option.value === current)) select.value = current;
     });
   }
 
