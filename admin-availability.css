@@ -16,6 +16,11 @@
 .admin-data-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.9rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .admin-data-row strong, .admin-data-row p { margin: 0; }
 .admin-data-row p { color: var(--muted); }
+.junior-group-row { align-items: stretch; transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease; }
+.junior-group-row.drop-target { border-color: rgba(39, 173, 255, 0.72); background: #f4faff; box-shadow: 0 0 0 3px rgba(39, 173, 255, 0.12); }
+.junior-member-list { display: grid; gap: 0.55rem; margin-top: 0.7rem; }
+.junior-member-row { cursor: grab; }
+.junior-member-row.dragging { opacity: 0.45; cursor: grabbing; }
 .settings-help-box { padding: 0.85rem; border: 1px solid rgba(39, 173, 255, 0.22); border-radius: 10px; background: #f4faff; color: var(--text); font-weight: 650; line-height: 1.45; }
 .advanced-settings-notes { padding: 0.75rem 0.85rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .advanced-settings-notes summary { cursor: pointer; color: var(--text); font-weight: 800; }

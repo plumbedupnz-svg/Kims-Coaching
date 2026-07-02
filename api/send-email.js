@@ -138,6 +138,7 @@ function getSubject(type, payload = {}) {
     junior_group_admin_notification: `New junior group booking request: ${playerName}`,
     junior_group_payment_request: "Complete your Kim Jones Coaching group booking",
     junior_group_customer_confirmation: "Your junior group coaching place is confirmed",
+    junior_group_assignment_notification: `${playerName} has been placed in a Kim Jones Coaching group`,
     junior_group_session_plan: `Session plan: ${payload.programmeName || payload.groupName || "Junior coaching"}`,
     inventory_reorder_notification: `New order required: ${payload.productName || payload.product_name || "stock item"}`
   };
@@ -224,6 +225,8 @@ function renderJuniorGroupText(title, payload = {}) {
     lineIf("Mobile", payload.mobile),
     lineIf("Coach", payload.coachName || payload.coach_name),
     lineIf("Club", payload.clubName || payload.club_name),
+    lineIf("Day", payload.dayName || payload.day_name),
+    lineIf("Time", payload.sessionTime || payload.session_time),
     lineIf("Start date", payload.startDate || payload.start_date),
     lineIf("Sessions", payload.sessionCount || payload.session_count),
     lineIf("Duration", payload.durationMinutes ? `${payload.durationMinutes} minutes` : ""),
@@ -315,6 +318,7 @@ function renderText(type, payload = {}) {
   if (type === "junior_group_admin_notification") return renderJuniorGroupText("New junior group booking request", payload);
   if (type === "junior_group_payment_request") return renderJuniorGroupText("Complete payment to confirm your junior group coaching place", payload);
   if (type === "junior_group_customer_confirmation") return renderJuniorGroupText("Your junior group coaching place is confirmed", payload);
+  if (type === "junior_group_assignment_notification") return renderJuniorGroupText("Your child has been placed in a Kim Jones Coaching group", payload);
   if (type === "junior_group_session_plan") return renderSessionPlanText("Junior group session plan", payload);
   if (type === "purchase_order_email") return renderShopText("Kim Jones Coaching purchase order", payload);
   if (type === "product_enquiry_notification") return renderShopText("Kim Jones Coaching product enquiry", payload);

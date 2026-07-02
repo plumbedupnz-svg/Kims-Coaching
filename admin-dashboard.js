@@ -12,6 +12,7 @@
     ? window.supabase.createClient(settings.url, settings.anonKey)
     : null;
   const adminTabAliases = {
+    "adult-coaching": "lessons",
     availability: "lessons",
     bookings: "lessons",
     "lesson-types": "lessons",
@@ -34,10 +35,11 @@
   };
   const lessonsHashToTab = {
     lessons: "dashboard",
+    "adult-coaching": "dashboard",
     ...lessonsPanelMap
   };
   const lessonsTabToHash = {
-    dashboard: "lessons",
+    dashboard: "adult-coaching",
     types: "lesson-types",
     times: "lesson-times",
     bookings: "lesson-bookings"

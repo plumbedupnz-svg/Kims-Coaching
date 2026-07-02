@@ -68,6 +68,20 @@
     return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(day || 0)] || "Weekly";
   }
 
+  function formatTime(value) {
+    if (!value) return "";
+    const [hour, minute] = String(value).split(":");
+    const date = new Date();
+    date.setHours(Number(hour || 0), Number(minute || 0), 0, 0);
+    return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+  }
+
+  function getFirstSession(groupId) {
+    return sessions
+      .filter((session) => session.group_id === groupId)
+      .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))[0] || null;
+  }
+
   function getNameById(items, id, key = "name") {
     return items.find((item) => item.id === id)?.[key] || "";
   }
@@ -197,7 +211,7 @@
       const groupMembers = members.filter((member) => member.group_id === group.id);
       const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id));
       const memberRows = groupMembers.length ? groupMembers.map((member) => `
-        <div class="junior-member-row">
+        <div class="junior-member-row" draggable="true" data-member-id="${escapeHtml(member.id)}">
           <div>
             <strong>${escapeHtml(member.player_name)}</strong>
             <p>${escapeHtml(member.email)} · ${escapeHtml(member.player_level || "No level")} · ${member.player_age ? `${member.player_age} yrs` : "Age not set"}</p>
@@ -211,7 +225,7 @@
       `).join("") : '<p class="helper-text">No players in this group yet.</p>';
 
       return `
-        <article class="admin-data-row junior-group-row">
+        <article class="admin-data-row junior-group-row" data-group-drop-zone="${escapeHtml(group.id)}">
           <div>
             <span class="status-pill ${spaces > 0 ? "available" : "blocked"}">${spaces > 0 ? `${spaces} spaces available` : "Full"}</span>
             ${group.is_public ? '<span class="status-pill available">Public</span>' : '<span class="status-pill warning">Draft</span>'}
@@ -224,6 +238,7 @@
             <button class="btn btn-secondary" type="button" data-group-action="edit" data-id="${escapeHtml(group.id)}">Edit</button>
             <button class="btn btn-secondary" type="button" data-group-action="add-player" data-id="${escapeHtml(group.id)}">Add player</button>
             <button class="btn btn-secondary" type="button" data-group-action="sessions" data-id="${escapeHtml(group.id)}">Generate sessions</button>
+            <button class="btn btn-secondary" type="button" data-group-action="email-parents" data-id="${escapeHtml(group.id)}">Email parents</button>
             <button class="btn btn-secondary" type="button" data-group-action="toggle" data-id="${escapeHtml(group.id)}">${group.is_active ? "Deactivate" : "Activate"}</button>
           </div>
         </article>
@@ -594,24 +609,79 @@
     await refreshAll();
   }
 
-  async function moveMember(id) {
+  async function moveMember(id, targetGroupId = "") {
     const member = members.find((item) => item.id === id);
     if (!member) return;
-    const currentGroup = groups.find((item) => item.id === member.group_id);
-    const options = groups
-      .filter((group) => group.id !== member.group_id)
-      .map((group) => {
-        const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id, member.id));
-        return `${group.group_name} (${spaces} space${spaces === 1 ? "" : "s"})`;
-      })
-      .join("\n");
-    const response = prompt(`Move ${member.player_name} from ${currentGroup?.group_name || "this group"} to which group?\n\nType the target group name:\n${options}`);
-    if (!response) return;
-    const target = groups.find((group) => group.id !== member.group_id && group.group_name.toLowerCase() === response.trim().toLowerCase());
+    let target = groups.find((group) => group.id === targetGroupId && group.id !== member.group_id);
+    if (!target) {
+      const currentGroup = groups.find((item) => item.id === member.group_id);
+      const options = groups
+        .filter((group) => group.id !== member.group_id)
+        .map((group) => {
+          const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id, member.id));
+          return `${group.group_name} (${spaces} space${spaces === 1 ? "" : "s"})`;
+        })
+        .join("\n");
+      const response = prompt(`Move ${member.player_name} from ${currentGroup?.group_name || "this group"} to which group?\n\nType the target group name:\n${options}`);
+      if (!response) return;
+      target = groups.find((group) => group.id !== member.group_id && group.group_name.toLowerCase() === response.trim().toLowerCase());
+    }
     if (!target) return alert("Could not find that target group name.");
+    setMessage(groupMessageEl, `Moving ${member.player_name} to ${target.group_name}...`);
     const { error } = await client.rpc("admin_move_junior_group_member", { p_member_id: id, p_target_group_id: target.id });
     if (error) return alert(`Could not move player: ${error.message}`);
+    setMessage(groupMessageEl, `${member.player_name} moved to ${target.group_name}.`, "success");
     await refreshAll();
+  }
+
+  async function emailGroupParents(id) {
+    const group = groups.find((item) => item.id === id);
+    if (!group) return;
+    const groupMembers = members.filter((member) => (
+      member.group_id === id
+      && member.booking_status !== "cancelled"
+      && member.email
+    ));
+    if (!groupMembers.length) return alert("There are no parent email addresses for this group yet.");
+    if (!window.KimsEmailService?.sendJuniorGroupAssignmentNotification) {
+      return alert("Email service is not ready yet. Refresh the page and try again.");
+    }
+    if (!confirm(`Send group placement email to ${groupMembers.length} parent${groupMembers.length === 1 ? "" : "s"}?`)) return;
+
+    const firstSession = getFirstSession(group.id);
+    const sessionDate = firstSession?.start_time || group.start_date;
+    const sessionTime = firstSession?.start_time
+      ? new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(firstSession.start_time))
+      : formatTime(group.start_time);
+
+    setMessage(groupMessageEl, "Sending parent placement emails...");
+    const results = await Promise.all(groupMembers.map((member) => window.KimsEmailService.sendJuniorGroupAssignmentNotification({
+      email: member.email,
+      customerName: member.parent_name,
+      playerName: member.player_name,
+      playerAge: member.player_age,
+      playerLevel: member.player_level,
+      programmeName: group.programme_name || getNameById(programmes, group.programme_id, "programme_name"),
+      groupName: group.group_name,
+      coachName: getNameById(coaches, group.coach_id, "display_name") || "Kim Jones",
+      clubName: getNameById(clubs, group.club_id),
+      dayName: getDayName(group.recurring_day),
+      sessionTime,
+      startDate: sessionDate,
+      sessionCount: group.session_count,
+      durationMinutes: group.session_duration_minutes,
+      amount: group.price,
+      relatedType: "junior_group",
+      relatedId: group.id,
+      traceId: `junior-assignment-${group.id}-${member.id}-${Date.now()}`
+    })));
+
+    const failed = results.filter((result) => result?.status === "failed").length;
+    setMessage(
+      groupMessageEl,
+      failed ? `${results.length - failed} sent, ${failed} failed. Check Email Diagnostics for details.` : "Parent placement emails sent.",
+      failed ? "error" : "success"
+    );
   }
 
   async function resendPayment(id) {
@@ -714,6 +784,42 @@
     if (button.dataset.memberAction === "paid") markMemberPaid(id);
     if (button.dataset.memberAction === "move") moveMember(id);
     if (button.dataset.memberAction === "remove") removeMember(id);
+    if (button.dataset.groupAction === "email-parents") emailGroupParents(id);
+  });
+
+  groupListEl?.addEventListener("dragstart", (event) => {
+    const memberRow = event.target.closest("[data-member-id]");
+    if (!memberRow) return;
+    event.dataTransfer.setData("text/plain", memberRow.dataset.memberId);
+    event.dataTransfer.effectAllowed = "move";
+    memberRow.classList.add("dragging");
+  });
+
+  groupListEl?.addEventListener("dragend", (event) => {
+    event.target.closest("[data-member-id]")?.classList.remove("dragging");
+    groupListEl.querySelectorAll("[data-group-drop-zone]").forEach((zone) => zone.classList.remove("drop-target"));
+  });
+
+  groupListEl?.addEventListener("dragover", (event) => {
+    const zone = event.target.closest("[data-group-drop-zone]");
+    if (!zone) return;
+    event.preventDefault();
+    zone.classList.add("drop-target");
+    event.dataTransfer.dropEffect = "move";
+  });
+
+  groupListEl?.addEventListener("dragleave", (event) => {
+    const zone = event.target.closest("[data-group-drop-zone]");
+    if (zone && !zone.contains(event.relatedTarget)) zone.classList.remove("drop-target");
+  });
+
+  groupListEl?.addEventListener("drop", (event) => {
+    const zone = event.target.closest("[data-group-drop-zone]");
+    const memberId = event.dataTransfer.getData("text/plain");
+    if (!zone || !memberId) return;
+    event.preventDefault();
+    zone.classList.remove("drop-target");
+    moveMember(memberId, zone.dataset.groupDropZone);
   });
 
   planListEl?.addEventListener("click", (event) => {

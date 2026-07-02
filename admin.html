@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="admin-availability.css" />
+    <link rel="stylesheet" href="admin-availability.css?v=20260702-adult-junior-split" />
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -43,7 +43,7 @@
           <div id="owner-panel" hidden>
             <nav class="admin-tabs" aria-label="Admin sections">
               <a href="#dashboard" data-admin-tab="dashboard">Dashboard</a>
-              <a href="#lessons" data-admin-tab="lessons">Lessons</a>
+              <a href="#adult-coaching" data-admin-tab="lessons">Adult Coaching</a>
               <a href="#products" data-admin-tab="products">Products</a>
               <a href="#inventory" data-admin-tab="inventory">Inventory</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
@@ -71,19 +71,19 @@
             <section class="admin-section lessons-workspace" data-admin-section="lessons" hidden>
               <div class="admin-section-head">
                 <div>
-                  <p class="eyebrow">Lessons</p>
-                  <h2>Lessons</h2>
-                  <p class="helper-text">Manage lesson types, coaching times, bundles, and lesson bookings in one place.</p>
+                  <p class="eyebrow">Adult Coaching</p>
+                  <h2>Adult Coaching</h2>
+                  <p class="helper-text">Manage adult coaching lesson types, coaching times, bundles, and lesson bookings in one place.</p>
                 </div>
               </div>
-              <nav class="lessons-subtabs" aria-label="Lesson sections">
+              <nav class="lessons-subtabs" aria-label="Adult Coaching sections">
                 <button type="button" data-lessons-tab="types">Lesson Types</button>
                 <button type="button" data-lessons-tab="times">Lesson Times</button>
                 <button type="button" data-lessons-tab="bookings">Lesson Bookings</button>
               </nav>
               <section class="lessons-tab-panel" data-lessons-panel="dashboard">
                 <div class="lessons-dashboard-intro">
-                  <p>Choose a lesson section above to create lesson types, open coaching times, or manage bookings.</p>
+                  <p>Choose an adult coaching section above to create lesson types, open coaching times, or manage bookings.</p>
                 </div>
               </section>
 
@@ -581,7 +581,7 @@
 
             <section class="admin-section" data-admin-section="junior-groups" hidden>
               <div class="admin-section-head">
-                <div><p class="eyebrow">Junior coaching</p><h2>Junior groups</h2><p class="helper-text">Publish bookable junior groups, generate weekly sessions, and manage players.</p></div>
+                <div><p class="eyebrow">Junior coaching</p><h2>Junior groups</h2><p class="helper-text">Publish bookable junior groups, drag players into the right group, and email parents once groups are set.</p></div>
               </div>
               <div class="admin-panel-grid">
                 <form class="owner-add-form" data-junior-group-form>
@@ -618,6 +618,7 @@
                 </form>
                 <div class="admin-list-panel">
                   <h3>Groups and players</h3>
+                  <p class="helper-text">Drag a player into another group to move them. Use Email parents when the group is ready.</p>
                   <div class="admin-data-list" data-junior-group-list><p class="helper-text">Loading groups...</p></div>
                 </div>
               </div>
@@ -812,11 +813,11 @@
     <script src="product-categories.js?v=20260626-slot-defaults"></script>
     <script src="app.js?v=20260626-slot-defaults"></script>
     <script src="email-settings.js?v=20260626-slot-defaults"></script>
-    <script src="email-service.js?v=20260626-slot-defaults"></script>
-    <script src="admin-dashboard.js?v=20260626-slot-defaults"></script>
+    <script src="email-service.js?v=20260702-adult-junior-split"></script>
+    <script src="admin-dashboard.js?v=20260702-adult-junior-split"></script>
     <script src="admin-lessons.js?v=20260626-slot-defaults"></script>
     <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>
-    <script src="admin-junior-groups.js?v=20260702-junior-times"></script>
+    <script src="admin-junior-groups.js?v=20260702-adult-junior-split"></script>
     <script src="admin-settings-tabs.js?v=20260626-slot-defaults"></script>
     <script src="admin-shop-settings.js?v=20260629-shop-checkout"></script>
     <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
