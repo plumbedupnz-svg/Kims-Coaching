@@ -86,6 +86,11 @@
     return items.find((item) => item.id === id)?.[key] || "";
   }
 
+  function isPublicGroup(group = {}) {
+    const linkedProgramme = programmes.find((item) => item.id === group.programme_id);
+    return group.is_public === true || linkedProgramme?.is_public === true;
+  }
+
   function isActiveHold(member) {
     if (!member || member.booking_status !== "pending_payment" || member.payment_status !== "pending") return false;
     return !member.expires_at || new Date(member.expires_at).getTime() > Date.now();
@@ -210,6 +215,7 @@
     groupListEl.innerHTML = groups.map((group) => {
       const groupMembers = members.filter((member) => member.group_id === group.id);
       const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id));
+      const groupIsPublic = isPublicGroup(group);
       const memberRows = groupMembers.length ? groupMembers.map((member) => `
         <div class="junior-member-row" draggable="true" data-member-id="${escapeHtml(member.id)}">
           <div>
@@ -228,7 +234,7 @@
         <article class="admin-data-row junior-group-row" data-group-drop-zone="${escapeHtml(group.id)}">
           <div>
             <span class="status-pill ${spaces > 0 ? "available" : "blocked"}">${spaces > 0 ? `${spaces} spaces available` : "Full"}</span>
-            ${group.is_public ? '<span class="status-pill available">Public</span>' : '<span class="status-pill warning">Draft</span>'}
+            ${groupIsPublic ? '<span class="status-pill available">Public</span>' : '<span class="status-pill warning">Draft</span>'}
             <strong>${escapeHtml(group.group_name)}</strong>
             <p>${escapeHtml(group.term_name || "No term")} · ${getDayName(group.recurring_day)} ${escapeHtml(String(group.start_time || "").slice(0, 5))} · ${Number(group.session_count || 0)} sessions</p>
             <p>${money(group.price)} · capacity ${Number(group.capacity || 0)} · ${escapeHtml(getNameById(coaches, group.coach_id, "display_name") || "No coach")}</p>
@@ -431,6 +437,7 @@
     groupFormEl.elements.coach_id.value = programme.coach_id || "";
     groupFormEl.elements.club_id.value = programme.club_id || "";
     groupFormEl.elements.description.value = groupFormEl.elements.description.value || programme.description || "";
+    if (programme.is_public === true && groupFormEl.elements.is_public) groupFormEl.elements.is_public.checked = true;
   }
 
   async function saveProgramme(event) {
