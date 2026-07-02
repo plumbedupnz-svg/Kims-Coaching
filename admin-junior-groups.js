@@ -32,6 +32,7 @@
   let lessonTypes = [];
   let clubs = [];
   let coaches = [];
+  const expandedCalendarGroups = new Set();
 
   function escapeHtml(value = "") {
     return String(value)
@@ -84,6 +85,11 @@
 
   function getNameById(items, id, key = "name") {
     return items.find((item) => item.id === id)?.[key] || "";
+  }
+
+  function isPublicGroup(group = {}) {
+    const linkedProgramme = programmes.find((item) => item.id === group.programme_id);
+    return group.is_public === true || linkedProgramme?.is_public === true;
   }
 
   function isActiveHold(member) {
@@ -210,6 +216,7 @@
     groupListEl.innerHTML = groups.map((group) => {
       const groupMembers = members.filter((member) => member.group_id === group.id);
       const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id));
+      const groupIsPublic = isPublicGroup(group);
       const memberRows = groupMembers.length ? groupMembers.map((member) => `
         <div class="junior-member-row" draggable="true" data-member-id="${escapeHtml(member.id)}">
           <div>
@@ -228,7 +235,7 @@
         <article class="admin-data-row junior-group-row" data-group-drop-zone="${escapeHtml(group.id)}">
           <div>
             <span class="status-pill ${spaces > 0 ? "available" : "blocked"}">${spaces > 0 ? `${spaces} spaces available` : "Full"}</span>
-            ${group.is_public ? '<span class="status-pill available">Public</span>' : '<span class="status-pill warning">Draft</span>'}
+            ${groupIsPublic ? '<span class="status-pill available">Public</span>' : '<span class="status-pill warning">Draft</span>'}
             <strong>${escapeHtml(group.group_name)}</strong>
             <p>${escapeHtml(group.term_name || "No term")} · ${getDayName(group.recurring_day)} ${escapeHtml(String(group.start_time || "").slice(0, 5))} · ${Number(group.session_count || 0)} sessions</p>
             <p>${money(group.price)} · capacity ${Number(group.capacity || 0)} · ${escapeHtml(getNameById(coaches, group.coach_id, "display_name") || "No coach")}</p>
@@ -248,18 +255,53 @@
 
   function renderCalendar() {
     if (!calendarListEl) return;
-    const groupSessionRows = sessions.map((session) => {
-      const group = groups.find((item) => item.id === session.group_id) || {};
-      const playerCount = members.filter((member) => member.group_id === session.group_id && member.booking_status === "confirmed").length;
-      const hasPlan = plans.some((plan) => plan.session_id === session.id || plan.group_id === session.group_id);
-      return `
-        <article class="admin-data-row">
-          <div>
-            <strong>${escapeHtml(group.group_name || "Junior group")}</strong>
-            <p>${formatDate(session.start_time, { weekday: "short", hour: "numeric", minute: "2-digit" })} · ${escapeHtml(getNameById(coaches, session.coach_id || group.coach_id, "display_name") || "No coach")}</p>
-            <p>${escapeHtml(getNameById(clubs, session.club_id || group.club_id) || "No club")} · ${playerCount} player${playerCount === 1 ? "" : "s"}</p>
+    const sessionsByGroup = sessions.reduce((acc, session) => {
+      const key = session.group_id || "ungrouped";
+      if (!acc.has(key)) acc.set(key, []);
+      acc.get(key).push(session);
+      return acc;
+    }, new Map());
+
+    const groupSessionRows = Array.from(sessionsByGroup.entries()).map(([groupId, groupSessions]) => {
+      const group = groups.find((item) => item.id === groupId) || {};
+      const sortedSessions = groupSessions.sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
+      const firstSession = sortedSessions[0] || {};
+      const lastSession = sortedSessions[sortedSessions.length - 1] || firstSession;
+      const playerCount = members.filter((member) => member.group_id === groupId && member.booking_status === "confirmed").length;
+      const coachName = getNameById(coaches, firstSession.coach_id || group.coach_id, "display_name") || "No coach";
+      const clubName = getNameById(clubs, firstSession.club_id || group.club_id) || "No club";
+      const plannedCount = sortedSessions.filter((session) => plans.some((plan) => plan.session_id === session.id || plan.group_id === session.group_id)).length;
+      const allPlanned = plannedCount === sortedSessions.length && sortedSessions.length > 0;
+      const isExpanded = expandedCalendarGroups.has(groupId);
+      const dateRange = sortedSessions.length > 1
+        ? `${formatDate(firstSession.start_time, { weekday: "short" })} - ${formatDate(lastSession.start_time, { weekday: "short" })}`
+        : formatDate(firstSession.start_time, { weekday: "short" });
+      const sessionRows = sortedSessions.map((session) => {
+        const hasPlan = plans.some((plan) => plan.session_id === session.id || plan.group_id === session.group_id);
+        return `
+          <div class="junior-calendar-session">
+            <div>
+              <strong>${formatDate(session.start_time, { weekday: "short", hour: "numeric", minute: "2-digit" })}</strong>
+              <p>${escapeHtml(getNameById(clubs, session.club_id || group.club_id) || "No club")} · ${escapeHtml(getNameById(coaches, session.coach_id || group.coach_id, "display_name") || "No coach")}</p>
+            </div>
+            <span class="status-pill ${hasPlan ? "available" : "warning"}">${hasPlan ? "Plan ready" : "Needs plan"}</span>
           </div>
-          <span class="status-pill ${hasPlan ? "available" : "warning"}">${hasPlan ? "Plan ready" : "Needs plan"}</span>
+        `;
+      }).join("");
+      return `
+        <article class="admin-data-row junior-calendar-group ${isExpanded ? "is-expanded" : ""}">
+          <button class="junior-calendar-group-toggle" type="button" data-calendar-group-toggle="${escapeHtml(groupId)}" aria-expanded="${isExpanded ? "true" : "false"}">
+            <div>
+              <span class="status-pill ${allPlanned ? "available" : "warning"}">${allPlanned ? "Plans ready" : `${plannedCount}/${sortedSessions.length} planned`}</span>
+              <strong>${escapeHtml(group.group_name || "Junior group")}</strong>
+              <p>${escapeHtml(dateRange)} · ${sortedSessions.length} session${sortedSessions.length === 1 ? "" : "s"} · ${escapeHtml(coachName)}</p>
+              <p>${escapeHtml(clubName)} · ${playerCount} player${playerCount === 1 ? "" : "s"}</p>
+            </div>
+            <span class="junior-calendar-toggle-label">${isExpanded ? "Hide events" : "Show events"}</span>
+          </button>
+          <div class="junior-calendar-sessions" ${isExpanded ? "" : "hidden"}>
+            ${sessionRows}
+          </div>
         </article>
       `;
     });
@@ -431,6 +473,7 @@
     groupFormEl.elements.coach_id.value = programme.coach_id || "";
     groupFormEl.elements.club_id.value = programme.club_id || "";
     groupFormEl.elements.description.value = groupFormEl.elements.description.value || programme.description || "";
+    if (programme.is_public === true && groupFormEl.elements.is_public) groupFormEl.elements.is_public.checked = true;
   }
 
   async function saveProgramme(event) {
@@ -835,6 +878,15 @@
     if (!button) return;
     if (button.dataset.paymentAction === "paid") markMemberPaid(button.dataset.id);
     if (button.dataset.paymentAction === "resend") resendPayment(button.dataset.id);
+  });
+
+  calendarListEl?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-calendar-group-toggle]");
+    if (!button) return;
+    const groupId = button.dataset.calendarGroupToggle;
+    if (expandedCalendarGroups.has(groupId)) expandedCalendarGroups.delete(groupId);
+    else expandedCalendarGroups.add(groupId);
+    renderCalendar();
   });
 
   window.addEventListener("kims:lesson-types-ready", (event) => {
