@@ -148,7 +148,7 @@ async function deductInventoryForOrder(order) {
   const items = Array.isArray(order.items) ? order.items : [];
   for (const item of items) {
     if (item.fulfilment_type !== "stock" || !item.inventory_item_id) continue;
-    const inventoryRows = await restSelect("inventory_items", "id,quantity_on_hand,status,low_stock_threshold,need_order_threshold", {
+    const inventoryRows = await restSelect("inventory_items", "id,product_name,sku,quantity_on_hand,status,low_stock_threshold,need_order_threshold", {
       id: `eq.${item.inventory_item_id}`,
       limit: "1"
     });
@@ -174,7 +174,55 @@ async function deductInventoryForOrder(order) {
       related_type: "shop_order",
       related_id: order.id
     }, "id");
+    await sendInventoryReorderEmailIfNeeded({
+      order,
+      item,
+      inventory,
+      quantity,
+      before,
+      after,
+      nextStatus
+    });
   }
+}
+
+async function sendInventoryReorderEmailIfNeeded({ order, item, inventory, quantity, before, after, nextStatus }) {
+  const reorderThreshold = Number(inventory.need_order_threshold || 0);
+  if (before <= reorderThreshold || after > reorderThreshold) return;
+
+  console.info("[Stripe webhook] inventory reorder threshold reached", {
+    orderId: order.id,
+    inventoryItemId: inventory.id,
+    productName: inventory.product_name || item.name || "",
+    quantityBefore: before,
+    quantitySold: quantity,
+    quantityAfter: after,
+    reorderThreshold
+  });
+
+  const result = await callEmail("inventory_reorder_notification", {
+    traceId: `inventory-reorder-${order.id}-${inventory.id}`,
+    relatedType: "inventory_item",
+    relatedId: inventory.id,
+    adminEmail: "kim@kimjonescoaching.co.nz",
+    productName: inventory.product_name || item.name,
+    sku: inventory.sku || "",
+    quantityBefore: before,
+    quantitySold: quantity,
+    quantityAfter: after,
+    reorderThreshold,
+    lowStockThreshold: Number(inventory.low_stock_threshold || 0),
+    stockStatus: nextStatus,
+    orderId: order.id
+  });
+
+  console.info("[Stripe webhook] inventory reorder email attempted", {
+    orderId: order.id,
+    inventoryItemId: inventory.id,
+    sent: Boolean(result?.sent),
+    status: result?.status || "",
+    error: result?.error || ""
+  });
 }
 
 async function sendShopEmails(order) {
