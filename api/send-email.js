@@ -16,6 +16,7 @@ const adminTypes = new Set([
   "waitlist_notification",
   "junior_group_admin_notification",
   "junior_group_session_plan",
+  "inventory_reorder_notification",
   "admin_alert"
 ]);
 
@@ -97,7 +98,7 @@ function getCustomerEmail(payload = {}) {
 function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
   const adminEmail = type === "waitlist_notification"
     ? process.env.EMAIL_ADMIN_TO || payload.adminEmail || "kim@kimjonescoaching.co.nz"
-    : process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email;
+    : process.env.EMAIL_ADMIN_TO || payload.adminEmail || settings.reply_to_email || settings.from_email;
   if (adminTypes.has(type)) return [adminEmail].filter(Boolean);
   return [getCustomerEmail(payload)].filter(Boolean);
 }
@@ -137,7 +138,8 @@ function getSubject(type, payload = {}) {
     junior_group_admin_notification: `New junior group booking request: ${playerName}`,
     junior_group_payment_request: "Complete your Kim Jones Coaching group booking",
     junior_group_customer_confirmation: "Your junior group coaching place is confirmed",
-    junior_group_session_plan: `Session plan: ${payload.programmeName || payload.groupName || "Junior coaching"}`
+    junior_group_session_plan: `Session plan: ${payload.programmeName || payload.groupName || "Junior coaching"}`,
+    inventory_reorder_notification: `New order required: ${payload.productName || payload.product_name || "stock item"}`
   };
 
   return subjects[type] || "Kim Jones Coaching notification";
@@ -283,6 +285,26 @@ function renderShopText(title, payload = {}) {
   ].filter((line) => line !== "").join("\n");
 }
 
+function renderInventoryReorderText(title, payload = {}) {
+  return [
+    title,
+    "",
+    "A shop purchase has moved this item to or below its reorder threshold.",
+    "",
+    line("Product", payload.productName || payload.product_name),
+    lineIf("SKU", payload.sku),
+    line("Quantity before sale", payload.quantityBefore ?? payload.quantity_before),
+    line("Quantity sold", payload.quantitySold ?? payload.quantity_sold),
+    line("Quantity on hand", payload.quantityAfter ?? payload.quantity_after),
+    line("Reorder threshold", payload.reorderThreshold ?? payload.reorder_threshold),
+    lineIf("Low stock threshold", payload.lowStockThreshold ?? payload.low_stock_threshold),
+    lineIf("Stock status", payload.stockStatus || payload.stock_status),
+    lineIf("Shop order", payload.orderId || payload.order_id),
+    "",
+    "New order required."
+  ].filter(Boolean).join("\n");
+}
+
 function renderText(type, payload = {}) {
   if (type === "booking_admin_notification") return renderBookingText("New Kim Jones Coaching booking", payload);
   if (type === "booking_customer_confirmation") return renderBookingText("Your coaching booking has been booked", payload);
@@ -296,6 +318,7 @@ function renderText(type, payload = {}) {
   if (type === "junior_group_session_plan") return renderSessionPlanText("Junior group session plan", payload);
   if (type === "purchase_order_email") return renderShopText("Kim Jones Coaching purchase order", payload);
   if (type === "product_enquiry_notification") return renderShopText("Kim Jones Coaching product enquiry", payload);
+  if (type === "inventory_reorder_notification") return renderInventoryReorderText("Inventory reorder notification", payload);
   if (type.includes("shop_order") || type.includes("product_")) return renderShopText("Kim Jones Coaching shop notification", payload);
   return [
     "Kim Jones Coaching notification",
