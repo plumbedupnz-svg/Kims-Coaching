@@ -107,11 +107,7 @@
         <button type="button" data-junior-tab="session-plans">Session Plans</button>
         <button type="button" data-junior-tab="payments">Payments / Overdue</button>
       </nav>
-      <section class="junior-tab-panel" data-junior-panel="dashboard">
-        <div class="junior-dashboard-intro">
-          <p>Choose a Junior Coaching section above to manage programmes, groups, calendars, session plans, or payments.</p>
-        </div>
-      </section>
+      <section class="junior-tab-panel" data-junior-panel="dashboard"></section>
     `;
     firstJuniorSection.parentNode.insertBefore(workspace, firstJuniorSection);
 
