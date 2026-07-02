@@ -43,8 +43,7 @@
           <div id="owner-panel" hidden>
             <nav class="admin-tabs" aria-label="Admin sections">
               <a href="#dashboard" data-admin-tab="dashboard">Dashboard</a>
-              <a href="#availability" data-admin-tab="availability">Availability</a>
-              <a href="#bookings" data-admin-tab="bookings">Bookings</a>
+              <a href="#lessons" data-admin-tab="lessons">Lessons</a>
               <a href="#products" data-admin-tab="products">Products</a>
               <a href="#inventory" data-admin-tab="inventory">Inventory</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
@@ -60,7 +59,7 @@
             <section class="admin-section" data-admin-section="dashboard">
               <div class="admin-section-head">
                 <div><p class="eyebrow">Dashboard</p><h2>Today at a glance</h2></div>
-                <a class="btn btn-primary" href="#availability" data-admin-tab-link="availability">Add lesson time</a>
+                <a class="btn btn-primary" href="#lesson-times" data-admin-tab-link="lesson-times">Add lesson time</a>
               </div>
               <div class="admin-stat-grid" data-admin-stats></div>
               <div class="admin-list-panel">
@@ -69,8 +68,26 @@
               </div>
             </section>
 
-            <section class="admin-section" data-admin-section="availability" hidden>
-              <div class="availability-admin-layout">
+            <section class="admin-section lessons-workspace" data-admin-section="lessons" hidden>
+              <div class="admin-section-head">
+                <div>
+                  <p class="eyebrow">Lessons</p>
+                  <h2>Lessons</h2>
+                  <p class="helper-text">Manage lesson types, coaching times, bundles, and lesson bookings in one place.</p>
+                </div>
+              </div>
+              <nav class="lessons-subtabs" aria-label="Lesson sections">
+                <button type="button" data-lessons-tab="types">Lesson Types</button>
+                <button type="button" data-lessons-tab="times">Lesson Times</button>
+                <button type="button" data-lessons-tab="bookings">Lesson Bookings</button>
+              </nav>
+              <section class="lessons-tab-panel" data-lessons-panel="dashboard">
+                <div class="lessons-dashboard-intro">
+                  <p>Choose a lesson section above to create lesson types, open coaching times, or manage bookings.</p>
+                </div>
+              </section>
+
+              <section class="lessons-tab-panel" data-lessons-panel="types" hidden>
                 <div class="availability-form-grid">
                   <form class="availability-form" data-lesson-type-form>
                     <div class="availability-form-head">
@@ -127,6 +144,29 @@
                     </div>
                     <p class="form-message" data-lesson-type-message></p>
                   </form>
+
+                  <section class="availability-list compact-list">
+                    <div class="availability-list-head">
+                      <div>
+                        <h3>Saved lesson types</h3>
+                        <p class="helper-text" data-lesson-type-list-summary></p>
+                      </div>
+                      <label class="availability-page-size">Show
+                        <select data-lesson-type-page-size>
+                          <option value="5">5</option>
+                          <option value="10">10</option>
+                          <option value="15">15</option>
+                          <option value="25">25</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="availability-list-items" data-lesson-type-list></div>
+                  </section>
+                </div>
+              </section>
+
+              <section class="lessons-tab-panel" data-lessons-panel="times" hidden>
+                <div class="availability-form-grid">
                   <form class="availability-form" data-availability-form>
                     <div class="availability-form-head">
                       <div><h2>Lesson times</h2><p class="helper-text">Create open lesson slots or block out times Kim is unavailable.</p></div>
@@ -157,26 +197,6 @@
                     </div>
                     <p class="form-message" data-availability-message></p>
                   </form>
-                </div>
-
-                <div class="availability-saved-grid">
-                  <section class="availability-list compact-list">
-                    <div class="availability-list-head">
-                      <div>
-                        <h3>Saved lesson types</h3>
-                        <p class="helper-text" data-lesson-type-list-summary></p>
-                      </div>
-                      <label class="availability-page-size">Show
-                        <select data-lesson-type-page-size>
-                          <option value="5">5</option>
-                          <option value="10">10</option>
-                          <option value="15">15</option>
-                          <option value="25">25</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div class="availability-list-items" data-lesson-type-list></div>
-                  </section>
 
                   <section class="availability-list">
                     <div class="availability-list-head">
@@ -196,31 +216,31 @@
                     <div class="availability-list-items" data-availability-list></div>
                   </section>
                 </div>
-              </div>
-            </section>
+              </section>
 
-            <section class="admin-section" data-admin-section="bookings" hidden>
-              <div class="admin-section-head"><div><p class="eyebrow">Bookings</p><h2>Private lesson bookings</h2></div></div>
-              <div class="admin-panel-grid">
-                <form class="owner-add-form" data-bundle-form>
-                  <h3>Coaching Bundles</h3>
-                  <p class="helper-text">Create prepaid lesson bundles with adjustable discounts.</p>
-                  <input type="hidden" name="bundle_id" />
-                  <label>Name<input type="text" name="name" placeholder="e.g. 5 Lesson Pack" required /></label>
-                  <label>Lesson type<select name="lesson_type_id" data-bundle-lesson-type><option value="">Any lesson type</option></select></label>
-                  <label>Number of lessons<input type="number" name="lesson_count" min="1" step="1" value="5" required /></label>
-                  <label>Discount %<input type="number" name="discount_percent" min="0" max="100" step="0.01" value="0" required /></label>
-                  <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
-                  <label>Description<textarea name="description" rows="3" placeholder="Optional bundle notes"></textarea></label>
-                  <div class="availability-actions">
-                    <button class="btn btn-primary" type="submit">Save bundle</button>
-                    <button class="btn btn-secondary" type="button" data-clear-bundle>Clear</button>
-                  </div>
-                  <p class="form-message" data-bundle-message></p>
-                </form>
-                <div class="admin-list-panel"><div class="admin-data-list" data-bundle-list></div></div>
-              </div>
-              <div class="admin-list-panel"><div class="admin-data-list" data-admin-bookings-list></div></div>
+              <section class="lessons-tab-panel" data-lessons-panel="bookings" hidden>
+                <div class="admin-section-head"><div><p class="eyebrow">Bookings</p><h2>Lesson bookings</h2></div></div>
+                <div class="admin-panel-grid">
+                  <form class="owner-add-form" data-bundle-form>
+                    <h3>Coaching Bundles</h3>
+                    <p class="helper-text">Create prepaid lesson bundles with adjustable discounts.</p>
+                    <input type="hidden" name="bundle_id" />
+                    <label>Name<input type="text" name="name" placeholder="e.g. 5 Lesson Pack" required /></label>
+                    <label>Lesson type<select name="lesson_type_id" data-bundle-lesson-type><option value="">Any lesson type</option></select></label>
+                    <label>Number of lessons<input type="number" name="lesson_count" min="1" step="1" value="5" required /></label>
+                    <label>Discount %<input type="number" name="discount_percent" min="0" max="100" step="0.01" value="0" required /></label>
+                    <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
+                    <label>Description<textarea name="description" rows="3" placeholder="Optional bundle notes"></textarea></label>
+                    <div class="availability-actions">
+                      <button class="btn btn-primary" type="submit">Save bundle</button>
+                      <button class="btn btn-secondary" type="button" data-clear-bundle>Clear</button>
+                    </div>
+                    <p class="form-message" data-bundle-message></p>
+                  </form>
+                  <div class="admin-list-panel"><div class="admin-data-list" data-bundle-list></div></div>
+                </div>
+                <div class="admin-list-panel"><div class="admin-data-list" data-admin-bookings-list></div></div>
+              </section>
             </section>
 
             <section class="admin-section" data-admin-section="products" hidden>

@@ -77,16 +77,18 @@
 .inventory-row-main { display: grid; gap: 0.25rem; min-width: 0; }
 .inventory-review-row { align-items: start; }
 .inventory-review-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin-top: 0.55rem; }
-.inventory-workspace, .junior-workspace { display: grid; gap: 1rem; min-width: 0; }
-.inventory-subtabs, .junior-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
-.inventory-subtabs button, .junior-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.inventory-workspace, .junior-workspace, .lessons-workspace { display: grid; gap: 1rem; min-width: 0; }
+.inventory-subtabs, .junior-subtabs, .lessons-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
+.inventory-subtabs button, .junior-subtabs button, .lessons-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .inventory-subtabs button.active,
 .inventory-subtabs button:hover,
 .junior-subtabs button.active,
-.junior-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
-.inventory-tab-panel, .junior-tab-panel { display: grid; gap: 1rem; min-width: 0; }
-.junior-dashboard-intro { padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
-.junior-dashboard-intro p { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.35; }
+.junior-subtabs button:hover,
+.lessons-subtabs button.active,
+.lessons-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
+.inventory-tab-panel, .junior-tab-panel, .lessons-tab-panel { display: grid; gap: 1rem; min-width: 0; }
+.junior-dashboard-intro, .lessons-dashboard-intro { padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.junior-dashboard-intro p, .lessons-dashboard-intro p { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.35; }
 .inventory-stock-panel { width: 100%; min-width: 0; }
 .inventory-wide-form { max-width: 920px; }
 .inventory-stacked-panels { display: grid; gap: 1rem; }

@@ -12,12 +12,35 @@
     ? window.supabase.createClient(settings.url, settings.anonKey)
     : null;
   const adminTabAliases = {
+    availability: "lessons",
+    bookings: "lessons",
+    "lesson-types": "lessons",
+    "lesson-times": "lessons",
+    "lesson-bookings": "lessons",
     "junior-programmes": "junior-coaching",
     "junior-groups": "junior-coaching",
     "group-calendar": "junior-coaching",
     "session-plans": "junior-coaching",
     "junior-payments": "junior-coaching"
   };
+  const lessonsPanelMap = {
+    "lesson-types": "types",
+    "lesson-times": "times",
+    availability: "times",
+    bookings: "bookings",
+    "lesson-bookings": "bookings"
+  };
+  const lessonsHashToTab = {
+    lessons: "dashboard",
+    ...lessonsPanelMap
+  };
+  const lessonsTabToHash = {
+    dashboard: "lessons",
+    types: "lesson-types",
+    times: "lesson-times",
+    bookings: "lesson-bookings"
+  };
+  const lessonsStorageKey = "kims_admin_lessons_tab";
   const juniorPanelMap = {
     "junior-programmes": "programmes",
     "junior-groups": "groups",
@@ -126,6 +149,48 @@
 
   setupJuniorWorkspace();
 
+  function setActiveLessonsTab(tabName, options = {}) {
+    const tabs = Array.from(document.querySelectorAll("[data-lessons-tab]"));
+    const panels = Array.from(document.querySelectorAll("[data-lessons-panel]"));
+    const activeTab = tabs.some((tab) => tab.dataset.lessonsTab === tabName) ? tabName : "dashboard";
+
+    tabs.forEach((tab) => {
+      const isActive = tab.dataset.lessonsTab === activeTab;
+      tab.classList.toggle("active", isActive);
+      tab.setAttribute("aria-expanded", isActive ? "true" : "false");
+      if (isActive) {
+        tab.setAttribute("aria-current", "page");
+      } else {
+        tab.removeAttribute("aria-current");
+      }
+    });
+
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.lessonsPanel !== activeTab;
+    });
+
+    try {
+      sessionStorage.setItem(lessonsStorageKey, activeTab);
+    } catch (error) {
+      // Non-critical: private browsing can block storage.
+    }
+
+    if (options.updateHash) {
+      const nextHash = lessonsTabToHash[activeTab] || "lessons";
+      if (window.location.hash.replace("#", "") !== nextHash) {
+        history.replaceState(null, "", `#${nextHash}`);
+      }
+    }
+  }
+
+  document.querySelectorAll("[data-lessons-tab]").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const selectedTab = tab.dataset.lessonsTab;
+      const shouldCollapse = tab.classList.contains("active") && selectedTab !== "dashboard";
+      setActiveLessonsTab(shouldCollapse ? "dashboard" : selectedTab, { updateHash: true });
+    });
+  });
+
   function escapeHtml(value = "") {
     return String(value)
       .replace(/&/g, "&amp;")
@@ -165,6 +230,10 @@
     if (activeTab === "junior-coaching") {
       const storedTab = sessionStorage.getItem(juniorStorageKey);
       setActiveJuniorTab(juniorHashToTab[requestedTab] || storedTab || "dashboard");
+    }
+    if (activeTab === "lessons") {
+      const storedTab = sessionStorage.getItem(lessonsStorageKey);
+      setActiveLessonsTab(lessonsHashToTab[requestedTab] || storedTab || "dashboard");
     }
   }
 
