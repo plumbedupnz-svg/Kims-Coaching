@@ -636,6 +636,49 @@
                     <input type="search" data-junior-player-search placeholder="Search player, parent or email" />
                   </label>
                 </div>
+                <div class="inventory-filters junior-player-filters">
+                  <label>
+                    <span>Level</span>
+                    <select data-junior-player-level-filter>
+                      <option value="">All levels</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Programme</span>
+                    <select data-junior-player-programme-filter>
+                      <option value="">All programmes</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Group</span>
+                    <select data-junior-player-group-filter>
+                      <option value="">All groups</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Status</span>
+                    <select data-junior-player-status-filter>
+                      <option value="">All statuses</option>
+                      <option value="awaiting_placement">Awaiting placement</option>
+                      <option value="placement_confirmed">Placement confirmed</option>
+                      <option value="payment_pending">Payment pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="active_in_group">Active in group</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>Payment</span>
+                    <select data-junior-player-payment-filter>
+                      <option value="">All payments</option>
+                      <option value="not_required">No payment required</option>
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="overdue">Overdue</option>
+                      <option value="failed">Failed</option>
+                    </select>
+                  </label>
+                </div>
                 <p class="form-message" data-junior-player-message></p>
                 <div class="junior-players-table" data-junior-player-list><p class="helper-text">Loading junior players...</p></div>
               </div>
