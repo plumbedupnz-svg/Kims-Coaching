@@ -20,6 +20,8 @@
   const playerGroupFilterEl = document.querySelector("[data-junior-player-group-filter]");
   const playerStatusFilterEl = document.querySelector("[data-junior-player-status-filter]");
   const playerPaymentFilterEl = document.querySelector("[data-junior-player-payment-filter]");
+  const playerBulkActionEl = document.querySelector("[data-junior-player-bulk-action]");
+  const playerBulkApplyEl = document.querySelector("[data-junior-player-bulk-apply]");
   const playerMessageEl = document.querySelector("[data-junior-player-message]");
   const planFormEl = document.querySelector("[data-session-plan-form]");
   const planListEl = document.querySelector("[data-session-plan-list]");
@@ -42,6 +44,7 @@
   let clubs = [];
   let coaches = [];
   const expandedCalendarGroups = new Set();
+  const selectedJuniorPlayerIds = new Set();
 
   function escapeHtml(value = "") {
     return String(value)
@@ -340,19 +343,8 @@
       const groupMembers = members.filter((member) => member.group_id === group.id);
       const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id));
       const groupIsPublic = isPublicGroup(group);
-      const memberRows = groupMembers.length ? groupMembers.map((member) => `
-        <div class="junior-member-row" draggable="true" data-member-id="${escapeHtml(member.id)}">
-          <div>
-            <strong>${escapeHtml(member.player_name)}</strong>
-            <p>${escapeHtml(member.email)} · ${escapeHtml(member.player_level || "No level")} · ${member.player_age ? `${member.player_age} yrs` : "Age not set"}</p>
-          </div>
-          <span class="status-pill ${statusClass(member.payment_status)}">${escapeHtml(member.payment_status)}</span>
-          <span class="status-pill ${statusClass(member.booking_status)}">${escapeHtml(member.booking_status)}</span>
-          <button class="btn btn-secondary" type="button" data-member-action="paid" data-id="${escapeHtml(member.id)}">Mark paid</button>
-          <button class="btn btn-secondary" type="button" data-member-action="move" data-id="${escapeHtml(member.id)}">Move</button>
-          <button class="btn btn-secondary" type="button" data-member-action="remove" data-id="${escapeHtml(member.id)}">Remove</button>
-        </div>
-      `).join("") : '<p class="helper-text">No players in this group yet.</p>';
+      const activeMembers = groupMembers.filter((member) => member.booking_status !== "cancelled");
+      const confirmedMembers = activeMembers.filter((member) => ["confirmed", "active_in_group"].includes(member.placement_status || member.booking_status));
 
       return `
         <article class="admin-data-row junior-group-row" data-group-drop-zone="${escapeHtml(group.id)}">
@@ -362,7 +354,7 @@
             <strong>${escapeHtml(group.group_name)}</strong>
             <p>${escapeHtml(group.term_name || "No term")} · ${getDayName(group.recurring_day)} ${escapeHtml(String(group.start_time || "").slice(0, 5))} · ${Number(group.session_count || 0)} sessions</p>
             <p>${money(group.price)} · capacity ${Number(group.capacity || 0)} · ${escapeHtml(getNameById(coaches, group.coach_id, "display_name") || "No coach")}</p>
-            <div class="junior-member-list">${memberRows}</div>
+            <p class="helper-text">${activeMembers.length} player${activeMembers.length === 1 ? "" : "s"} assigned · ${confirmedMembers.length} confirmed</p>
           </div>
           <div class="availability-actions">
             <button class="btn btn-secondary" type="button" data-group-action="edit" data-id="${escapeHtml(group.id)}">Edit</button>
@@ -415,9 +407,15 @@
     });
 
     if (!filteredPlayers.length) {
+      selectedJuniorPlayerIds.clear();
       playerListEl.innerHTML = '<p class="helper-text">No registered junior players found.</p>';
       return;
     }
+
+    const filteredIds = new Set(filteredPlayers.map((player) => player.id));
+    selectedJuniorPlayerIds.forEach((id) => {
+      if (!filteredIds.has(id)) selectedJuniorPlayerIds.delete(id);
+    });
 
     const rows = filteredPlayers.map((player) => {
       const member = getPlayerMember(player);
@@ -433,8 +431,10 @@
       const actionLabel = isActiveInGroup ? "Archive" : Number(groups.find((group) => group.id === groupId)?.price || 0) > 0
         ? "Confirm + request payment"
         : "Confirm placement";
+      const isSelected = selectedJuniorPlayerIds.has(player.id);
       return `
         <div class="junior-players-table-row" data-junior-player-row="${escapeHtml(player.id)}">
+          <span data-label="Select" class="junior-player-select-cell"><input type="checkbox" data-junior-player-select value="${escapeHtml(player.id)}" ${isSelected ? "checked" : ""} ${player.isLegacyMember ? "disabled" : ""} aria-label="Select ${escapeHtml(player.player_name || "junior player")}" /></span>
           <span data-label="Player"><strong>${escapeHtml(player.player_name || "Unnamed player")}</strong><small>${escapeHtml(formatAgeDob(player))}</small></span>
           <span data-label="Parent"><strong>${escapeHtml(player.parent_name || "Not listed")}</strong><small>${escapeHtml(player.parent_email || "No email")} · ${escapeHtml(player.parent_phone || "No phone")}</small></span>
           <span data-label="Suggested level">${escapeHtml(player.customer_selected_level || member?.player_level || "Not specified")}</span>
@@ -451,6 +451,7 @@
 
     playerListEl.innerHTML = `
       <div class="junior-players-table-row junior-players-table-head">
+        <span><input type="checkbox" data-junior-player-select-all ${selectedJuniorPlayerIds.size && selectedJuniorPlayerIds.size === filteredPlayers.length ? "checked" : ""} aria-label="Select all visible junior players" /></span>
         <span>Player</span>
         <span>Parent</span>
         <span>Suggested level</span>
@@ -1025,13 +1026,19 @@
     await refreshAll();
   }
 
-  async function archiveJuniorPlayer(id) {
+  function getSelectedJuniorPlayers() {
+    return Array.from(selectedJuniorPlayerIds)
+      .map((id) => players.find((player) => player.id === id))
+      .filter(Boolean);
+  }
+
+  async function archiveJuniorPlayer(id, options = {}) {
     const player = players.find((item) => item.id === id);
     const member = getPlayerMember(player);
     if (!player) return;
-    if (!confirm(`Archive ${player.player_name || "this junior player"} from their active group?`)) return;
+    if (!options.skipConfirm && !confirm(`Archive ${player.player_name || "this junior player"} from their active group?`)) return;
 
-    setMessage(playerMessageEl, `Archiving ${player.player_name || "junior player"}...`);
+    if (!options.quiet) setMessage(playerMessageEl, `Archiving ${player.player_name || "junior player"}...`);
     if (member?.id) {
       const { error: memberError } = await client
         .from("junior_group_members")
@@ -1042,8 +1049,7 @@
         })
         .eq("id", member.id);
       if (memberError) {
-        setMessage(playerMessageEl, `Could not archive group membership: ${memberError.message}`, "error");
-        return;
+        throw new Error(`Could not archive ${player.player_name || "junior player"} group membership: ${memberError.message}`);
       }
     }
 
@@ -1058,12 +1064,85 @@
       })
       .eq("id", player.id);
     if (playerError) {
-      setMessage(playerMessageEl, `Could not archive player: ${playerError.message}`, "error");
+      throw new Error(`Could not archive ${player.player_name || "junior player"}: ${playerError.message}`);
+    }
+
+    if (!options.quiet) {
+      setMessage(playerMessageEl, `${player.player_name || "Junior player"} archived.`, "success");
+      await refreshAll();
+    }
+  }
+
+  async function archiveSelectedJuniorPlayers() {
+    const selectedPlayers = getSelectedJuniorPlayers();
+    if (!selectedPlayers.length) {
+      setMessage(playerMessageEl, "Select one or more junior players first.", "error");
+      return;
+    }
+    if (!confirm(`Archive ${selectedPlayers.length} selected junior player${selectedPlayers.length === 1 ? "" : "s"}?`)) return;
+    setMessage(playerMessageEl, `Archiving ${selectedPlayers.length} junior player${selectedPlayers.length === 1 ? "" : "s"}...`);
+    try {
+      for (const player of selectedPlayers) {
+        await archiveJuniorPlayer(player.id, { skipConfirm: true, quiet: true });
+      }
+      selectedJuniorPlayerIds.clear();
+      setMessage(playerMessageEl, "Selected junior players archived.", "success");
+      await refreshAll();
+    } catch (error) {
+      setMessage(playerMessageEl, error.message, "error");
+    }
+  }
+
+  async function emailSelectedJuniorParents() {
+    const selectedPlayers = getSelectedJuniorPlayers();
+    if (!selectedPlayers.length) {
+      setMessage(playerMessageEl, "Select one or more junior players first.", "error");
+      return;
+    }
+    if (!window.KimsEmailService?.sendJuniorGroupAssignmentNotification) {
+      setMessage(playerMessageEl, "Email service is not ready yet. Refresh the page and try again.", "error");
       return;
     }
 
-    setMessage(playerMessageEl, `${player.player_name || "Junior player"} archived.`, "success");
-    await refreshAll();
+    const emailTargets = selectedPlayers.map((player) => {
+      const member = getPlayerMember(player);
+      const group = groups.find((item) => item.id === (player.junior_group_id || member?.group_id));
+      return { player, group };
+    }).filter(({ player, group }) => player.parent_email && group);
+
+    if (!emailTargets.length) {
+      setMessage(playerMessageEl, "Selected players need a parent email and assigned group before an email can be sent.", "error");
+      return;
+    }
+    if (!confirm(`Email ${emailTargets.length} selected parent${emailTargets.length === 1 ? "" : "s"}?`)) return;
+
+    setMessage(playerMessageEl, `Sending ${emailTargets.length} parent email${emailTargets.length === 1 ? "" : "s"}...`);
+    const results = await Promise.all(emailTargets.map(({ player, group }) => {
+      const member = getPlayerMember(player);
+      const payment = getPaymentForPlayer(player, member);
+      return window.KimsEmailService.sendJuniorGroupAssignmentNotification(
+        buildJuniorPlayerEmailPayload(player, group, player.invoice_url || member?.invoice_url || payment?.invoice_url || payment?.payment_link_url || "")
+      );
+    }));
+    const failed = results.filter((result) => result?.status === "failed").length;
+    setMessage(
+      playerMessageEl,
+      failed ? `${emailTargets.length - failed} sent, ${failed} failed. Check Email Diagnostics for details.` : "Selected parent emails sent.",
+      failed ? "error" : "success"
+    );
+  }
+
+  async function runJuniorPlayerBulkAction() {
+    const action = playerBulkActionEl?.value || "";
+    if (action === "archive") {
+      await archiveSelectedJuniorPlayers();
+      return;
+    }
+    if (action === "email") {
+      await emailSelectedJuniorParents();
+      return;
+    }
+    setMessage(playerMessageEl, "Choose a bulk action first.", "error");
   }
 
   async function emailGroupParents(id) {
@@ -1200,6 +1279,7 @@
   [playerLevelFilterEl, playerProgrammeFilterEl, playerGroupFilterEl, playerStatusFilterEl, playerPaymentFilterEl].forEach((select) => {
     select?.addEventListener("change", renderJuniorPlayers);
   });
+  playerBulkApplyEl?.addEventListener("click", runJuniorPlayerBulkAction);
 
   programmeListEl?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-programme-action]");
@@ -1269,7 +1349,11 @@
       return;
     }
     if (action === "archive-player") {
-      await archiveJuniorPlayer(id);
+      try {
+        await archiveJuniorPlayer(id);
+      } catch (error) {
+        setMessage(playerMessageEl, error.message, "error");
+      }
       return;
     }
     if (action === "assign-legacy") {
@@ -1303,6 +1387,26 @@
     }
     setMessage(playerMessageEl, `${member.player_name} moved to ${targetGroup.group_name}.`, "success");
     await refreshAll();
+  });
+
+  playerListEl?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-junior-player-select], [data-junior-player-select-all]");
+    if (!checkbox) return;
+    if (checkbox.matches("[data-junior-player-select-all]")) {
+      playerListEl.querySelectorAll("[data-junior-player-select]:not(:disabled)").forEach((rowCheckbox) => {
+        rowCheckbox.checked = checkbox.checked;
+        if (checkbox.checked) selectedJuniorPlayerIds.add(rowCheckbox.value);
+        else selectedJuniorPlayerIds.delete(rowCheckbox.value);
+      });
+      return;
+    }
+    if (checkbox.checked) selectedJuniorPlayerIds.add(checkbox.value);
+    else selectedJuniorPlayerIds.delete(checkbox.value);
+    const visibleCheckboxes = Array.from(playerListEl.querySelectorAll("[data-junior-player-select]:not(:disabled)"));
+    const selectAll = playerListEl.querySelector("[data-junior-player-select-all]");
+    if (selectAll) {
+      selectAll.checked = visibleCheckboxes.length > 0 && visibleCheckboxes.every((item) => item.checked);
+    }
   });
 
   planListEl?.addEventListener("click", (event) => {

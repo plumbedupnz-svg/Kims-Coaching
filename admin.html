@@ -581,7 +581,7 @@
 
             <section class="admin-section" data-admin-section="junior-groups" hidden>
               <div class="admin-section-head">
-                <div><p class="eyebrow">Junior coaching</p><h2>Junior groups</h2><p class="helper-text">Publish bookable junior groups, drag players into the right group, and email parents once groups are set.</p></div>
+                <div><p class="eyebrow">Junior coaching</p><h2>Junior groups</h2><p class="helper-text">Publish bookable junior groups and review group capacity at a glance.</p></div>
               </div>
               <div class="admin-panel-grid">
                 <form class="owner-add-form" data-junior-group-form>
@@ -617,8 +617,8 @@
                   <p class="form-message" data-junior-group-message></p>
                 </form>
                 <div class="admin-list-panel">
-                  <h3>Groups and players</h3>
-                  <p class="helper-text">Drag a player into another group to move them. Use Email parents when the group is ready.</p>
+                  <h3>Group summary</h3>
+                  <p class="helper-text">Use Junior Players to assign, archive, and email parents in bulk.</p>
                   <div class="admin-data-list" data-junior-group-list><p class="helper-text">Loading groups...</p></div>
                 </div>
               </div>
@@ -637,6 +637,15 @@
                   </label>
                 </div>
                 <div class="inventory-filters junior-player-filters">
+                  <label>
+                    <span>Bulk action</span>
+                    <select data-junior-player-bulk-action>
+                      <option value="">Choose action</option>
+                      <option value="archive">Archive selected players</option>
+                      <option value="email">Email selected parents</option>
+                    </select>
+                  </label>
+                  <button class="btn btn-secondary junior-bulk-apply" type="button" data-junior-player-bulk-apply>Apply</button>
                   <label>
                     <span>Level</span>
                     <select data-junior-player-level-filter>
