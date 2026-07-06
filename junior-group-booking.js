@@ -186,6 +186,73 @@
     window.location.href = data.url;
   }
 
+  function normalizePublicGroup(row = {}) {
+    const club = row.coaching_clubs || row.club || {};
+    return {
+      group_id: row.group_id || row.id,
+      programme_id: row.programme_id || "",
+      lesson_type_id: row.lesson_type_id || "",
+      programme_name: row.programme_name || row.group_name || "Junior Group Coaching",
+      group_name: row.group_name || row.programme_name || "Junior Group Coaching",
+      term_name: row.term_name || "",
+      age_min: row.age_min ?? null,
+      age_max: row.age_max ?? null,
+      level: row.level || "",
+      coach_id: row.coach_id || "",
+      coach_name: row.coach_name || row.coaches?.display_name || "Coach TBC",
+      club_id: row.club_id || "",
+      club_name: row.club_name || club.name || "Club TBC",
+      club_address: row.club_address || club.address || "",
+      start_date: row.start_date || "",
+      end_date: row.end_date || "",
+      recurring_day: row.recurring_day ?? 1,
+      start_time: row.start_time || "",
+      session_count: row.session_count ?? 0,
+      session_duration_minutes: row.session_duration_minutes ?? 0,
+      capacity: row.capacity ?? 0,
+      confirmed_count: row.confirmed_count ?? 0,
+      pending_count: row.pending_count ?? 0,
+      spaces_remaining: row.spaces_remaining ?? row.capacity ?? 0,
+      price: row.price ?? 0,
+      payment_link_url: row.payment_link_url || "",
+      description: row.description || ""
+    };
+  }
+
+  async function loadPublicGroupsDirectly() {
+    const { data, error } = await client
+      .from("junior_groups")
+      .select(`
+        id,
+        programme_id,
+        lesson_type_id,
+        group_name,
+        term_name,
+        age_min,
+        age_max,
+        level,
+        coach_id,
+        club_id,
+        start_date,
+        end_date,
+        recurring_day,
+        start_time,
+        session_count,
+        session_duration_minutes,
+        capacity,
+        price,
+        payment_link_url,
+        description,
+        coaching_clubs:club_id(name,address)
+      `)
+      .eq("is_active", true)
+      .eq("is_public", true)
+      .order("start_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    if (error) throw error;
+    return (data || []).map(normalizePublicGroup);
+  }
+
   function eligibilityIssue(group = state.selectedGroup) {
     if (!group || !formEl) return "";
     const person = selectedPerson();
@@ -244,10 +311,22 @@
     }
     const { data, error } = await client.rpc("get_public_junior_groups");
     if (error) {
-      cardsEl.innerHTML = `<p class="form-message" data-tone="error">Junior Group Coaching is not fully set up yet. Run supabase/migrations/20260627010000_junior_group_coaching.sql. Supabase said: ${escapeHtml(error.message)}</p>`;
-      return;
+      try {
+        state.groups = await loadPublicGroupsDirectly();
+      } catch (fallbackError) {
+        cardsEl.innerHTML = `<p class="form-message" data-tone="error">Junior Group Coaching is not fully set up yet. Run supabase/migrations/20260627010000_junior_group_coaching.sql. Supabase said: ${escapeHtml(error.message || fallbackError.message)}</p>`;
+        return;
+      }
+    } else {
+      state.groups = (data || []).map(normalizePublicGroup);
     }
-    state.groups = data || [];
+    if (!state.groups.length) {
+      try {
+        state.groups = await loadPublicGroupsDirectly();
+      } catch (fallbackError) {
+        console.warn("Could not load public junior groups directly", fallbackError);
+      }
+    }
     renderGroups();
   }
 

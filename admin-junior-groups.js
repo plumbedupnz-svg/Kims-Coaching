@@ -1284,7 +1284,8 @@
   programmeListEl?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-programme-action]");
     if (!button) return;
-    const { action, id } = button.dataset;
+    const action = button.dataset.programmeAction;
+    const id = button.dataset.id;
     if (action === "edit") editProgramme(id);
     if (action === "toggle") toggleProgramme(id);
   });
