@@ -13,8 +13,6 @@
   const personSelectEl = document.querySelector("[data-junior-booking-person]");
   const statusEl = document.querySelector("[data-junior-group-status]");
   const eligibilityEl = document.querySelector("[data-junior-eligibility-message]");
-  const mySessionsEl = document.querySelector("[data-junior-my-sessions]");
-  const mySessionListEl = document.querySelector("[data-junior-my-session-list]");
 
   if (!cardsEl) return;
 
@@ -52,80 +50,8 @@
     return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
   }
 
-  function formatDateTime(value) {
-    if (!value) return "";
-    return new Intl.DateTimeFormat(undefined, {
-      weekday: "short",
-      month: "short",
-      day: "numeric",
-      hour: "numeric",
-      minute: "2-digit"
-    }).format(new Date(value));
-  }
-
-  function formatShortDate(value) {
-    if (!value) return "";
-    return new Intl.DateTimeFormat(undefined, {
-      month: "short",
-      day: "numeric"
-    }).format(new Date(value));
-  }
-
   function getDayName(day) {
     return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][Number(day || 0)] || "Weekly";
-  }
-
-  function pluralizeSessions(count) {
-    return `${count} session${count === 1 ? "" : "s"}`;
-  }
-
-  function summarizeMySessions(sessions = []) {
-    const summaries = new Map();
-
-    sessions.forEach((session) => {
-      const key = [
-        session.group_id || session.programme_name || session.group_name || "junior-group",
-        session.member_id || session.player_name || "player"
-      ].join("::");
-
-      if (!summaries.has(key)) {
-        summaries.set(key, {
-          ...session,
-          sessions: []
-        });
-      }
-
-      summaries.get(key).sessions.push(session);
-    });
-
-    return Array.from(summaries.values()).map((summary) => {
-      const orderedSessions = summary.sessions
-        .slice()
-        .sort((a, b) => new Date(a.start_time || 0) - new Date(b.start_time || 0));
-      const firstSession = orderedSessions[0] || summary;
-      const lastSession = orderedSessions[orderedSessions.length - 1] || firstSession;
-
-      return {
-        ...summary,
-        firstSession,
-        lastSession,
-        sessionCount: orderedSessions.length
-      };
-    });
-  }
-
-  function formatSessionSummary(summary) {
-    const parts = [pluralizeSessions(summary.sessionCount || 0)];
-    const firstStart = summary.firstSession?.start_time;
-    const lastStart = summary.lastSession?.start_time;
-
-    if (firstStart && lastStart && firstStart !== lastStart) {
-      parts.push(`${formatShortDate(firstStart)} - ${formatShortDate(lastStart)}`);
-    } else if (firstStart) {
-      parts.push(formatDateTime(firstStart));
-    }
-
-    return parts.filter(Boolean).join(" · ");
   }
 
   function setStatus(message = "", tone = "") {
@@ -391,32 +317,6 @@
     renderGroups();
   }
 
-  async function loadMySessions() {
-    if (!client || !state.user || !mySessionsEl || !mySessionListEl) return;
-    mySessionsEl.hidden = false;
-    const { data, error } = await client.rpc("get_my_junior_group_sessions");
-    if (error) {
-      mySessionListEl.innerHTML = `<p class="form-message" data-tone="error">Could not load your junior group sessions: ${escapeHtml(error.message)}</p>`;
-      return;
-    }
-    const sessions = summarizeMySessions(data || []);
-    if (!sessions.length) {
-      mySessionListEl.innerHTML = '<p class="helper-text">No confirmed junior group sessions yet.</p>';
-      return;
-    }
-    mySessionListEl.innerHTML = sessions.map((session) => `
-      <article class="admin-data-row">
-        <div>
-          <strong>${escapeHtml(session.programme_name || session.group_name || "Junior Group Coaching")}</strong>
-          <p>${escapeHtml(session.player_name || "Player")}</p>
-          <p>${escapeHtml(session.coach_name || "Coach TBC")} · ${escapeHtml(session.club_name || "Club TBC")}</p>
-          <p>${escapeHtml(formatSessionSummary(session))}</p>
-        </div>
-        <span class="status-pill available">Confirmed</span>
-      </article>
-    `).join("");
-  }
-
   function renderGroups() {
     if (!state.groups.length) {
       cardsEl.innerHTML = '<p class="helper-text">No junior group programmes are currently open for booking.</p>';
@@ -531,7 +431,6 @@
       setStatus(checkoutError.message || "Could not start Stripe Checkout. Your place is pending payment.", "error");
     }
     await loadGroups();
-    await loadMySessions();
   }
 
   cardsEl.addEventListener("click", (event) => {
@@ -547,6 +446,5 @@
   (async function init() {
     await refreshSession();
     await loadGroups();
-    await loadMySessions();
   })();
 })();
