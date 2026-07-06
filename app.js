@@ -1086,6 +1086,23 @@ async function loadProfile(user) {
     return null;
   }
 
+  try {
+    const { data: playerRows, error: playerError } = await supabaseClient
+      .from("players")
+      .select("*")
+      .eq("profile_id", user.id)
+      .eq("is_active", true)
+      .order("profile_player_index", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
+    if (!playerError && Array.isArray(playerRows) && playerRows.length) {
+      data.players = playerRows.map(normalizePlayer);
+    } else if (playerError && !["PGRST116", "PGRST205", "42P01"].includes(playerError.code)) {
+      console.warn("Could not load player rows", playerError);
+    }
+  } catch (playerError) {
+    console.warn("Could not load player rows", playerError);
+  }
+
   return data;
 }
 
@@ -1393,7 +1410,7 @@ function renderAccountVerificationSuccess() {
 
 function hasSavedPlayerProfiles(profile = currentProfile) {
   const players = getProfilePlayers(profile);
-  return players.some((player) => [player.name, player.dob, player.level, player.notes].some((value) => String(value || "").trim()));
+  return players.some((player) => [player.name, player.dob, player.level, player.notes, player.parent_name].some((value) => String(value || "").trim()));
 }
 
 function renderAccountOnboarding() {
@@ -1422,7 +1439,6 @@ function populateProfileForm() {
     "delivery_city",
     "delivery_postcode",
     "delivery_country",
-    "parent_name",
     "notes"
   ];
   fields.forEach((field) => {
@@ -1455,12 +1471,23 @@ function getProfilePlayers(profile) {
 }
 
 function normalizePlayer(player) {
+  const dob = player?.dob || player?.date_of_birth || player?.dateOfBirth || "";
   return {
-    name: player?.name || "",
-    dob: player?.dob || "",
+    id: player?.id || "",
+    name: player?.name || player?.player_name || "",
+    dob: dob ? String(dob).slice(0, 10) : "",
     age: player?.age ?? "",
-    level: player?.level || player?.tennis_level || "",
-    notes: player?.notes || ""
+    level: player?.level || player?.tennis_level || player?.customer_selected_level || "",
+    parent_name: player?.parent_name || player?.parentName || "",
+    parent_email: player?.parent_email || player?.parentEmail || "",
+    parent_phone: player?.parent_phone || player?.parentPhone || "",
+    notes: player?.notes || "",
+    admin_confirmed_level: player?.admin_confirmed_level || "",
+    junior_programme_id: player?.junior_programme_id || "",
+    junior_group_id: player?.junior_group_id || "",
+    placement_status: player?.placement_status || "awaiting_placement",
+    payment_status: player?.payment_status || "not_required",
+    invoice_url: player?.invoice_url || ""
   };
 }
 
@@ -1517,7 +1544,24 @@ function renderPlayerFields(players = []) {
               Skill level
               <select name="player_level_${index}">${levelOptions}</select>
             </label>
+            <label>
+              Parent/guardian name
+              <input type="text" name="player_parent_name_${index}" value="${escapeAttribute(player.parent_name)}" autocomplete="name" />
+            </label>
+            <label>
+              Parent email
+              <input type="email" name="player_parent_email_${index}" value="${escapeAttribute(player.parent_email)}" autocomplete="email" />
+            </label>
+            <label>
+              Parent phone
+              <input type="tel" name="player_parent_phone_${index}" value="${escapeAttribute(player.parent_phone)}" autocomplete="tel" />
+            </label>
+            <label>
+              Notes / goals
+              <textarea name="player_notes_${index}" rows="3" placeholder="Goals, previous experience, or anything Kim should know">${escapeHtml(player.notes)}</textarea>
+            </label>
           </div>
+          <p class="helper-text">Junior status: ${escapeHtml(formatJuniorPlayerStatus(player))}</p>
         </article>`;
     })
     .join("");
@@ -1548,9 +1592,37 @@ function getPlayersFromForm(formData) {
       name: formData.get(`player_name_${index}`)?.trim() || "",
       dob: formData.get(`player_dob_${index}`) || "",
       age: formData.get(`player_age_${index}`) ? Number(formData.get(`player_age_${index}`)) : null,
-      level: formData.get(`player_level_${index}`) || ""
+      level: formData.get(`player_level_${index}`) || "",
+      parent_name: formData.get(`player_parent_name_${index}`)?.trim() || "",
+      parent_email: formData.get(`player_parent_email_${index}`)?.trim() || "",
+      parent_phone: formData.get(`player_parent_phone_${index}`)?.trim() || "",
+      notes: formData.get(`player_notes_${index}`)?.trim() || ""
     })
   );
+}
+
+function formatJuniorPlayerStatus(player = {}) {
+  const statusLabels = {
+    awaiting_placement: "Awaiting placement",
+    placement_confirmed: "Placement confirmed",
+    payment_pending: "Payment pending",
+    paid: "Paid",
+    active_in_group: "Active in group",
+    inactive: "Inactive",
+    cancelled: "Cancelled"
+  };
+  const paymentLabels = {
+    not_required: "No payment required",
+    pending: "Payment pending",
+    paid: "Paid",
+    overdue: "Overdue",
+    failed: "Payment failed",
+    refunded: "Refunded",
+    cancelled: "Cancelled"
+  };
+  const placement = statusLabels[player.placement_status] || "Awaiting placement";
+  const payment = paymentLabels[player.payment_status] || "";
+  return payment && payment !== "No payment required" ? `${placement} · ${payment}` : placement;
 }
 
 function focusPlayerForm() {
@@ -1583,7 +1655,7 @@ async function saveProfile(formData) {
     delivery_city: formData.get("delivery_city")?.trim() || "",
     delivery_postcode: formData.get("delivery_postcode")?.trim() || "",
     delivery_country: formData.get("delivery_country")?.trim() || "New Zealand",
-    parent_name: formData.get("parent_name").trim(),
+    parent_name: currentProfile?.parent_name || "",
     player_name: primaryPlayer.name,
     player_age: primaryPlayer.age === "" ? null : primaryPlayer.age,
     tennis_level: primaryPlayer.level,
@@ -1609,7 +1681,16 @@ async function saveProfile(formData) {
     return;
   }
 
-  currentProfile = data;
+  try {
+    const { data: syncedPlayers, error: syncError } = await supabaseClient.rpc("upsert_profile_players", { p_players: players });
+    if (syncError && !["PGRST202", "PGRST204", "PGRST205", "42883"].includes(syncError.code)) {
+      throw syncError;
+    }
+    currentProfile = { ...data, players: Array.isArray(syncedPlayers) && syncedPlayers.length ? syncedPlayers.map(normalizePlayer) : players };
+  } catch (syncError) {
+    console.warn("Could not sync player rows", syncError);
+    currentProfile = { ...data, players };
+  }
   renderCustomerAccount();
   setProfileMessage("Profile saved.", "success");
 }

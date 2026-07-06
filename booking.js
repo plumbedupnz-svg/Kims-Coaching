@@ -607,7 +607,10 @@
           level: player?.level || player?.tennis_level || "",
           age: normalizePlayerAge(player),
           dob: player?.dob || player?.date_of_birth || player?.dateOfBirth || "",
-          notes: player?.notes || ""
+          notes: player?.notes || "",
+          parentName: player?.parent_name || player?.parentName || "",
+          parentEmail: player?.parent_email || player?.parentEmail || "",
+          parentPhone: player?.parent_phone || player?.parentPhone || ""
         }))
         .filter((player) => player.name);
     }
@@ -642,7 +645,7 @@
         level: player.level || "",
         age: normalizePlayerAge(player),
         notes: player.notes || "",
-        parentName: profile.parent_name || ""
+        parentName: player.parentName || ""
       });
     });
 

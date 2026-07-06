@@ -15,6 +15,11 @@
   const calendarListEl = document.querySelector("[data-junior-calendar-list]");
   const playerListEl = document.querySelector("[data-junior-player-list]");
   const playerSearchEl = document.querySelector("[data-junior-player-search]");
+  const playerLevelFilterEl = document.querySelector("[data-junior-player-level-filter]");
+  const playerProgrammeFilterEl = document.querySelector("[data-junior-player-programme-filter]");
+  const playerGroupFilterEl = document.querySelector("[data-junior-player-group-filter]");
+  const playerStatusFilterEl = document.querySelector("[data-junior-player-status-filter]");
+  const playerPaymentFilterEl = document.querySelector("[data-junior-player-payment-filter]");
   const playerMessageEl = document.querySelector("[data-junior-player-message]");
   const planFormEl = document.querySelector("[data-session-plan-form]");
   const planListEl = document.querySelector("[data-session-plan-list]");
@@ -28,6 +33,7 @@
   let programmes = [];
   let groups = [];
   let sessions = [];
+  let players = [];
   let members = [];
   let plans = [];
   let payments = [];
@@ -127,6 +133,16 @@
     if (items.some((item) => item.id === current)) select.value = current;
   }
 
+  function populateFilterSelect(select, items, placeholder, labelKey = "name") {
+    if (!select) return;
+    const current = select.value;
+    select.innerHTML = [
+      `<option value="">${escapeHtml(placeholder)}</option>`,
+      ...items.map((item) => `<option value="${escapeHtml(item.id || item.value)}">${escapeHtml(item[labelKey] || item.label || item.name || "")}</option>`)
+    ].join("");
+    if ([...select.options].some((option) => option.value === current)) select.value = current;
+  }
+
   function populateAllSelects() {
     document.querySelectorAll("[data-junior-lesson-type]").forEach((select) => {
       populateSelect(select, lessonTypes, "Select lesson type", "name");
@@ -143,7 +159,111 @@
     document.querySelectorAll("[data-session-plan-group]").forEach((select) => {
       populateSelect(select, groups, "Select group", "group_name");
     });
+    const levelItems = [...new Set([
+      ...levelOrder,
+      ...players.flatMap((player) => [player.customer_selected_level, player.admin_confirmed_level]).filter(Boolean),
+      ...members.map((member) => member.player_level).filter(Boolean)
+    ])].map((level) => ({ value: level, label: level }));
+    populateFilterSelect(playerLevelFilterEl, levelItems, "All levels", "label");
+    populateFilterSelect(playerProgrammeFilterEl, programmes, "All programmes", "programme_name");
+    populateFilterSelect(playerGroupFilterEl, groups, "All groups", "group_name");
     populatePlanSessions();
+  }
+
+  function getProgrammeName(id) {
+    return getNameById(programmes, id, "programme_name") || "";
+  }
+
+  function getGroupName(id) {
+    return getNameById(groups, id, "group_name") || "";
+  }
+
+  function getGroupProgrammeId(groupId) {
+    return groups.find((group) => group.id === groupId)?.programme_id || "";
+  }
+
+  function getPlayerMember(player) {
+    if (!player) return null;
+    return members.find((member) => member.player_id === player.id)
+      || (player.junior_group_member_id ? members.find((member) => member.id === player.junior_group_member_id) : null)
+      || null;
+  }
+
+  function getPaymentForPlayer(player, member) {
+    if (!player && !member) return null;
+    return payments.find((payment) => payment.player_id === player?.id)
+      || payments.find((payment) => payment.junior_group_member_id === member?.id)
+      || null;
+  }
+
+  function formatAgeDob(player = {}) {
+    const age = player.age ?? player.player_age;
+    const dob = player.date_of_birth || player.dob;
+    if (age && dob) return `${age} yrs · ${dob}`;
+    if (age) return `${age} yrs`;
+    if (dob) return dob;
+    return "Age not set";
+  }
+
+  function formatPlacementStatus(status = "") {
+    return String(status || "awaiting_placement").replace(/_/g, " ");
+  }
+
+  function formatPaymentStatus(status = "") {
+    return String(status || "not_required").replace(/_/g, " ");
+  }
+
+  function buildLevelOptions(current = "") {
+    const options = [...new Set([current, ...levelOrder].filter(Boolean))];
+    return [
+      '<option value="">Select level</option>',
+      ...options.map((level) => `<option value="${escapeHtml(level)}" ${level === current ? "selected" : ""}>${escapeHtml(level)}</option>`)
+    ].join("");
+  }
+
+  function buildProgrammeOptions(current = "") {
+    return [
+      '<option value="">Select programme</option>',
+      ...programmes.map((programme) => `<option value="${escapeHtml(programme.id)}" ${programme.id === current ? "selected" : ""}>${escapeHtml(programme.programme_name || "Programme")}</option>`)
+    ].join("");
+  }
+
+  function buildGroupOptionsForPlayer(player, member, current = "") {
+    const currentGroupId = current || player?.junior_group_id || member?.group_id || "";
+    return [
+      '<option value="">Select group</option>',
+      ...groups.map((group) => {
+        const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id, member?.id || ""));
+        const selected = group.id === currentGroupId ? "selected" : "";
+        const inactive = group.is_active === false ? " - inactive" : "";
+        return `<option value="${escapeHtml(group.id)}" ${selected}>${escapeHtml(group.group_name)}${inactive} (${spaces} space${spaces === 1 ? "" : "s"})</option>`;
+      })
+    ].join("");
+  }
+
+  function getJuniorPlayerRows() {
+    if (players.length) return players.filter((player) => player.is_active !== false);
+    return members
+      .filter((member) => member.booking_status !== "cancelled")
+      .map((member) => ({
+        id: `member:${member.id}`,
+        isLegacyMember: true,
+        player_name: member.player_name,
+        age: member.player_age,
+        parent_name: member.parent_name,
+        parent_email: member.email,
+        parent_phone: member.mobile,
+        customer_selected_level: member.player_level,
+        admin_confirmed_level: member.admin_confirmed_level || "",
+        notes: member.notes || "",
+        admin_notes: member.admin_notes || "",
+        junior_programme_id: member.programme_id || getGroupProgrammeId(member.group_id),
+        junior_group_id: member.group_id,
+        junior_group_member_id: member.id,
+        placement_status: member.placement_status || member.booking_status || "placement_confirmed",
+        payment_status: member.payment_status || "not_required",
+        is_active: true
+      }));
   }
 
   function populateJuniorGroupTimes() {
@@ -259,44 +379,70 @@
   function renderJuniorPlayers() {
     if (!playerListEl) return;
     const searchTerm = (playerSearchEl?.value || "").trim().toLowerCase();
-    const activeMembers = members.filter((member) => member.booking_status !== "cancelled");
-    const filteredMembers = searchTerm
-      ? activeMembers.filter((member) => [
-          member.player_name,
-          member.parent_name,
-          member.email,
-          member.mobile,
-          member.player_level,
-          getNameById(groups, member.group_id, "group_name")
-        ].some((value) => String(value || "").toLowerCase().includes(searchTerm)))
-      : activeMembers;
+    const levelFilter = playerLevelFilterEl?.value || "";
+    const programmeFilter = playerProgrammeFilterEl?.value || "";
+    const groupFilter = playerGroupFilterEl?.value || "";
+    const statusFilter = playerStatusFilterEl?.value || "";
+    const paymentFilter = playerPaymentFilterEl?.value || "";
+    const sourceRows = getJuniorPlayerRows();
+    const filteredPlayers = sourceRows.filter((player) => {
+      const member = getPlayerMember(player);
+      const programmeId = player.junior_programme_id || member?.programme_id || getGroupProgrammeId(player.junior_group_id || member?.group_id);
+      const groupId = player.junior_group_id || member?.group_id || "";
+      const placementStatus = player.placement_status || member?.placement_status || member?.booking_status || "awaiting_placement";
+      const paymentStatus = player.payment_status || member?.payment_status || "not_required";
+      const searchable = [
+        player.player_name,
+        player.parent_name,
+        player.parent_email,
+        player.parent_phone,
+        player.customer_selected_level,
+        player.admin_confirmed_level,
+        player.notes,
+        player.admin_notes,
+        getProgrammeName(programmeId),
+        getGroupName(groupId),
+        placementStatus,
+        paymentStatus
+      ].join(" ").toLowerCase();
+      if (searchTerm && !searchable.includes(searchTerm)) return false;
+      if (levelFilter && ![player.customer_selected_level, player.admin_confirmed_level, member?.player_level].includes(levelFilter)) return false;
+      if (programmeFilter && programmeId !== programmeFilter) return false;
+      if (groupFilter && groupId !== groupFilter) return false;
+      if (statusFilter && placementStatus !== statusFilter) return false;
+      if (paymentFilter && paymentStatus !== paymentFilter) return false;
+      return true;
+    });
 
-    if (!filteredMembers.length) {
+    if (!filteredPlayers.length) {
       playerListEl.innerHTML = '<p class="helper-text">No registered junior players found.</p>';
       return;
     }
 
-    const buildGroupOptions = (member) => [
-      '<option value="">Select group</option>',
-      ...groups.map((group) => {
-        const spaces = Math.max(0, Number(group.capacity || 0) - activeGroupMemberCount(group.id, member.id));
-        const selected = group.id === member.group_id ? "selected" : "";
-        const inactive = group.is_active === false ? " - inactive" : "";
-        return `<option value="${escapeHtml(group.id)}" ${selected}>${escapeHtml(group.group_name)}${inactive} (${spaces} space${spaces === 1 ? "" : "s"})</option>`;
-      })
-    ].join("");
-
-    const rows = filteredMembers.map((member) => {
-      const groupName = getNameById(groups, member.group_id, "group_name") || "Unassigned";
+    const rows = filteredPlayers.map((player) => {
+      const member = getPlayerMember(player);
+      const payment = getPaymentForPlayer(player, member);
+      const programmeId = player.junior_programme_id || member?.programme_id || getGroupProgrammeId(player.junior_group_id || member?.group_id);
+      const groupId = player.junior_group_id || member?.group_id || "";
+      const adminLevel = player.admin_confirmed_level || member?.admin_confirmed_level || "";
+      const placementStatus = player.placement_status || member?.placement_status || member?.booking_status || "awaiting_placement";
+      const paymentStatus = player.payment_status || member?.payment_status || payment?.payment_status || "not_required";
+      const invoiceUrl = player.invoice_url || member?.invoice_url || payment?.invoice_url || payment?.payment_link_url || "";
+      const actionLabel = Number(groups.find((group) => group.id === groupId)?.price || 0) > 0
+        ? "Confirm + request payment"
+        : "Confirm placement";
       return `
-        <div class="junior-players-table-row" data-junior-player-row="${escapeHtml(member.id)}">
-          <span data-label="Player"><strong>${escapeHtml(member.player_name || "Unnamed player")}</strong><small>${member.player_age ? `${escapeHtml(member.player_age)} yrs` : "Age not set"} · ${escapeHtml(member.player_level || "No level")}</small></span>
-          <span data-label="Parent">${escapeHtml(member.parent_name || "Not listed")}</span>
-          <span data-label="Contact"><strong>${escapeHtml(member.email || "No email")}</strong><small>${escapeHtml(member.mobile || "No mobile")}</small></span>
-          <span data-label="Status"><span class="status-pill ${statusClass(member.booking_status)}">${escapeHtml(member.booking_status || "unknown")}</span><small>${escapeHtml(member.payment_status || "no payment")}</small></span>
-          <span data-label="Current group">${escapeHtml(groupName)}</span>
-          <span data-label="Assign group"><select data-junior-player-group ${groups.length ? "" : "disabled"}>${buildGroupOptions(member)}</select></span>
-          <span data-label="Action"><button class="btn btn-secondary" type="button" data-player-action="assign" data-id="${escapeHtml(member.id)}">Save group</button></span>
+        <div class="junior-players-table-row" data-junior-player-row="${escapeHtml(player.id)}">
+          <span data-label="Player"><strong>${escapeHtml(player.player_name || "Unnamed player")}</strong><small>${escapeHtml(formatAgeDob(player))}</small></span>
+          <span data-label="Parent"><strong>${escapeHtml(player.parent_name || "Not listed")}</strong><small>${escapeHtml(player.parent_email || "No email")} · ${escapeHtml(player.parent_phone || "No phone")}</small></span>
+          <span data-label="Suggested level">${escapeHtml(player.customer_selected_level || member?.player_level || "Not specified")}</span>
+          <span data-label="Admin level"><select data-junior-player-admin-level ${player.isLegacyMember ? "disabled" : ""}>${buildLevelOptions(adminLevel)}</select></span>
+          <span data-label="Programme"><select data-junior-player-programme ${player.isLegacyMember ? "disabled" : ""}>${buildProgrammeOptions(programmeId)}</select></span>
+          <span data-label="Group"><select data-junior-player-group ${groups.length && !player.isLegacyMember ? "" : "disabled"}>${buildGroupOptionsForPlayer(player, member, groupId)}</select></span>
+          <span data-label="Status"><span class="status-pill ${statusClass(placementStatus)}">${escapeHtml(formatPlacementStatus(placementStatus))}</span><small>${escapeHtml(formatPaymentStatus(paymentStatus))}</small></span>
+          <span data-label="Payment">${invoiceUrl ? `<a href="${escapeHtml(invoiceUrl)}" target="_blank" rel="noopener">Payment link</a>` : "No link yet"}</span>
+          <span data-label="Notes"><textarea data-junior-player-admin-notes rows="2" ${player.isLegacyMember ? "disabled" : ""}>${escapeHtml(player.admin_notes || member?.admin_notes || "")}</textarea></span>
+          <span data-label="Action"><button class="btn btn-secondary" type="button" data-player-action="${player.isLegacyMember ? "assign-legacy" : "confirm-placement"}" data-id="${escapeHtml(player.id)}">${player.isLegacyMember ? "Use Groups tab" : actionLabel}</button></span>
         </div>
       `;
     }).join("");
@@ -305,10 +451,13 @@
       <div class="junior-players-table-row junior-players-table-head">
         <span>Player</span>
         <span>Parent</span>
-        <span>Contact</span>
+        <span>Suggested level</span>
+        <span>Admin level</span>
+        <span>Programme</span>
+        <span>Group</span>
         <span>Status</span>
-        <span>Current group</span>
-        <span>Assign group</span>
+        <span>Payment</span>
+        <span>Notes</span>
         <span>Action</span>
       </div>
       ${rows}
@@ -465,16 +614,18 @@
 
   async function loadJuniorData() {
     if (!client) return;
-    const [programmeResult, groupResult, sessionResult, memberResult, planResult, paymentResult, bookingResult] = await Promise.all([
+    const [programmeResult, groupResult, sessionResult, memberResult, playerResult, planResult, paymentResult, bookingResult] = await Promise.all([
       client.from("junior_programmes").select("*").order("created_at", { ascending: false }),
       client.from("junior_groups").select("*").order("start_date", { ascending: true }),
       client.from("junior_group_sessions").select("*").order("start_time", { ascending: true }),
       client.from("junior_group_members").select("*").order("created_at", { ascending: false }),
+      client.from("players").select("*").order("created_at", { ascending: false }),
       client.from("session_plans").select("*").order("session_date", { ascending: true }),
       client.from("payments").select("*").eq("related_type", "junior_group").order("created_at", { ascending: false }),
       client.from("bookings").select("id,player_name,email,start_time,end_time,booking_status,created_at").order("start_time", { ascending: true })
     ]);
 
+    const missingPlayersTable = playerResult.error && /players|schema cache|PGRST205|42P01/i.test(playerResult.error.message || "");
     const errors = [programmeResult, groupResult, sessionResult, memberResult, planResult, paymentResult].map((result) => result.error).filter(Boolean);
     if (errors.length) {
       const message = `Junior group schema is not fully installed yet. Run supabase/migrations/20260627010000_junior_group_coaching.sql. Supabase said: ${errors[0].message}`;
@@ -488,9 +639,17 @@
     groups = groupResult.data || [];
     sessions = sessionResult.data || [];
     members = memberResult.data || [];
+    players = missingPlayersTable ? [] : (playerResult.data || []);
     plans = planResult.data || [];
     payments = paymentResult.data || [];
     privateBookings = bookingResult.error ? [] : (bookingResult.data || []);
+    if (missingPlayersTable) {
+      setMessage(playerMessageEl, "Run supabase/migrations/20260706000000_player_first_junior_coaching.sql to enable the player-first Junior Coaching table.", "error");
+    } else if (playerResult.error) {
+      setMessage(playerMessageEl, `Could not load junior players: ${playerResult.error.message}`, "error");
+    } else {
+      setMessage(playerMessageEl);
+    }
     renderAll();
   }
 
@@ -740,6 +899,130 @@
     await refreshAll();
   }
 
+  function buildJuniorPlayerEmailPayload(player, group, paymentLinkUrl = "") {
+    const firstSession = getFirstSession(group.id);
+    const sessionDate = firstSession?.start_time || group.start_date;
+    const sessionTime = firstSession?.start_time
+      ? new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(firstSession.start_time))
+      : formatTime(group.start_time);
+    return {
+      email: player.parent_email,
+      customerName: player.parent_name,
+      playerName: player.player_name,
+      playerAge: player.age,
+      playerLevel: player.admin_confirmed_level || player.customer_selected_level,
+      programmeName: getProgrammeName(group.programme_id) || group.group_name,
+      groupName: group.group_name,
+      coachName: getNameById(coaches, group.coach_id, "display_name") || "Kim Jones",
+      clubName: getNameById(clubs, group.club_id),
+      dayName: getDayName(group.recurring_day),
+      sessionTime,
+      startDate: sessionDate,
+      sessionCount: group.session_count,
+      durationMinutes: group.session_duration_minutes,
+      amount: group.price,
+      paymentLinkUrl,
+      notes: player.admin_notes || player.notes || "",
+      relatedType: "junior_player",
+      relatedId: player.id,
+      traceId: `junior-player-${player.id}-${Date.now()}`
+    };
+  }
+
+  async function createJuniorPaymentRequest({ player, memberId, paymentId }) {
+    const sessionResult = await client.auth.getSession();
+    const token = sessionResult.data?.session?.access_token;
+    if (!token) throw new Error("Your admin session could not be verified. Sign out and back in, then try again.");
+    const response = await fetch("/api/stripe/create-checkout-session", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({
+        booking_type: "junior_group_admin_payment_request",
+        player_id: player.id,
+        member_id: memberId,
+        payment_id: paymentId
+      })
+    });
+    const json = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(json.error || "Could not create the Stripe payment request.");
+    return json;
+  }
+
+  async function confirmPlayerPlacement(id, row) {
+    const player = players.find((item) => item.id === id);
+    if (!player) {
+      setMessage(playerMessageEl, "This older player row can still be managed from Junior Groups. Save the account player profile again to move it into the new player-first table.", "error");
+      return;
+    }
+
+    const groupId = row?.querySelector("[data-junior-player-group]")?.value || "";
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) {
+      setMessage(playerMessageEl, "Choose a junior group before confirming placement.", "error");
+      return;
+    }
+    if (Number(group.price || 0) > 0 && !player.parent_email) {
+      setMessage(playerMessageEl, "Add a parent email before confirming a paid placement so the payment request can be sent.", "error");
+      return;
+    }
+
+    const programmeId = row?.querySelector("[data-junior-player-programme]")?.value || group.programme_id || "";
+    const adminLevel = row?.querySelector("[data-junior-player-admin-level]")?.value || "";
+    const adminNotes = row?.querySelector("[data-junior-player-admin-notes]")?.value || "";
+
+    setMessage(playerMessageEl, `Confirming ${player.player_name} in ${group.group_name}...`);
+    const { data, error } = await client.rpc("admin_confirm_junior_player_placement", {
+      p_player_id: player.id,
+      p_programme_id: programmeId || null,
+      p_group_id: group.id,
+      p_admin_confirmed_level: adminLevel || null,
+      p_admin_notes: adminNotes || null
+    });
+    if (error) {
+      setMessage(playerMessageEl, `Could not confirm placement: ${error.message}`, "error");
+      return;
+    }
+
+    const result = Array.isArray(data) ? data[0] : data;
+    const confirmedPlayer = {
+      ...player,
+      admin_confirmed_level: adminLevel || player.admin_confirmed_level,
+      admin_notes: adminNotes || player.admin_notes,
+      junior_programme_id: programmeId || group.programme_id,
+      junior_group_id: group.id
+    };
+    const amount = Number(result?.amount || group.price || 0);
+
+    try {
+      if (amount > 0) {
+        const checkout = await createJuniorPaymentRequest({
+          player: confirmedPlayer,
+          memberId: result?.member_id,
+          paymentId: result?.payment_id
+        });
+        const payload = buildJuniorPlayerEmailPayload(confirmedPlayer, group, checkout.url || "");
+        const emailResult = await window.KimsEmailService?.sendJuniorGroupPaymentRequest?.(payload);
+        const emailFailed = emailResult && emailResult.status === "failed";
+        setMessage(
+          playerMessageEl,
+          emailFailed ? "Placement saved and payment link created, but the email failed. Copy the payment link from the table after refresh." : "Placement saved and payment request sent.",
+          emailFailed ? "error" : "success"
+        );
+      } else {
+        const payload = buildJuniorPlayerEmailPayload(confirmedPlayer, group);
+        await window.KimsEmailService?.sendJuniorGroupAssignmentNotification?.(payload);
+        setMessage(playerMessageEl, "Placement confirmed. No payment is required for this group.", "success");
+      }
+    } catch (requestError) {
+      setMessage(playerMessageEl, `Placement was saved, but payment/email setup failed: ${requestError.message}`, "error");
+    }
+
+    await refreshAll();
+  }
+
   async function emailGroupParents(id) {
     const group = groups.find((item) => item.id === id);
     if (!group) return;
@@ -871,6 +1154,9 @@
   programmeFormEl?.elements.lesson_type_id?.addEventListener("change", (event) => fillProgrammeFromLesson(event.target.value));
   groupFormEl?.elements.programme_id?.addEventListener("change", (event) => fillGroupFromProgramme(event.target.value));
   playerSearchEl?.addEventListener("input", renderJuniorPlayers);
+  [playerLevelFilterEl, playerProgrammeFilterEl, playerGroupFilterEl, playerStatusFilterEl, playerPaymentFilterEl].forEach((select) => {
+    select?.addEventListener("change", renderJuniorPlayers);
+  });
 
   programmeListEl?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-programme-action]");
@@ -932,8 +1218,17 @@
   playerListEl?.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-player-action]");
     if (!button) return;
+    const action = button.dataset.playerAction;
     const { id } = button.dataset;
     const row = button.closest("[data-junior-player-row]");
+    if (action === "confirm-placement") {
+      await confirmPlayerPlacement(id, row);
+      return;
+    }
+    if (action === "assign-legacy") {
+      setMessage(playerMessageEl, "This older row can be managed from Junior Groups. Save the customer player profile again to move it into the player-first table.", "error");
+      return;
+    }
     const targetGroupId = row?.querySelector("[data-junior-player-group]")?.value || "";
     const member = members.find((item) => item.id === id);
     if (!member) return;

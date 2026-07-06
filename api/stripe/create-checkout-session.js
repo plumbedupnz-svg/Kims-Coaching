@@ -132,6 +132,95 @@ async function createJuniorCheckout({ user, body }) {
   return session;
 }
 
+async function createAdminJuniorPaymentRequest({ user, body }) {
+  const profile = await getProfile(user.id);
+  if (profile?.role !== "admin") throw new Error("Only admin users can create junior coaching payment requests.");
+
+  let memberId = body.member_id || body.memberId;
+  const playerId = body.player_id || body.playerId;
+  if (!memberId && playerId) {
+    const playerRows = await restSelect("players", "id,junior_group_member_id", { id: `eq.${playerId}`, limit: "1" });
+    memberId = playerRows[0]?.junior_group_member_id;
+  }
+  if (!memberId) throw new Error("member_id is required.");
+
+  const memberRows = await restSelect(
+    "junior_group_members",
+    "*,group:group_id(id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name),club:club_id(name),coach:coach_id(display_name))",
+    { id: `eq.${memberId}`, limit: "1" }
+  );
+  const member = memberRows[0];
+  if (!member) throw new Error("Junior group placement was not found.");
+
+  const amount = Number(member.group?.price || 0);
+  if (amount <= 0) throw new Error("This junior group placement does not require online payment.");
+
+  const paymentId = body.payment_id || body.paymentId;
+  const paymentRows = paymentId
+    ? await restSelect("payments", "*", { id: `eq.${paymentId}`, limit: "1" })
+    : await restSelect("payments", "*", {
+        junior_group_member_id: `eq.${member.id}`,
+        order: "created_at.desc",
+        limit: "1"
+      });
+  const payment = paymentRows[0] || await restInsert("payments", {
+    profile_id: member.profile_id || null,
+    junior_group_member_id: member.id,
+    player_id: member.player_id || playerId || null,
+    related_type: "junior_group",
+    related_id: member.group_id,
+    amount,
+    currency: "NZD",
+    payment_status: "pending",
+    provider: "stripe"
+  });
+
+  const session = await createStripeCheckoutSession({
+    lineItems: [{
+      name: member.group?.group_name || "Junior Group Coaching",
+      description: `${member.player_name || "Player"} · ${member.group?.programme?.programme_name || "Kim Jones Coaching"}`,
+      quantity: 1,
+      unitAmount: amount
+    }],
+    customerEmail: member.email || "",
+    successPath: "/payment-success.html",
+    cancelPath: `/payment-cancelled.html?member_id=${encodeURIComponent(member.id)}`,
+    metadata: {
+      booking_type: "junior_group",
+      booking_id: member.id,
+      member_id: member.id,
+      payment_id: payment.id,
+      user_id: member.profile_id || "",
+      player_id: member.player_id || playerId || ""
+    }
+  });
+
+  await Promise.all([
+    restUpdate("junior_group_members", { id: `eq.${member.id}` }, {
+      booking_status: "pending_payment",
+      payment_status: "pending",
+      invoice_url: session.url || "",
+      stripe_session_id: session.id
+    }, ""),
+    restUpdate("payments", { id: `eq.${payment.id}` }, {
+      provider: "stripe",
+      provider_reference: session.id,
+      stripe_session_id: session.id,
+      invoice_url: session.url || "",
+      payment_link_url: session.url || "",
+      payment_status: "pending"
+    }, ""),
+    member.player_id || playerId ? restUpdate("players", { id: `eq.${member.player_id || playerId}` }, {
+      payment_status: "pending",
+      placement_status: "payment_pending",
+      invoice_url: session.url || "",
+      stripe_session_id: session.id
+    }, "") : Promise.resolve()
+  ]);
+
+  return session;
+}
+
 async function getShopLineItems(cart) {
   const ids = [...new Set(cart.map((item) => String(item.id || "")).filter(Boolean))];
   const inventoryIds = [...new Set(cart.map((item) => String(item.inventory_item_id || item.id || "")).filter(Boolean))];
@@ -373,6 +462,7 @@ module.exports = async function handler(req, res) {
       const user = await verifyUser(authHeader);
       if (bookingType === "private_lesson") session = await createBookingCheckout({ user, body });
       else if (bookingType === "junior_group") session = await createJuniorCheckout({ user, body });
+      else if (bookingType === "junior_group_admin_payment_request") session = await createAdminJuniorPaymentRequest({ user, body });
       else throw new Error("Unknown checkout type.");
     }
 
