@@ -22,6 +22,7 @@
     "product-orders": "products",
     "junior-programmes": "junior-coaching",
     "junior-groups": "junior-coaching",
+    "junior-players": "junior-coaching",
     "group-calendar": "junior-coaching",
     "session-plans": "junior-coaching",
     "junior-payments": "junior-coaching"
@@ -62,6 +63,7 @@
   const juniorPanelMap = {
     "junior-programmes": "programmes",
     "junior-groups": "groups",
+    "junior-players": "players",
     "group-calendar": "calendar",
     "session-plans": "session-plans",
     "junior-payments": "payments"
@@ -105,6 +107,7 @@
         <button type="button" class="active" data-junior-tab="dashboard">Junior Dashboard</button>
         <button type="button" data-junior-tab="programmes">Junior Programmes</button>
         <button type="button" data-junior-tab="groups">Junior Groups</button>
+        <button type="button" data-junior-tab="players">Junior Players</button>
         <button type="button" data-junior-tab="calendar">Group Calendar</button>
         <button type="button" data-junior-tab="session-plans">Session Plans</button>
         <button type="button" data-junior-tab="payments">Payments / Overdue</button>
