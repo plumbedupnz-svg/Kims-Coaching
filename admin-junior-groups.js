@@ -428,7 +428,9 @@
       const placementStatus = player.placement_status || member?.placement_status || member?.booking_status || "awaiting_placement";
       const paymentStatus = player.payment_status || member?.payment_status || payment?.payment_status || "not_required";
       const invoiceUrl = player.invoice_url || member?.invoice_url || payment?.invoice_url || payment?.payment_link_url || "";
-      const actionLabel = Number(groups.find((group) => group.id === groupId)?.price || 0) > 0
+      const isActiveInGroup = placementStatus === "active_in_group";
+      const actionName = player.isLegacyMember ? "assign-legacy" : (isActiveInGroup ? "archive-player" : "confirm-placement");
+      const actionLabel = isActiveInGroup ? "Archive" : Number(groups.find((group) => group.id === groupId)?.price || 0) > 0
         ? "Confirm + request payment"
         : "Confirm placement";
       return `
@@ -442,7 +444,7 @@
           <span data-label="Status"><span class="status-pill ${statusClass(placementStatus)}">${escapeHtml(formatPlacementStatus(placementStatus))}</span><small>${escapeHtml(formatPaymentStatus(paymentStatus))}</small></span>
           <span data-label="Payment">${invoiceUrl ? `<a href="${escapeHtml(invoiceUrl)}" target="_blank" rel="noopener">Payment link</a>` : "No link yet"}</span>
           <span data-label="Notes"><textarea data-junior-player-admin-notes rows="2" ${player.isLegacyMember ? "disabled" : ""}>${escapeHtml(player.admin_notes || member?.admin_notes || "")}</textarea></span>
-          <span data-label="Action"><button class="btn btn-secondary" type="button" data-player-action="${player.isLegacyMember ? "assign-legacy" : "confirm-placement"}" data-id="${escapeHtml(player.id)}">${player.isLegacyMember ? "Use Groups tab" : actionLabel}</button></span>
+          <span data-label="Action"><button class="btn btn-secondary" type="button" data-player-action="${actionName}" data-id="${escapeHtml(player.id)}">${player.isLegacyMember ? "Use Groups tab" : actionLabel}</button></span>
         </div>
       `;
     }).join("");
@@ -1023,6 +1025,47 @@
     await refreshAll();
   }
 
+  async function archiveJuniorPlayer(id) {
+    const player = players.find((item) => item.id === id);
+    const member = getPlayerMember(player);
+    if (!player) return;
+    if (!confirm(`Archive ${player.player_name || "this junior player"} from their active group?`)) return;
+
+    setMessage(playerMessageEl, `Archiving ${player.player_name || "junior player"}...`);
+    if (member?.id) {
+      const { error: memberError } = await client
+        .from("junior_group_members")
+        .update({
+          booking_status: "cancelled",
+          placement_status: "inactive",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", member.id);
+      if (memberError) {
+        setMessage(playerMessageEl, `Could not archive group membership: ${memberError.message}`, "error");
+        return;
+      }
+    }
+
+    const { error: playerError } = await client
+      .from("players")
+      .update({
+        junior_programme_id: null,
+        junior_group_id: null,
+        junior_group_member_id: null,
+        placement_status: "inactive",
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", player.id);
+    if (playerError) {
+      setMessage(playerMessageEl, `Could not archive player: ${playerError.message}`, "error");
+      return;
+    }
+
+    setMessage(playerMessageEl, `${player.player_name || "Junior player"} archived.`, "success");
+    await refreshAll();
+  }
+
   async function emailGroupParents(id) {
     const group = groups.find((item) => item.id === id);
     if (!group) return;
@@ -1223,6 +1266,10 @@
     const row = button.closest("[data-junior-player-row]");
     if (action === "confirm-placement") {
       await confirmPlayerPlacement(id, row);
+      return;
+    }
+    if (action === "archive-player") {
+      await archiveJuniorPlayer(id);
       return;
     }
     if (action === "assign-legacy") {
