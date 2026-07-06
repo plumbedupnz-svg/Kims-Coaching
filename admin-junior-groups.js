@@ -69,7 +69,7 @@
   }
 
   function statusClass(status = "") {
-    if (["paid", "confirmed", "scheduled", "active"].includes(status)) return "available";
+    if (["paid", "confirmed", "scheduled", "active", "active_in_group"].includes(status)) return "available";
     if (["overdue", "pending", "pending_payment"].includes(status)) return "warning";
     return "blocked";
   }
