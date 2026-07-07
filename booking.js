@@ -1291,41 +1291,198 @@
       return;
     }
 
+    const [adultResult, juniorResult] = await Promise.all([
+      loadAdultMyBookings(),
+      loadJuniorMyBookings()
+    ]);
+    const loadFailed = adultResult.error && juniorResult.error;
+    const bookings = [...adultResult.items, ...juniorResult.items]
+      .filter((booking) => !booking.endsAt || booking.endsAt >= Date.now())
+      .sort((first, second) => (first.sortAt || 0) - (second.sortAt || 0))
+      .slice(0, 10);
+
+    if (loadFailed) {
+      myBookingsEl.innerHTML = '<p class="helper-text">Could not load bookings yet.</p>';
+      return;
+    }
+
+    if (!bookings.length) {
+      myBookingsEl.innerHTML = '<p class="helper-text">No upcoming coaching bookings.</p>';
+      return;
+    }
+
+    myBookingsEl.innerHTML = bookings.map(renderMyBookingItem).join("");
+  }
+
+  async function loadAdultMyBookings() {
     const { data, error } = await client
       .from("bookings")
       .select("*, availability:availability_id(start_time,end_time), lesson_type:lesson_type_id(name,duration), club:club_id(name,address), coach:coach_id(display_name)")
       .eq("user_id", state.user.id)
       .in("booking_status", ["pending", "pending_payment", "confirmed"])
       .order("created_at", { ascending: false })
-      .limit(10);
+      .limit(20);
 
     if (error) {
-      myBookingsEl.innerHTML = '<p class="helper-text">Could not load bookings yet.</p>';
-      return;
+      console.warn("[Kim booking] Could not load adult bookings", error);
+      return { items: [], error };
     }
 
-    if (!data?.length) {
-      myBookingsEl.innerHTML = '<p class="helper-text">No coaching bookings yet.</p>';
-      return;
+    return {
+      error: null,
+      items: (data || []).map((booking) => {
+        const slot = booking.availability || {};
+        const playerName = booking.player_name || getPlayerNameFromNotes(booking.notes) || "Player";
+        const startTime = booking.start_time || slot.start_time;
+        const endTime = booking.end_time || slot.end_time || startTime;
+        const duration = booking.duration_minutes || booking.lesson_type?.duration || (slot.end_time ? getDurationMinutes(slot) : "");
+        return {
+          id: `adult-${booking.id}`,
+          playerName,
+          title: booking.lesson_type?.name || "Coaching",
+          clubName: booking.club?.name || "",
+          coachName: booking.coach?.display_name || "",
+          dateLine: startTime ? formatDate(startTime, { weekday: "short", month: "short", day: "numeric" }) : "Coaching",
+          timeLine: `${startTime ? formatTime(startTime) : ""}${duration ? ` · ${duration} min` : ""}`.trim(),
+          status: booking.booking_status,
+          sortAt: startTime ? new Date(startTime).getTime() : new Date(booking.created_at || 0).getTime(),
+          endsAt: endTime ? new Date(endTime).getTime() : null
+        };
+      })
+    };
+  }
+
+  async function loadJuniorMyBookings() {
+    const { data: members, error } = await client
+      .from("junior_group_members")
+      .select("id, group_id, player_name, booking_status, payment_status, placement_status, created_at, updated_at, confirmed_at")
+      .eq("profile_id", state.user.id)
+      .order("created_at", { ascending: false })
+      .limit(20);
+
+    if (error) {
+      console.warn("[Kim booking] Could not load junior bookings", error);
+      return { items: [], error };
     }
 
-    myBookingsEl.innerHTML = data.map((booking) => {
-      const slot = booking.availability || {};
-      const playerName = booking.player_name || getPlayerNameFromNotes(booking.notes) || "Player";
-      const startTime = booking.start_time || slot.start_time;
-      const duration = booking.duration_minutes || booking.lesson_type?.duration || (slot.end_time ? getDurationMinutes(slot) : "");
-      return `
-        <article class="booking-list-item">
-          <h4>${escapeHtml(playerName)}</h4>
-          <p>${escapeHtml(booking.lesson_type?.name || "Coaching")}</p>
-          ${booking.club?.name ? `<p>${escapeHtml(booking.club.name)}</p>` : ""}
-          ${booking.coach?.display_name ? `<p>Coach ${escapeHtml(booking.coach.display_name)}</p>` : ""}
-          <p>${startTime ? formatDate(startTime, { weekday: "short", month: "short", day: "numeric" }) : "Coaching"}</p>
-          <p>${startTime ? formatTime(startTime) : ""}${duration ? ` · ${duration} min` : ""}</p>
-          <p>Status: ${escapeHtml(booking.booking_status)}</p>
-        </article>
-      `;
-    }).join("");
+    const activeMembers = (members || []).filter((member) => {
+      const bookingStatus = String(member.booking_status || "").toLowerCase();
+      const placementStatus = String(member.placement_status || "").toLowerCase();
+      if (["cancelled", "expired", "inactive"].includes(bookingStatus)) return false;
+      if (["cancelled", "expired", "inactive"].includes(placementStatus)) return false;
+      return ["pending_payment", "confirmed"].includes(bookingStatus)
+        || ["payment_pending", "paid", "placement_confirmed", "active_in_group"].includes(placementStatus);
+    });
+
+    const groupIds = [...new Set(activeMembers.map((member) => member.group_id).filter(Boolean))];
+    if (!groupIds.length) return { items: [], error: null };
+
+    const { data: groups, error: groupsError } = await client
+      .from("junior_groups")
+      .select("id, programme_id, group_name, term_name, start_date, end_date, recurring_day, start_time, session_count, session_duration_minutes, coach_id, club_id")
+      .in("id", groupIds);
+
+    if (groupsError) {
+      console.warn("[Kim booking] Could not load junior groups", groupsError);
+      return { items: [], error: groupsError };
+    }
+
+    const groupMap = new Map((groups || []).map((group) => [group.id, group]));
+    const programmeIds = [...new Set((groups || []).map((group) => group.programme_id).filter(Boolean))];
+    const coachIds = [...new Set((groups || []).map((group) => group.coach_id).filter(Boolean))];
+    const clubIds = [...new Set((groups || []).map((group) => group.club_id).filter(Boolean))];
+    const [programmeMap, coachMap, clubMap] = await Promise.all([
+      loadLookupMap("junior_programmes", "id, programme_name", programmeIds, "programme_name"),
+      loadLookupMap("coaches", "id, display_name", coachIds, "display_name"),
+      loadLookupMap("coaching_clubs", "id, name", clubIds, "name")
+    ]);
+
+    return {
+      error: null,
+      items: activeMembers.map((member) => {
+        const group = groupMap.get(member.group_id) || {};
+        const startsAt = getJuniorGroupStartTime(group);
+        const endsAt = getJuniorGroupEndTime(group);
+        const title = programmeMap.get(group.programme_id) || group.group_name || "Junior Group Coaching";
+        const groupName = group.group_name && group.group_name !== title ? group.group_name : "";
+        const sessionCount = Number(group.session_count || 0);
+        const duration = Number(group.session_duration_minutes || 0);
+        return {
+          id: `junior-${member.id}`,
+          playerName: member.player_name || "Player",
+          title,
+          subtitle: groupName,
+          clubName: clubMap.get(group.club_id) || "",
+          coachName: coachMap.get(group.coach_id) || "",
+          dateLine: formatJuniorDateLine(group),
+          timeLine: [
+            sessionCount ? `${sessionCount} sessions` : "",
+            duration ? `${duration} min` : ""
+          ].filter(Boolean).join(" · "),
+          status: member.placement_status || member.booking_status || "pending",
+          paymentStatus: member.payment_status || "",
+          sortAt: startsAt || new Date(member.created_at || 0).getTime(),
+          endsAt
+        };
+      })
+    };
+  }
+
+  async function loadLookupMap(table, select, ids, labelKey) {
+    if (!ids.length) return new Map();
+    const { data, error } = await client.from(table).select(select).in("id", ids);
+    if (error) {
+      console.warn(`[Kim booking] Could not load ${table}`, error);
+      return new Map();
+    }
+    return new Map((data || []).map((item) => [item.id, item[labelKey] || ""]));
+  }
+
+  function getJuniorGroupStartTime(group = {}) {
+    if (!group.start_date) return null;
+    const start = new Date(`${group.start_date}T${group.start_time || "00:00:00"}`);
+    return Number.isNaN(start.getTime()) ? null : start.getTime();
+  }
+
+  function getJuniorGroupEndTime(group = {}) {
+    if (group.end_date) {
+      const end = new Date(`${group.end_date}T23:59:59`);
+      return Number.isNaN(end.getTime()) ? null : end.getTime();
+    }
+    if (!group.start_date) return null;
+    const sessionCount = Math.max(1, Number(group.session_count || 1));
+    const start = new Date(`${group.start_date}T23:59:59`);
+    if (Number.isNaN(start.getTime())) return null;
+    start.setDate(start.getDate() + (sessionCount - 1) * 7);
+    return start.getTime();
+  }
+
+  function formatJuniorDateLine(group = {}) {
+    if (!group.start_date) return "Junior coaching";
+    if (!group.end_date || group.end_date === group.start_date) {
+      return formatDate(group.start_date, { weekday: "short", month: "short", day: "numeric" });
+    }
+    return `${formatDate(group.start_date, { month: "short", day: "numeric" })} - ${formatDate(group.end_date, { month: "short", day: "numeric" })}`;
+  }
+
+  function renderMyBookingItem(booking) {
+    return `
+      <article class="booking-list-item">
+        <h4>${escapeHtml(booking.playerName)}</h4>
+        <p>${escapeHtml(booking.title)}</p>
+        ${booking.subtitle ? `<p>${escapeHtml(booking.subtitle)}</p>` : ""}
+        ${booking.clubName ? `<p>${escapeHtml(booking.clubName)}</p>` : ""}
+        ${booking.coachName ? `<p>Coach ${escapeHtml(booking.coachName)}</p>` : ""}
+        <p>${escapeHtml(booking.dateLine || "Coaching")}</p>
+        ${booking.timeLine ? `<p>${escapeHtml(booking.timeLine)}</p>` : ""}
+        <p>Status: ${escapeHtml(formatBookingStatus(booking.status))}</p>
+        ${booking.paymentStatus ? `<p>Payment: ${escapeHtml(formatBookingStatus(booking.paymentStatus))}</p>` : ""}
+      </article>
+    `;
+  }
+
+  function formatBookingStatus(value = "") {
+    return String(value || "pending").replace(/_/g, " ");
   }
 
   function getPlayerNameFromNotes(notes = "") {
