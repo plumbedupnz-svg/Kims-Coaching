@@ -25,6 +25,18 @@ function hasBearerToken(authHeader = "") {
   return /^Bearer\s+\S+/i.test(String(authHeader || ""));
 }
 
+function firstPositiveAmount(...values) {
+  for (const value of values) {
+    const amount = Number(value);
+    if (Number.isFinite(amount) && amount > 0) return amount;
+  }
+  return 0;
+}
+
+function juniorPaymentSetupError() {
+  return "Online payment is required for junior group coaching, but this group does not have a positive price set. Please ask Kim to add a price to the group, programme, or lesson type.";
+}
+
 async function createBookingCheckout({ user, body }) {
   const bookingId = body.booking_id || body.bookingId;
   if (!bookingId) throw new Error("booking_id is required.");
@@ -73,13 +85,17 @@ async function createJuniorCheckout({ user, body }) {
   if (!memberId) throw new Error("member_id is required.");
   const rows = await restSelect(
     "junior_group_members",
-    "*,group:group_id(id,group_name,price,club:club_id(name),coach:coach_id(display_name))",
+    "*,group:group_id(id,group_name,price,programme:programme_id(programme_name,price),lesson_type:lesson_type_id(name,price),club:club_id(name),coach:coach_id(display_name))",
     { id: `eq.${memberId}`, limit: "1" }
   );
   const member = rows[0];
   if (!member || member.profile_id !== user.id) throw new Error("Junior group booking was not found.");
-  const amount = Number(member.group?.price || 0);
-  if (amount <= 0) throw new Error("This junior group booking does not require online payment.");
+  const amount = firstPositiveAmount(
+    member.group?.price,
+    member.group?.programme?.price,
+    member.group?.lesson_type?.price
+  );
+  if (amount <= 0) throw new Error(juniorPaymentSetupError());
 
   const paymentRows = await restSelect("payments", "*", {
     junior_group_member_id: `eq.${member.id}`,
@@ -126,6 +142,10 @@ async function createJuniorCheckout({ user, body }) {
       provider: "stripe",
       provider_reference: session.id,
       stripe_session_id: session.id,
+      related_type: "junior_group",
+      related_id: member.group_id,
+      amount,
+      currency: "NZD",
       payment_status: "pending"
     }, "")
   ]);
@@ -146,14 +166,18 @@ async function createAdminJuniorPaymentRequest({ user, body }) {
 
   const memberRows = await restSelect(
     "junior_group_members",
-    "*,group:group_id(id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name),club:club_id(name),coach:coach_id(display_name))",
+    "*,group:group_id(id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name,price),lesson_type:lesson_type_id(name,price),club:club_id(name),coach:coach_id(display_name))",
     { id: `eq.${memberId}`, limit: "1" }
   );
   const member = memberRows[0];
   if (!member) throw new Error("Junior group placement was not found.");
 
-  const amount = Number(member.group?.price || 0);
-  if (amount <= 0) throw new Error("This junior group placement does not require online payment.");
+  const amount = firstPositiveAmount(
+    member.group?.price,
+    member.group?.programme?.price,
+    member.group?.lesson_type?.price
+  );
+  if (amount <= 0) throw new Error(juniorPaymentSetupError());
 
   const paymentId = body.payment_id || body.paymentId;
   const paymentRows = paymentId
@@ -206,6 +230,10 @@ async function createAdminJuniorPaymentRequest({ user, body }) {
       provider: "stripe",
       provider_reference: session.id,
       stripe_session_id: session.id,
+      related_type: "junior_group",
+      related_id: member.group_id,
+      amount,
+      currency: "NZD",
       invoice_url: session.url || "",
       payment_link_url: session.url || "",
       payment_status: "pending"
