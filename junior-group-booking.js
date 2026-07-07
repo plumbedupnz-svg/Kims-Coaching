@@ -37,6 +37,14 @@
     return `$${Number(value || 0).toFixed(2)}`;
   }
 
+  function firstPositiveNumber(...values) {
+    for (const value of values) {
+      const amount = Number(value);
+      if (Number.isFinite(amount) && amount > 0) return amount;
+    }
+    return 0;
+  }
+
   function formatDate(value, options = {}) {
     if (!value) return "";
     return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", ...options }).format(new Date(value));
@@ -175,6 +183,15 @@
 
   function normalizePublicGroup(row = {}) {
     const club = row.coaching_clubs || row.club || {};
+    const effectivePrice = firstPositiveNumber(
+      row.price,
+      row.programme_price,
+      row.lesson_type_price,
+      row.junior_programmes?.price,
+      row.programme?.price,
+      row.lesson_types?.price,
+      row.lesson_type?.price
+    );
     return {
       group_id: row.group_id || row.id,
       programme_id: row.programme_id || "",
@@ -200,7 +217,7 @@
       confirmed_count: row.confirmed_count ?? 0,
       pending_count: row.pending_count ?? 0,
       spaces_remaining: row.spaces_remaining ?? row.capacity ?? 0,
-      price: row.price ?? 0,
+      price: effectivePrice,
       payment_link_url: row.payment_link_url || "",
       description: row.description || ""
     };
@@ -228,6 +245,8 @@
         session_duration_minutes,
         capacity,
         price,
+        junior_programmes:programme_id(programme_name,price),
+        lesson_types:lesson_type_id(name,price),
         payment_link_url,
         description,
         coaching_clubs:club_id(name,address)
