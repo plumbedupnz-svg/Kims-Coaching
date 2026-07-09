@@ -1,0 +1,382 @@
+/* Option 2 public/customer layout experiment
+   Styling only: wider customer pages, sharper cards/buttons and an app-like login/account feel. */
+
+:root {
+  --option2-page-max: 1540px;
+  --option2-page-pad: clamp(1rem, 2.4vw, 2rem);
+  --option2-panel-radius: 10px;
+  --option2-card-radius: 8px;
+  --option2-button-radius: 7px;
+  --option2-soft-shadow: 0 10px 28px rgba(19, 33, 61, 0.08);
+}
+
+body {
+  background: #f6f8fb;
+}
+
+.container {
+  width: min(var(--option2-page-max), calc(100% - 2 * var(--option2-page-pad)));
+}
+
+.site-header {
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 1px 0 rgba(219, 227, 241, 0.72);
+}
+
+.nav {
+  min-height: 66px;
+}
+
+.brand {
+  min-width: max-content;
+}
+
+.brand-main {
+  letter-spacing: 0.08em;
+}
+
+.brand-sub {
+  letter-spacing: 4px;
+}
+
+.nav-links {
+  gap: 0.35rem;
+}
+
+.nav-links a,
+.nav-button {
+  border-radius: var(--option2-button-radius);
+  padding: 0.52rem 0.7rem;
+}
+
+.nav-links a:hover,
+.nav-links a[aria-current="page"],
+.nav-button:hover {
+  background: var(--surface-strong);
+  color: var(--text);
+}
+
+.hero,
+.section {
+  padding: clamp(2.2rem, 4.8vw, 4.6rem) 0;
+}
+
+.about-hero,
+.booking-hero,
+.account-section,
+.email-verified-section {
+  background:
+    linear-gradient(135deg, rgba(19, 33, 61, 0.035), rgba(39, 173, 255, 0.08)),
+    #f6f8fb;
+}
+
+.hero-grid,
+.split-section,
+.cart-layout,
+.account-grid,
+.dashboard-grid,
+.contact-panel {
+  gap: clamp(1rem, 2vw, 1.8rem);
+}
+
+.hero-grid {
+  grid-template-columns: minmax(0, 1.2fr) minmax(340px, 0.8fr);
+}
+
+.about-hero h1,
+.hero-copy > p:not(.eyebrow),
+.section-head,
+.section-head.centered p:not(.eyebrow) {
+  max-width: 780px;
+}
+
+.trust-strip,
+.cards,
+.shop-categories,
+.account-side-panel,
+.players-list,
+.booking-form,
+.auth-form {
+  gap: 0.8rem;
+}
+
+.trust-strip div,
+.product-card,
+.cart-summary,
+.cart-items,
+.cart-item,
+.auth-card,
+.dashboard-card,
+.account-summary,
+.players-section,
+.player-tab,
+.player-card,
+.owner-add-form,
+.owner-products,
+.contact-panel,
+.email-verified-card,
+.qualification-panel,
+.achievement-item,
+.impact-metrics article,
+.check-list p,
+.credential-list p,
+.homepage-photo-preview,
+.booking-confirmation,
+.booking-shell,
+.junior-group-booking-panel,
+.junior-group-card,
+.booking-mode-tabs,
+.booking-calendar,
+.booking-day,
+.booking-slot,
+.waitlist-request-panel {
+  border-radius: var(--option2-panel-radius) !important;
+}
+
+.kim-photo-panel {
+  border-radius: 14px !important;
+  box-shadow: var(--option2-soft-shadow);
+}
+
+.kim-photo-placeholder {
+  border-radius: 8px !important;
+}
+
+.btn,
+.mode-switch,
+.mode-switch button,
+input[type="url"],
+input[type="text"],
+input[type="email"],
+input[type="tel"],
+input[type="number"],
+input[type="password"],
+select,
+textarea,
+.shop-filter-select,
+.qty-btn,
+.link-button,
+.product-description-toggle,
+.menu-toggle {
+  border-radius: var(--option2-button-radius) !important;
+}
+
+.btn {
+  min-height: 42px;
+  box-shadow: none;
+}
+
+.btn-primary {
+  background: #106fba;
+  color: #ffffff;
+}
+
+.btn-primary:hover {
+  background: #0b5d9f;
+}
+
+.btn-secondary {
+  background: #ffffff;
+}
+
+.product-card,
+.auth-card,
+.dashboard-card,
+.cart-summary,
+.cart-items,
+.account-summary,
+.players-section,
+.booking-confirmation,
+.booking-shell,
+.waitlist-request-panel {
+  background: #ffffff;
+  box-shadow: var(--option2-soft-shadow);
+}
+
+.product-card:hover {
+  transform: translateY(-2px);
+}
+
+.programme-grid {
+  grid-template-columns: repeat(4, minmax(220px, 1fr));
+}
+
+.three-col {
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+}
+
+.route-card-grid {
+  grid-template-columns: repeat(3, minmax(240px, 1fr));
+}
+
+.shop-categories .cards,
+.category-section .cards {
+  grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+}
+
+.product-image {
+  height: 210px;
+  border-radius: 6px;
+}
+
+.cart-layout {
+  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.55fr);
+  align-items: start;
+}
+
+.cart-summary,
+.booking-confirmation {
+  position: sticky;
+  top: 88px;
+}
+
+.account-grid {
+  grid-template-columns: minmax(320px, 0.75fr) minmax(420px, 1.25fr);
+  align-items: center;
+}
+
+.account-copy {
+  padding: clamp(1.2rem, 2vw, 2rem);
+  border-left: 4px solid var(--primary);
+}
+
+.account-copy h1 {
+  max-width: 12ch;
+}
+
+.auth-card {
+  max-width: 620px;
+  margin-left: auto;
+  width: 100%;
+}
+
+.mode-switch {
+  background: #edf3fb;
+}
+
+.mode-switch button.active {
+  background: #106fba;
+  color: #ffffff;
+}
+
+.dashboard-grid {
+  grid-template-columns: minmax(300px, 0.36fr) minmax(0, 1.64fr);
+  align-items: start;
+}
+
+.profile-form.dashboard-card {
+  min-width: 0;
+}
+
+.profile-grid {
+  gap: 0.85rem;
+}
+
+.players-section {
+  padding: 1rem;
+}
+
+.player-tabs {
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.booking-layout,
+.junior-group-layout {
+  width: min(var(--option2-page-max), calc(100% - 2 * var(--option2-page-pad)));
+}
+
+.booking-layout {
+  grid-template-columns: minmax(0, 1.5fr) minmax(330px, 0.5fr);
+  align-items: start;
+}
+
+.junior-group-layout {
+  grid-template-columns: minmax(0, 1.5fr) minmax(340px, 0.5fr);
+}
+
+.booking-mode-tabs {
+  max-width: 620px;
+  padding: 0.35rem;
+}
+
+.booking-mode-tabs button {
+  border-radius: 7px !important;
+}
+
+.booking-toolbar,
+.booking-filters,
+.booking-hero-actions,
+.contact-actions,
+.account-onboarding-actions {
+  gap: 0.65rem;
+}
+
+.contact-panel {
+  grid-template-columns: 1fr auto;
+}
+
+.site-footer {
+  background: #ffffff;
+}
+
+@media (min-width: 1200px) {
+  .home-hero .container,
+  .booking-hero .container,
+  .account-section .container,
+  #shop .container,
+  #cart .container {
+    width: min(1600px, calc(100% - 4rem));
+  }
+
+  .section-head.centered {
+    max-width: 860px;
+  }
+}
+
+@media (max-width: 980px) {
+  .container,
+  .booking-layout,
+  .junior-group-layout {
+    width: min(100% - 2rem, 100%);
+  }
+
+  .cart-summary,
+  .booking-confirmation {
+    position: static;
+  }
+
+  .hero-grid,
+  .cart-layout,
+  .account-grid,
+  .dashboard-grid,
+  .booking-layout,
+  .junior-group-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .account-copy h1 {
+    max-width: 100%;
+  }
+
+  .auth-card {
+    max-width: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .nav-links a,
+  .nav-button {
+    border-radius: 0 !important;
+  }
+
+  .programme-grid,
+  .three-col,
+  .route-card-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-copy {
+    padding: 0;
+    border-left: 0;
+  }
+}
