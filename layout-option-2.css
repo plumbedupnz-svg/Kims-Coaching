@@ -212,6 +212,30 @@ textarea,
 .shop-categories .cards,
 .category-section .cards {
   grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+  align-items: stretch;
+}
+
+.shop-categories .product-card,
+.category-section .product-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.shop-categories .product-description-wrap,
+.category-section .product-description-wrap {
+  margin: 0.35rem 0 auto;
+  padding-bottom: 0.55rem;
+}
+
+.shop-categories .price-wrap,
+.category-section .price-wrap {
+  margin-top: 0.6rem;
+}
+
+.shop-categories .add-to-cart,
+.category-section .add-to-cart {
+  width: 100%;
 }
 
 .product-image {
