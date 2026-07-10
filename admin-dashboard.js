@@ -123,6 +123,7 @@
       section.dataset.adminSection = "junior-coaching";
       section.dataset.juniorPanel = panelName;
       section.hidden = true;
+      workspace.appendChild(section);
     });
 
     workspace.querySelectorAll("[data-junior-tab]").forEach((tab) => {
