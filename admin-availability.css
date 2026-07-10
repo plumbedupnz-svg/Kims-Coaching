@@ -107,6 +107,12 @@
 .products-subtabs button.active,
 .products-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
 .inventory-tab-panel, .junior-tab-panel, .lessons-tab-panel, .products-tab-panel { display: grid; gap: 1rem; min-width: 0; }
+.admin-section[hidden],
+.inventory-tab-panel[hidden],
+.junior-tab-panel[hidden],
+.lessons-tab-panel[hidden],
+.products-tab-panel[hidden],
+.settings-tab-panel[hidden] { display: none !important; }
 .junior-dashboard-intro, .lessons-dashboard-intro, .products-dashboard-intro { padding: 0.85rem 1rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .junior-dashboard-intro p, .lessons-dashboard-intro p, .products-dashboard-intro p { margin: 0; color: var(--muted); font-weight: 700; line-height: 1.35; }
 .shop-orders-panel { width: 100%; min-width: 0; }
