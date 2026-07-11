@@ -96,6 +96,20 @@
 .inventory-review-row { align-items: start; }
 .inventory-review-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.55rem; margin-top: 0.55rem; }
 .inventory-workspace, .junior-workspace, .lessons-workspace, .products-workspace { display: grid; gap: 1rem; min-width: 0; }
+.junior-workspace {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  justify-self: stretch;
+}
+.junior-workspace > .admin-section-head,
+.junior-workspace > .junior-subtabs,
+.junior-workspace > .junior-tab-panel {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.junior-workspace > .junior-tab-panel.admin-section {
+  padding-top: 0;
+}
 .inventory-subtabs, .junior-subtabs, .lessons-subtabs, .products-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
 .inventory-subtabs button, .junior-subtabs button, .lessons-subtabs button, .products-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
 .inventory-subtabs button.active,
@@ -302,6 +316,16 @@
     gap: 1.15rem;
     min-width: 0;
     padding-top: 0;
+  }
+
+  .junior-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .junior-workspace > .admin-section-head,
+  .junior-workspace > .junior-subtabs,
+  .junior-workspace > .junior-tab-panel.admin-section {
+    grid-column: 1 / -1;
   }
 
   .admin-section[hidden] {
