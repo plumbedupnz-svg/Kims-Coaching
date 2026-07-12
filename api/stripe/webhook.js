@@ -119,15 +119,102 @@ async function sendJuniorEmails(member) {
   ]);
 }
 
+async function createPaidJuniorMemberFromPending(session, pending, paymentId = "") {
+  const existingMemberId = pending.completed_member_id;
+  if (existingMemberId) {
+    const existingRows = await restSelect(
+      "junior_group_members",
+      "*,group:group_id(id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name),club:club_id(name),coach:coach_id(display_name))",
+      { id: `eq.${existingMemberId}`, limit: "1" }
+    );
+    return existingRows[0] || null;
+  }
+
+  const member = await restInsert("junior_group_members", {
+    group_id: pending.group_id,
+    profile_id: pending.profile_id,
+    profile_player_index: pending.profile_player_index,
+    player_id: pending.player_id || null,
+    programme_id: pending.group?.programme_id || pending.programme_id || null,
+    player_name: pending.player_name,
+    player_age: pending.player_age,
+    player_level: pending.player_level || "",
+    parent_name: pending.parent_name || "",
+    email: pending.email,
+    mobile: pending.mobile || "",
+    notes: pending.notes || "",
+    booking_status: "confirmed",
+    payment_status: "paid",
+    placement_status: "paid_unplaced",
+    stripe_session_id: session.id,
+    payment_intent_id: session.payment_intent || null,
+    confirmed_at: new Date().toISOString(),
+    expires_at: null
+  }, "*,group:group_id(id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name),club:club_id(name),coach:coach_id(display_name))");
+
+  await restUpdate("junior_group_pending_bookings", { id: `eq.${pending.id}` }, {
+    payment_status: "paid",
+    booking_status: "converted",
+    completed_member_id: member.id,
+    stripe_session_id: session.id,
+    payment_intent_id: session.payment_intent || null,
+    paid_at: new Date().toISOString()
+  }, "");
+
+  const paymentPatch = {
+    junior_group_member_id: member.id,
+    related_type: "junior_group",
+    related_id: pending.group_id,
+    payment_status: "paid",
+    provider: "stripe",
+    provider_reference: session.id,
+    stripe_session_id: session.id,
+    payment_intent_id: session.payment_intent || null,
+    paid_at: new Date().toISOString()
+  };
+  if (paymentId) await restUpdate("payments", { id: `eq.${paymentId}` }, paymentPatch, "");
+  else await restUpdate("payments", { related_type: "eq.junior_group_pending", related_id: `eq.${pending.id}` }, paymentPatch, "");
+
+  if (member.player_id) {
+    await restUpdate("players", { id: `eq.${member.player_id}` }, {
+      junior_programme_id: member.programme_id || pending.group?.programme_id || null,
+      junior_group_id: pending.group_id,
+      junior_group_member_id: member.id,
+      placement_status: "paid_unplaced",
+      payment_status: "paid",
+      stripe_session_id: session.id,
+      stripe_payment_intent_id: session.payment_intent || null,
+      updated_at: new Date().toISOString()
+    }, "");
+  }
+
+  return member;
+}
+
 async function handleJuniorGroup(session) {
-  const memberId = session.metadata?.member_id || session.metadata?.booking_id;
+  const pendingBookingId = session.metadata?.pending_booking_id || session.metadata?.pendingBookingId;
+  const memberId = session.metadata?.member_id || (!pendingBookingId ? session.metadata?.booking_id : "");
   const paymentId = session.metadata?.payment_id;
   const playerId = session.metadata?.player_id;
+
+  if (pendingBookingId) {
+    const pendingRows = await restSelect(
+      "junior_group_pending_bookings",
+      "*,group:group_id(id,programme_id,group_name,price,start_date,session_count,session_duration_minutes,programme:programme_id(programme_name),club:club_id(name),coach:coach_id(display_name))",
+      { id: `eq.${pendingBookingId}`, limit: "1" }
+    );
+    const pending = pendingRows[0];
+    if (!pending) throw new Error("Stripe session references a missing pending junior booking.");
+    const member = await createPaidJuniorMemberFromPending(session, pending, paymentId);
+    if (member) await sendJuniorEmails(member);
+    return;
+  }
+
   if (!memberId) throw new Error("Stripe session is missing junior member metadata.");
   const member = await restUpdate("junior_group_members", { id: `eq.${memberId}` }, {
     booking_status: "confirmed",
     payment_status: "paid",
-    placement_status: "active_in_group",
+    placement_status: "paid_unplaced",
     stripe_session_id: session.id,
     payment_intent_id: session.payment_intent || null,
     confirmed_at: new Date().toISOString(),
@@ -148,7 +235,7 @@ async function handleJuniorGroup(session) {
   const resolvedPlayerId = playerId || member?.player_id;
   if (resolvedPlayerId) {
     await restUpdate("players", { id: `eq.${resolvedPlayerId}` }, {
-      placement_status: "active_in_group",
+      placement_status: "paid_unplaced",
       payment_status: "paid",
       stripe_session_id: session.id,
       stripe_payment_intent_id: session.payment_intent || null,
