@@ -81,8 +81,83 @@ async function createBookingCheckout({ user, body }) {
 }
 
 async function createJuniorCheckout({ user, body }) {
-  const memberId = body.member_id || body.memberId;
-  if (!memberId) throw new Error("member_id is required.");
+  const pendingBookingId = body.pending_booking_id || body.pendingBookingId || body.member_id || body.memberId;
+  if (!pendingBookingId) throw new Error("pending booking id is required.");
+
+  const pendingRows = await restSelect(
+    "junior_group_pending_bookings",
+    "*,group:group_id(id,group_name,price,programme:programme_id(programme_name,price),lesson_type:lesson_type_id(name,price),club:club_id(name),coach:coach_id(display_name))",
+    { id: `eq.${pendingBookingId}`, limit: "1" }
+  ).catch((error) => {
+    if (/junior_group_pending_bookings|schema cache|PGRST205|42P01/i.test(error.message || "")) return [];
+    throw error;
+  });
+  const pending = pendingRows[0];
+
+  if (pending) {
+    if (pending.profile_id !== user.id) throw new Error("Junior group booking was not found.");
+    if (pending.payment_status === "paid" || pending.completed_member_id) throw new Error("This junior group booking has already been paid.");
+    const amount = firstPositiveAmount(
+      pending.amount,
+      pending.group?.price,
+      pending.group?.programme?.price,
+      pending.group?.lesson_type?.price
+    );
+    if (amount <= 0) throw new Error(juniorPaymentSetupError());
+
+    const payment = await restInsert("payments", {
+      profile_id: user.id,
+      player_id: pending.player_id || null,
+      related_type: "junior_group_pending",
+      related_id: pending.id,
+      amount,
+      currency: "NZD",
+      payment_status: "pending",
+      provider: "stripe",
+      metadata: {
+        pending_booking_id: pending.id,
+        group_id: pending.group_id,
+        player_name: pending.player_name || ""
+      }
+    });
+
+    const session = await createStripeCheckoutSession({
+      lineItems: [{
+        name: pending.group?.group_name || "Junior Group Coaching",
+        description: `${pending.player_name || "Player"} · Kim Jones Coaching`,
+        quantity: 1,
+        unitAmount: amount
+      }],
+      customerEmail: pending.email || user.email,
+      successPath: "/payment-success.html",
+      cancelPath: `/payment-cancelled.html?pending_booking_id=${encodeURIComponent(pending.id)}`,
+      metadata: {
+        booking_type: "junior_group",
+        booking_id: pending.id,
+        pending_booking_id: pending.id,
+        payment_id: payment.id,
+        user_id: user.id,
+        player_id: pending.player_id || ""
+      }
+    });
+
+    await Promise.all([
+      restUpdate("junior_group_pending_bookings", { id: `eq.${pending.id}` }, {
+        payment_status: "pending",
+        stripe_session_id: session.id,
+        invoice_url: session.url || ""
+      }, ""),
+      restUpdate("payments", { id: `eq.${payment.id}` }, {
+        provider_reference: session.id,
+        stripe_session_id: session.id,
+        invoice_url: session.url || "",
+        payment_link_url: session.url || ""
+      }, "")
+    ]);
+    return session;
+  }
+
+  const memberId = pendingBookingId;
   const rows = await restSelect(
     "junior_group_members",
     "*,group:group_id(id,group_name,price,programme:programme_id(programme_name,price),lesson_type:lesson_type_id(name,price),club:club_id(name),coach:coach_id(display_name))",
@@ -129,7 +204,7 @@ async function createJuniorCheckout({ user, body }) {
       member_id: member.id,
       payment_id: payment.id,
       user_id: user.id,
-      player_id: Number.isInteger(member.profile_player_index) ? `player-${member.profile_player_index}` : ""
+      player_id: member.player_id || ""
     }
   });
 

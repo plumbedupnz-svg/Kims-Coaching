@@ -78,6 +78,7 @@ const customerAreaEl = document.querySelector("[data-customer-area]");
 const customerGreetingEl = document.querySelector("[data-customer-greeting]");
 const customerDetailsEl = document.querySelector("[data-customer-details]");
 const customerCartEl = document.querySelector("[data-customer-cart]");
+const myBookingsEl = document.querySelector("[data-my-bookings]");
 const profileFormEl = document.querySelector("[data-profile-form]");
 const profileMessageEl = document.querySelector("[data-profile-message]");
 const playerCountEl = document.querySelector("[data-player-count]");
@@ -1354,6 +1355,32 @@ function renderAccountNavigation() {
   });
 }
 
+async function renderMyJuniorBookings() {
+  if (!myBookingsEl || !supabaseClient || !currentUser) return;
+  const { data, error } = await supabaseClient.rpc("get_my_junior_group_sessions");
+  if (error) {
+    myBookingsEl.innerHTML = '<p class="helper-text">Your paid junior coaching bookings will appear here after Stripe confirms payment.</p>';
+    return;
+  }
+  const sessions = Array.isArray(data) ? data : [];
+  if (!sessions.length) {
+    myBookingsEl.innerHTML = '<p class="helper-text">No paid junior coaching bookings yet.</p>';
+    return;
+  }
+  const byMember = sessions.reduce((acc, session) => {
+    const key = session.member_id || session.group_id;
+    if (!acc.has(key)) acc.set(key, []);
+    acc.get(key).push(session);
+    return acc;
+  }, new Map());
+  myBookingsEl.innerHTML = Array.from(byMember.values()).map((rows) => {
+    const first = rows[0] || {};
+    const upcoming = rows.filter((row) => new Date(row.start_time) >= new Date()).slice(0, 3);
+    const upcomingText = upcoming.map((row) => new Date(row.start_time).toLocaleString()).join(" · ");
+    return `<article class="booking-card"><strong>${escapeHtml(first.programme_name || first.group_name || "Junior coaching")}</strong><p>${escapeHtml(first.player_name || "Player")} · ${escapeHtml(first.group_name || "Group TBC")}</p><p>${escapeHtml(upcomingText || "Sessions scheduled")}</p></article>`;
+  }).join("");
+}
+
 function renderCustomerAccount() {
   if (!customerAreaEl) return;
   const account = activeAccount();
@@ -1385,6 +1412,7 @@ function renderCustomerAccount() {
   populateProfileForm();
   renderAccountVerificationSuccess();
   renderAccountOnboarding();
+  renderMyJuniorBookings();
 }
 
 function renderAccountVerificationSuccess() {

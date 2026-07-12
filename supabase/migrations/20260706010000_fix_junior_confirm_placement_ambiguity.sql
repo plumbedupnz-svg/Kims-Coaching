@@ -60,10 +60,10 @@ begin
   end if;
 
   next_programme_id := coalesce(p_programme_id, target_group.programme_id, target_player.junior_programme_id);
-  amount_due := coalesce(target_group.price, 0);
+  amount_due := case when target_player.payment_status = 'paid' then 0 else coalesce(target_group.price, 0) end;
   next_booking_status := case when amount_due > 0 then 'pending_payment' else 'confirmed' end;
   next_payment_status := case when amount_due > 0 then 'pending' else 'paid' end;
-  next_placement_status := case when amount_due > 0 then 'payment_pending' else 'active_in_group' end;
+  next_placement_status := case when amount_due > 0 then 'pending_payment' else 'placed' end;
 
   select jgm.*
   into target_member

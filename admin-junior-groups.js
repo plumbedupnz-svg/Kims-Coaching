@@ -244,29 +244,48 @@
     ].join("");
   }
 
+  function isPaidConfirmedJuniorMember(member = {}) {
+    return member.booking_status === "confirmed" && member.payment_status === "paid";
+  }
+
+  function memberToJuniorPlayerRow(member) {
+    return {
+      id: `member:${member.id}`,
+      isLegacyMember: true,
+      player_name: member.player_name,
+      age: member.player_age,
+      parent_name: member.parent_name,
+      parent_email: member.email,
+      parent_phone: member.mobile,
+      customer_selected_level: member.player_level,
+      admin_confirmed_level: member.admin_confirmed_level || "",
+      notes: member.notes || "",
+      admin_notes: member.admin_notes || "",
+      junior_programme_id: member.programme_id || getGroupProgrammeId(member.group_id),
+      junior_group_id: member.group_id,
+      junior_group_member_id: member.id,
+      placement_status: member.placement_status || member.booking_status || "paid_unplaced",
+      payment_status: member.payment_status || "paid",
+      is_active: true
+    };
+  }
+
   function getJuniorPlayerRows() {
-    if (players.length) return players.filter((player) => player.is_active !== false);
-    return members
-      .filter((member) => member.booking_status !== "cancelled")
-      .map((member) => ({
-        id: `member:${member.id}`,
-        isLegacyMember: true,
-        player_name: member.player_name,
-        age: member.player_age,
-        parent_name: member.parent_name,
-        parent_email: member.email,
-        parent_phone: member.mobile,
-        customer_selected_level: member.player_level,
-        admin_confirmed_level: member.admin_confirmed_level || "",
-        notes: member.notes || "",
-        admin_notes: member.admin_notes || "",
-        junior_programme_id: member.programme_id || getGroupProgrammeId(member.group_id),
-        junior_group_id: member.group_id,
-        junior_group_member_id: member.id,
-        placement_status: member.placement_status || member.booking_status || "placement_confirmed",
-        payment_status: member.payment_status || "not_required",
-        is_active: true
-      }));
+    const paidMembers = members.filter(isPaidConfirmedJuniorMember);
+    const paidMemberIds = new Set(paidMembers.map((member) => member.id));
+    const paidPlayerIds = new Set(paidMembers.map((member) => member.player_id).filter(Boolean));
+    const adminVisiblePlacementStatuses = new Set(["paid_unplaced", "placed", "active_in_group", "placement_confirmed"]);
+    const playerRows = players.filter((player) => player.is_active !== false
+      && player.payment_status === "paid"
+      && adminVisiblePlacementStatuses.has(player.placement_status)
+      && (paidPlayerIds.has(player.id) || paidMemberIds.has(player.junior_group_member_id))
+    );
+    const representedMemberIds = new Set(playerRows.map((player) => player.junior_group_member_id).filter(Boolean));
+    const representedPlayerIds = new Set(playerRows.map((player) => player.id).filter(Boolean));
+    const memberRows = paidMembers
+      .filter((member) => !representedMemberIds.has(member.id) && (!member.player_id || !representedPlayerIds.has(member.player_id)))
+      .map(memberToJuniorPlayerRow);
+    return [...playerRows, ...memberRows];
   }
 
   function populateJuniorGroupTimes() {
@@ -426,9 +445,10 @@
       const placementStatus = player.placement_status || member?.placement_status || member?.booking_status || "awaiting_placement";
       const paymentStatus = player.payment_status || member?.payment_status || payment?.payment_status || "not_required";
       const invoiceUrl = player.invoice_url || member?.invoice_url || payment?.invoice_url || payment?.payment_link_url || "";
-      const isActiveInGroup = placementStatus === "active_in_group";
+      const isActiveInGroup = ["active_in_group", "placed"].includes(placementStatus);
       const actionName = player.isLegacyMember ? "assign-legacy" : (isActiveInGroup ? "archive-player" : "confirm-placement");
-      const actionLabel = isActiveInGroup ? "Archive" : Number(groups.find((group) => group.id === groupId)?.price || 0) > 0
+      const isPaid = paymentStatus === "paid";
+      const actionLabel = isActiveInGroup ? "Archive" : (!isPaid && Number(groups.find((group) => group.id === groupId)?.price || 0) > 0)
         ? "Confirm + request payment"
         : "Confirm placement";
       const isSelected = selectedJuniorPlayerIds.has(player.id);
@@ -622,7 +642,7 @@
       client.from("junior_groups").select("*").order("start_date", { ascending: true }),
       client.from("junior_group_sessions").select("*").order("start_time", { ascending: true }),
       client.from("junior_group_members").select("*").order("created_at", { ascending: false }),
-      client.from("players").select("*").order("created_at", { ascending: false }),
+      client.rpc("admin_paid_junior_players"),
       client.from("session_plans").select("*").order("session_date", { ascending: true }),
       client.from("payments").select("*").eq("related_type", "junior_group").order("created_at", { ascending: false }),
       client.from("bookings").select("id,player_name,email,start_time,end_time,booking_status,created_at").order("start_time", { ascending: true })
@@ -1044,7 +1064,7 @@
         .from("junior_group_members")
         .update({
           booking_status: "cancelled",
-          placement_status: "inactive",
+          placement_status: "cancelled",
           updated_at: new Date().toISOString()
         })
         .eq("id", member.id);
@@ -1059,7 +1079,8 @@
         junior_programme_id: null,
         junior_group_id: null,
         junior_group_member_id: null,
-        placement_status: "inactive",
+        placement_status: "awaiting_placement",
+        payment_status: "not_required",
         updated_at: new Date().toISOString()
       })
       .eq("id", player.id);
