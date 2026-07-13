@@ -187,9 +187,16 @@
 
   function getPlayerMember(player) {
     if (!player) return null;
+    if (player.junior_group_member_id) {
+      const linkedMember = members.find((member) => member.id === player.junior_group_member_id);
+      if (linkedMember) return linkedMember;
+    }
     return members.find((member) => member.player_id === player.id)
-      || (player.junior_group_member_id ? members.find((member) => member.id === player.junior_group_member_id) : null)
       || null;
+  }
+
+  function findJuniorPlayerRow(id) {
+    return getJuniorPlayerRows().find((player) => player.id === id) || players.find((player) => player.id === id) || null;
   }
 
   function getPaymentForPlayer(player, member) {
@@ -251,7 +258,7 @@
   function memberToJuniorPlayerRow(member) {
     return {
       id: `member:${member.id}`,
-      isLegacyMember: true,
+      isMemberOnlyRow: true,
       player_name: member.player_name,
       age: member.player_age,
       parent_name: member.parent_name,
@@ -264,6 +271,7 @@
       junior_programme_id: member.programme_id || getGroupProgrammeId(member.group_id),
       junior_group_id: member.group_id,
       junior_group_member_id: member.id,
+      player_id: member.player_id || "",
       placement_status: member.placement_status || member.booking_status || "paid_unplaced",
       payment_status: member.payment_status || "paid",
       is_active: true
@@ -446,25 +454,32 @@
       const paymentStatus = player.payment_status || member?.payment_status || payment?.payment_status || "not_required";
       const invoiceUrl = player.invoice_url || member?.invoice_url || payment?.invoice_url || payment?.payment_link_url || "";
       const isActiveInGroup = ["active_in_group", "placed"].includes(placementStatus);
-      const actionName = player.isLegacyMember ? "assign-legacy" : (isActiveInGroup ? "archive-player" : "confirm-placement");
+      const canEditPlayer = !player.isLegacyMember;
       const isPaid = paymentStatus === "paid";
-      const actionLabel = isActiveInGroup ? "Archive" : (!isPaid && Number(groups.find((group) => group.id === groupId)?.price || 0) > 0)
+      const actionName = player.isMemberOnlyRow ? "save-member-player" : (player.isLegacyMember ? "assign-legacy" : (isActiveInGroup || isPaid ? "save-player" : "confirm-placement"));
+      const actionLabel = actionName === "save-member-player" || actionName === "save-player" ? "Save" : (!isPaid && Number(groups.find((group) => group.id === groupId)?.price || 0) > 0)
         ? "Confirm + request payment"
         : "Confirm placement";
+      const actionButtons = player.isLegacyMember
+        ? '<button class="btn btn-secondary" type="button" data-player-action="assign-legacy" data-id="' + escapeHtml(player.id) + '">Use Groups tab</button>'
+        : [
+          `<button class="btn btn-secondary" type="button" data-player-action="${actionName}" data-id="${escapeHtml(player.id)}">${actionLabel}</button>`,
+          isPaid || isActiveInGroup ? `<button class="btn btn-secondary" type="button" data-player-action="archive-player" data-id="${escapeHtml(player.id)}">Archive</button>` : ""
+        ].filter(Boolean).join("");
       const isSelected = selectedJuniorPlayerIds.has(player.id);
       return `
         <div class="junior-players-table-row" data-junior-player-row="${escapeHtml(player.id)}">
-          <span data-label="Select" class="junior-player-select-cell"><input type="checkbox" data-junior-player-select value="${escapeHtml(player.id)}" ${isSelected ? "checked" : ""} ${player.isLegacyMember ? "disabled" : ""} aria-label="Select ${escapeHtml(player.player_name || "junior player")}" /></span>
+          <span data-label="Select" class="junior-player-select-cell"><input type="checkbox" data-junior-player-select value="${escapeHtml(player.id)}" ${isSelected ? "checked" : ""} ${canEditPlayer ? "" : "disabled"} aria-label="Select ${escapeHtml(player.player_name || "junior player")}" /></span>
           <span data-label="Player"><strong>${escapeHtml(player.player_name || "Unnamed player")}</strong><small>${escapeHtml(formatAgeDob(player))}</small></span>
           <span data-label="Parent"><strong>${escapeHtml(player.parent_name || "Not listed")}</strong><small>${escapeHtml(player.parent_email || "No email")} · ${escapeHtml(player.parent_phone || "No phone")}</small></span>
           <span data-label="Suggested level">${escapeHtml(player.customer_selected_level || member?.player_level || "Not specified")}</span>
-          <span data-label="Admin level"><select data-junior-player-admin-level ${player.isLegacyMember ? "disabled" : ""}>${buildLevelOptions(adminLevel)}</select></span>
-          <span data-label="Programme"><select data-junior-player-programme ${player.isLegacyMember ? "disabled" : ""}>${buildProgrammeOptions(programmeId)}</select></span>
-          <span data-label="Group"><select data-junior-player-group ${groups.length && !player.isLegacyMember ? "" : "disabled"}>${buildGroupOptionsForPlayer(player, member, groupId)}</select></span>
+          <span data-label="Admin level"><select data-junior-player-admin-level ${canEditPlayer ? "" : "disabled"}>${buildLevelOptions(adminLevel)}</select></span>
+          <span data-label="Programme"><select data-junior-player-programme ${canEditPlayer ? "" : "disabled"}>${buildProgrammeOptions(programmeId)}</select></span>
+          <span data-label="Group"><select data-junior-player-group ${groups.length && canEditPlayer ? "" : "disabled"}>${buildGroupOptionsForPlayer(player, member, groupId)}</select></span>
           <span data-label="Status"><span class="status-pill ${statusClass(placementStatus)}">${escapeHtml(formatPlacementStatus(placementStatus))}</span><small>${escapeHtml(formatPaymentStatus(paymentStatus))}</small></span>
           <span data-label="Payment">${invoiceUrl ? `<a href="${escapeHtml(invoiceUrl)}" target="_blank" rel="noopener">Payment link</a>` : "No link yet"}</span>
-          <span data-label="Notes"><textarea data-junior-player-admin-notes rows="2" ${player.isLegacyMember ? "disabled" : ""}>${escapeHtml(player.admin_notes || member?.admin_notes || "")}</textarea></span>
-          <span data-label="Action"><button class="btn btn-secondary" type="button" data-player-action="${actionName}" data-id="${escapeHtml(player.id)}">${player.isLegacyMember ? "Use Groups tab" : actionLabel}</button></span>
+          <span data-label="Notes"><textarea data-junior-player-admin-notes rows="2" ${canEditPlayer ? "" : "disabled"}>${escapeHtml(player.admin_notes || member?.admin_notes || "")}</textarea></span>
+          <span data-label="Action">${actionButtons}</span>
         </div>
       `;
     }).join("");
@@ -1046,14 +1061,84 @@
     await refreshAll();
   }
 
+  async function savePaidJuniorPlayer(id, row) {
+    const player = findJuniorPlayerRow(id);
+    const member = getPlayerMember(player);
+    if (!player) return;
+
+    const groupId = row?.querySelector("[data-junior-player-group]")?.value || "";
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) {
+      setMessage(playerMessageEl, "Choose a junior group before saving.", "error");
+      return;
+    }
+
+    const programmeId = row?.querySelector("[data-junior-player-programme]")?.value || group.programme_id || "";
+    const adminLevel = row?.querySelector("[data-junior-player-admin-level]")?.value || "";
+    const adminNotes = row?.querySelector("[data-junior-player-admin-notes]")?.value || "";
+    const playerName = player.player_name || member?.player_name || "junior player";
+
+    setMessage(playerMessageEl, `Saving ${playerName}...`);
+    if (member?.id) {
+      const memberPayload = {
+        programme_id: programmeId || group.programme_id || null,
+        admin_confirmed_level: adminLevel || null,
+        player_level: adminLevel || member.player_level || "",
+        admin_notes: adminNotes || null,
+        placement_status: member.placement_status === "cancelled" ? "active_in_group" : (member.placement_status || "active_in_group"),
+        updated_at: new Date().toISOString()
+      };
+      const { error: memberError } = await client.from("junior_group_members").update(memberPayload).eq("id", member.id);
+      if (memberError) {
+        setMessage(playerMessageEl, `Could not save ${playerName}: ${memberError.message}`, "error");
+        return;
+      }
+    }
+
+    if (member?.id && group.id !== member.group_id) {
+      const { error: moveError } = await client.rpc("admin_move_junior_group_member", {
+        p_member_id: member.id,
+        p_target_group_id: group.id
+      });
+      if (moveError) {
+        setMessage(playerMessageEl, `Saved details, but could not move the player group: ${moveError.message}`, "error");
+        return;
+      }
+    }
+
+    const realPlayerId = player.isMemberOnlyRow ? player.player_id : player.id;
+    if (realPlayerId) {
+      const { error: playerError } = await client
+        .from("players")
+        .update({
+          junior_programme_id: programmeId || group.programme_id || null,
+          junior_group_id: group.id,
+          junior_group_member_id: member?.id || player.junior_group_member_id || null,
+          admin_confirmed_level: adminLevel || null,
+          admin_notes: adminNotes || null,
+          placement_status: "active_in_group",
+          payment_status: "paid",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", realPlayerId);
+      if (playerError) {
+        setMessage(playerMessageEl, `Saved the group member, but could not update the linked player profile: ${playerError.message}`, "error");
+        return;
+      }
+    }
+
+    setMessage(playerMessageEl, `${playerName} saved.`, "success");
+    await refreshAll();
+  }
+
   function getSelectedJuniorPlayers() {
     return Array.from(selectedJuniorPlayerIds)
-      .map((id) => players.find((player) => player.id === id))
+      .map((id) => findJuniorPlayerRow(id))
       .filter(Boolean);
   }
 
   async function archiveJuniorPlayer(id, options = {}) {
-    const player = players.find((item) => item.id === id);
+    const player = findJuniorPlayerRow(id);
     const member = getPlayerMember(player);
     if (!player) return;
     if (!options.skipConfirm && !confirm(`Archive ${player.player_name || "this junior player"} from their active group?`)) return;
@@ -1073,19 +1158,22 @@
       }
     }
 
-    const { error: playerError } = await client
-      .from("players")
-      .update({
-        junior_programme_id: null,
-        junior_group_id: null,
-        junior_group_member_id: null,
-        placement_status: "awaiting_placement",
-        payment_status: "not_required",
-        updated_at: new Date().toISOString()
-      })
-      .eq("id", player.id);
-    if (playerError) {
-      throw new Error(`Could not archive ${player.player_name || "junior player"}: ${playerError.message}`);
+    const realPlayerId = player.isMemberOnlyRow ? player.player_id : player.id;
+    if (realPlayerId) {
+      const { error: playerError } = await client
+        .from("players")
+        .update({
+          junior_programme_id: null,
+          junior_group_id: null,
+          junior_group_member_id: null,
+          placement_status: "awaiting_placement",
+          payment_status: "not_required",
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", realPlayerId);
+      if (playerError) {
+        throw new Error(`Could not archive ${player.player_name || "junior player"}: ${playerError.message}`);
+      }
     }
 
     if (!options.quiet) {
@@ -1376,6 +1464,10 @@
       } catch (error) {
         setMessage(playerMessageEl, error.message, "error");
       }
+      return;
+    }
+    if (action === "save-player" || action === "save-member-player") {
+      await savePaidJuniorPlayer(id, row);
       return;
     }
     if (action === "assign-legacy") {
