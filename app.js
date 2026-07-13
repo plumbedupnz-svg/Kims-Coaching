@@ -35,6 +35,8 @@ const ownerProductCategoryEl = document.getElementById("owner-product-category")
 const ownerProductDescEl = document.getElementById("owner-product-desc");
 const ownerProductImageEl = document.getElementById("owner-product-image");
 const ownerProductsListEl = document.getElementById("owner-products-list");
+const ownerProductSearchEl = document.getElementById("owner-product-search");
+const ownerProductsSummaryEl = document.querySelector("[data-owner-products-summary]");
 const ownerProductFulfilmentEl = document.getElementById("owner-product-fulfilment");
 const ownerProductStockOptionsEl = document.querySelector("[data-product-stock-options]");
 const ownerProductInventoryLinkEl = document.querySelector("[data-product-inventory-link]");
@@ -131,7 +133,7 @@ const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
-const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -210,8 +212,14 @@ function normalizeShopProduct(row) {
     fulfilment_type: fulfilmentType,
     visible_in_shop: hasInventoryRow ? inventory.visible_in_shop !== false : row.visible_in_shop !== false,
     archived_at: inventory.archived_at || row.archived_at || null,
+    created_at: row.created_at || inventory.created_at || null,
+    updated_at: row.updated_at || inventory.updated_at || null,
     source_row: row.source_row || "products"
   };
+}
+
+function normalizeSearchText(value = "") {
+  return String(value || "").trim().toLowerCase();
 }
 
 function isTruthy(value) {
@@ -927,7 +935,8 @@ async function refreshOwnerProductsFromSupabase() {
   let { data, error } = await supabaseClient
     .from("products")
     .select(ADMIN_PRODUCTS_SELECT)
-    .order("name", { ascending: true });
+    .order("updated_at", { ascending: false })
+    .order("created_at", { ascending: false });
   if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
     console.warn("Products table is missing newer admin product columns; loading minimal product fields.", error);
     const fallbackResult = await supabaseClient
@@ -2120,8 +2129,32 @@ function editOwnerProduct(productId) {
 
 function renderOwnerProducts() {
   if (!ownerProductsListEl) return;
-  const products = loadProducts();
-  ownerProductsListEl.innerHTML = products.length ? products
+  const products = loadProducts()
+    .slice()
+    .sort((a, b) => {
+      const aTime = Date.parse(a.updated_at || a.created_at || "") || 0;
+      const bTime = Date.parse(b.updated_at || b.created_at || "") || 0;
+      if (aTime !== bTime) return bTime - aTime;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+  const search = normalizeSearchText(ownerProductSearchEl?.value || "");
+  const visibleProducts = search
+    ? products.filter((product) => normalizeSearchText([
+      product.name,
+      product.category,
+      product.description,
+      product.fulfilment_type,
+      product.stock_status
+    ].join(" ")).includes(search))
+    : products.slice(0, 1);
+  if (ownerProductsSummaryEl) {
+    ownerProductsSummaryEl.textContent = search
+      ? `Showing ${visibleProducts.length} of ${products.length} matching products.`
+      : products.length > 1
+        ? `Showing the latest saved product. Search ${products.length - 1} more.`
+        : "Showing the latest saved product.";
+  }
+  ownerProductsListEl.innerHTML = visibleProducts.length ? visibleProducts
     .map(
       (p) => {
         const isStock = p.fulfilment_type === "stock" || Boolean(p.inventory_item_id);
@@ -2131,7 +2164,9 @@ function renderOwnerProducts() {
         return `<div class="owner-product-row"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""}</p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
       }
     )
-    .join("") : '<p class="helper-text">No products yet. Add an order-to-sale product or link a stock item from inventory.</p>';
+    .join("") : search
+      ? '<p class="helper-text">No products matched that search.</p>'
+      : '<p class="helper-text">No products yet. Add an order-to-sale product or link a stock item from inventory.</p>';
 }
 
 function setOwnerUI() {
@@ -2309,6 +2344,8 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
 });
 
 if (ownerProductCancelEditEl) ownerProductCancelEditEl.addEventListener("click", resetProductFormMode);
+
+if (ownerProductSearchEl) ownerProductSearchEl.addEventListener("input", renderOwnerProducts);
 
 if (ownerProductsListEl) ownerProductsListEl.addEventListener("change", async (event) => {
   const priceInput = event.target.closest(".owner-price-input");

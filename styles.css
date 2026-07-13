@@ -437,7 +437,7 @@ textarea { resize: vertical; min-height: 120px; }
 .helper-text { font-size: 0.82rem; color: var(--muted); margin: 0.45rem 0; }
 .owner-meta { font-size: 0.84rem; color: var(--muted); margin-top: 0.2rem !important; }
 .owner-wrap { display: grid; gap: 1rem; }
-.owner-add-form, .owner-products { padding: 1rem; }
+.owner-add-form, .owner-products-panel { padding: 1rem; }
 .owner-add-form { display: grid; gap: 0.6rem; }
 .homepage-photo-preview {
   min-height: 190px;
@@ -456,6 +456,10 @@ textarea { resize: vertical; min-height: 120px; }
   object-fit: cover;
   display: block;
 }
+.owner-products-panel { display: grid; align-content: start; gap: 0.9rem; }
+.owner-products-search { display: grid; gap: 0.45rem; }
+.owner-products-search h3 { margin: 0; }
+.owner-products-search label { font-weight: 700; color: var(--text); }
 .owner-products { display: grid; gap: 0.8rem; }
 .owner-product-row { display: flex; justify-content: space-between; align-items: center; border: 1px solid var(--border); border-radius: 10px; padding: 0.8rem; background: #fff; gap: 0.8rem; }
 .owner-product-row p { margin: 0; }

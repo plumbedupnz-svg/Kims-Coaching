@@ -303,7 +303,15 @@
                       <button type="submit" class="btn btn-primary" data-product-submit>Add Product</button>
                       <button type="button" class="btn btn-secondary" data-product-cancel-edit hidden>Cancel Edit</button>
                     </form>
-                    <div class="owner-products" id="owner-products-list"></div>
+                    <aside class="owner-products-panel" aria-label="Saved products">
+                      <div class="owner-products-search">
+                        <h3>Saved products</h3>
+                        <label for="owner-product-search">Search products</label>
+                        <input id="owner-product-search" type="search" placeholder="Search name, category or description" autocomplete="off" />
+                        <p class="helper-text" data-owner-products-summary>Showing the latest saved product.</p>
+                      </div>
+                      <div class="owner-products" id="owner-products-list"></div>
+                    </aside>
                   </div>
                 </section>
 
