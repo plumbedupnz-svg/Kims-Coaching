@@ -64,7 +64,7 @@ from (
     ) as items
   from public.shop_orders so_inner
   cross join lateral jsonb_array_elements(so_inner.items) with ordinality as item(value, ordinality)
-  left join public.products p on p.id = item.value->>'id'
+  left join public.products p on p.id::text = item.value->>'id'
   left join public.inventory_items ii
     on ii.id::text = coalesce(nullif(item.value->>'inventory_item_id', ''), nullif(item.value->>'id', ''))
   cross join lateral (
