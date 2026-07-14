@@ -166,6 +166,10 @@
     return sendEmail("junior_group_session_plan", payload);
   }
 
+  function sendReportEmail(payload) {
+    return sendEmail("report_email", payload);
+  }
+
   window.KimsEmailService = {
     sendEmail,
     sendAdminNotification,
@@ -188,6 +192,7 @@
     sendJuniorGroupCustomerConfirmation,
     sendJuniorGroupAssignmentNotification,
     sendJuniorGroupSessionPlan,
+    sendReportEmail,
     generateICSInvite,
     generateBookingICS: generateICSInvite
   };

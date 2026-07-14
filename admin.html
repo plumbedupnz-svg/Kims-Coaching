@@ -53,6 +53,7 @@
               <a href="#group-calendar" data-admin-tab="group-calendar">Group Calendar</a>
               <a href="#session-plans" data-admin-tab="session-plans">Session Plans</a>
               <a href="#junior-payments" data-admin-tab="junior-payments">Payments/Overdue</a>
+              <a href="#reports" data-admin-tab="reports">Reports</a>
               <a href="#settings" data-admin-tab="settings">Settings</a>
             </nav>
 
@@ -272,6 +273,8 @@
                       <input id="owner-product-name" type="text" placeholder="Product name" required />
                       <label for="owner-product-price">Sell price</label>
                       <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
+                      <label for="owner-product-purchase-price">Purchase price / cost</label>
+                      <input id="owner-product-purchase-price" type="number" step="0.01" min="0" placeholder="Cost price (optional)" />
                       <label for="owner-product-discount">Discount %</label>
                       <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
                       <label for="owner-product-category">Category</label>
@@ -570,6 +573,9 @@
                     <label>Level<select name="level"><option value="">Any level</option><option>Beginner</option><option>Developing</option><option>Interclub</option><option>Tournament</option></select></label>
                     <label>Coach<select name="coach_id" data-junior-coach><option value="">Select coach</option></select></label>
                     <label>Club<select name="club_id" data-junior-club><option value="">Select club</option></select></label>
+                    <label>Coach cost/session<input type="number" name="coach_cost_per_session" min="0" step="0.01" placeholder="Optional" /></label>
+                    <label>Court cost/session<input type="number" name="court_cost_per_session" min="0" step="0.01" placeholder="Optional" /></label>
+                    <label>Fixed programme cost<input type="number" name="fixed_programme_cost" min="0" step="0.01" placeholder="Optional" /></label>
                   </div>
                   <label>Description<textarea name="description" rows="4" placeholder="Shown on the public group coaching card"></textarea></label>
                   <label class="availability-repeat"><span>Active</span><input type="checkbox" name="is_active" checked /></label>
@@ -612,6 +618,9 @@
                     <label>Session duration<input type="number" name="session_duration_minutes" min="15" step="15" value="60" required /></label>
                     <label>Capacity / max players<input type="number" name="capacity" min="1" step="1" value="8" required /></label>
                     <label>Price<input type="number" name="price" min="0" step="0.01" value="0" required /></label>
+                    <label>Coach cost/session<input type="number" name="coach_cost_per_session" min="0" step="0.01" placeholder="Programme default" /></label>
+                    <label>Court cost/session<input type="number" name="court_cost_per_session" min="0" step="0.01" placeholder="Programme default" /></label>
+                    <label>Fixed group cost<input type="number" name="fixed_programme_cost" min="0" step="0.01" placeholder="Programme default" /></label>
                   </div>
                   <label>Stripe/payment link<input type="url" name="payment_link_url" placeholder="https://buy.stripe.com/..." /></label>
                   <label>WhatsApp group link<input type="url" name="whatsapp_group_link" placeholder="https://chat.whatsapp.com/..." /></label>
@@ -736,6 +745,47 @@
             <section class="admin-section" data-admin-section="junior-payments" hidden>
               <div class="admin-section-head"><div><p class="eyebrow">Payments</p><h2>Junior payments and overdue</h2><p class="helper-text">Group places are confirmed only when payment is marked paid by Stripe webhook or admin confirmation.</p></div></div>
               <div class="admin-list-panel"><div class="admin-data-list" data-junior-payment-list><p class="helper-text">Loading payments...</p></div></div>
+            </section>
+
+            <section class="admin-section reports-section" data-admin-section="reports" hidden>
+              <div class="admin-section-head">
+                <div>
+                  <p class="eyebrow">Reports</p>
+                  <h2>Business reports</h2>
+                  <p class="helper-text">View, print, email, and export coaching and shop performance reports.</p>
+                </div>
+              </div>
+              <div class="admin-list-panel reports-controls" data-report-controls>
+                <div class="reports-filter-grid">
+                  <label>Report
+                    <select data-report-selector>
+                      <option value="junior-programme">Junior Programme Report</option>
+                      <option value="junior-profit">Junior Coaching Profit Report</option>
+                      <option value="shop-sales">Shop Sales / Gross Profit Report</option>
+                    </select>
+                  </label>
+                  <label>From<input type="date" data-report-start /></label>
+                  <label>To<input type="date" data-report-end /></label>
+                  <label data-report-filter-wrap>Programme / category
+                    <select data-report-filter>
+                      <option value="">All</option>
+                    </select>
+                  </label>
+                  <label>Email report to
+                    <input type="email" data-report-email placeholder="Admin email or optional address" />
+                  </label>
+                </div>
+                <div class="admin-action-row report-actions">
+                  <button class="btn btn-primary" type="button" data-report-run>Run Report</button>
+                  <button class="btn btn-secondary" type="button" data-report-print>Print</button>
+                  <button class="btn btn-secondary" type="button" data-report-email-button>Email Report</button>
+                  <button class="btn btn-secondary" type="button" data-report-csv>Export CSV</button>
+                </div>
+                <p class="form-message" data-report-message></p>
+              </div>
+              <div class="admin-list-panel reports-preview" data-report-preview>
+                <p class="helper-text">Choose a report and date range, then run the report.</p>
+              </div>
             </section>
 
             <section class="admin-section" data-admin-section="settings" hidden>
@@ -888,6 +938,7 @@
     <script src="app.js?v=20260626-slot-defaults"></script>
     <script src="email-settings.js?v=20260626-slot-defaults"></script>
     <script src="email-service.js?v=20260702-adult-junior-split"></script>
+    <script src="admin-reports.js?v=20260714-reports"></script>
     <script src="admin-dashboard.js?v=20260702-adult-junior-split"></script>
     <script src="admin-lessons.js?v=20260626-slot-defaults"></script>
     <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>

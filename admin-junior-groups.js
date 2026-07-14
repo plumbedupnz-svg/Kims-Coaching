@@ -71,6 +71,15 @@
     else target.removeAttribute("data-tone");
   }
 
+  function isMissingColumnError(error) {
+    return /column|schema cache|PGRST|42703/i.test(error?.message || "");
+  }
+
+  function withoutCostFields(payload) {
+    const { coach_cost_per_session, court_cost_per_session, fixed_programme_cost, ...rest } = payload;
+    return rest;
+  }
+
   function statusClass(status = "") {
     if (["paid", "confirmed", "scheduled", "active", "active_in_group"].includes(status)) return "available";
     if (["overdue", "pending", "pending_payment"].includes(status)) return "warning";
@@ -732,6 +741,9 @@
     groupFormEl.elements.level.value = programme.level || "";
     groupFormEl.elements.coach_id.value = programme.coach_id || "";
     groupFormEl.elements.club_id.value = programme.club_id || "";
+    if (groupFormEl.elements.coach_cost_per_session) groupFormEl.elements.coach_cost_per_session.value = programme.coach_cost_per_session ?? "";
+    if (groupFormEl.elements.court_cost_per_session) groupFormEl.elements.court_cost_per_session.value = programme.court_cost_per_session ?? "";
+    if (groupFormEl.elements.fixed_programme_cost) groupFormEl.elements.fixed_programme_cost.value = programme.fixed_programme_cost ?? "";
     groupFormEl.elements.description.value = groupFormEl.elements.description.value || programme.description || "";
     if (programme.is_public === true && groupFormEl.elements.is_public) groupFormEl.elements.is_public.checked = true;
   }
@@ -749,14 +761,23 @@
       level: form.elements.level.value || "",
       coach_id: form.elements.coach_id.value || null,
       club_id: form.elements.club_id.value || null,
+      coach_cost_per_session: toNullableNumber(form.elements.coach_cost_per_session?.value),
+      court_cost_per_session: toNullableNumber(form.elements.court_cost_per_session?.value),
+      fixed_programme_cost: toNullableNumber(form.elements.fixed_programme_cost?.value),
       description: form.elements.description.value.trim(),
       is_active: form.elements.is_active.checked,
       is_public: form.elements.is_public.checked
     };
     if (!payload.programme_name) return setMessage(programmeMessageEl, "Enter a programme name.", "error");
     setMessage(programmeMessageEl, "Saving programme...");
-    const query = id ? client.from("junior_programmes").update(payload).eq("id", id) : client.from("junior_programmes").insert(payload);
-    const { error } = await query;
+    let query = id ? client.from("junior_programmes").update(payload).eq("id", id) : client.from("junior_programmes").insert(payload);
+    let { error } = await query;
+    if (error && isMissingColumnError(error)) {
+      console.warn("Junior programme cost columns are not available yet; saving programme without report cost fields.", error);
+      const fallback = withoutCostFields(payload);
+      query = id ? client.from("junior_programmes").update(fallback).eq("id", id) : client.from("junior_programmes").insert(fallback);
+      ({ error } = await query);
+    }
     if (error) return setMessage(programmeMessageEl, `Could not save programme: ${error.message}`, "error");
     resetProgrammeForm();
     setMessage(programmeMessageEl, "Programme saved.", "success");
@@ -786,6 +807,9 @@
       session_duration_minutes: Math.max(15, Number(form.elements.session_duration_minutes.value || 60)),
       capacity: Math.max(1, Number(form.elements.capacity.value || 1)),
       price: Number(form.elements.price.value || 0),
+      coach_cost_per_session: toNullableNumber(form.elements.coach_cost_per_session?.value),
+      court_cost_per_session: toNullableNumber(form.elements.court_cost_per_session?.value),
+      fixed_programme_cost: toNullableNumber(form.elements.fixed_programme_cost?.value),
       payment_link_url: form.elements.payment_link_url.value.trim() || null,
       whatsapp_group_link: form.elements.whatsapp_group_link.value.trim() || null,
       description: form.elements.description.value.trim(),
@@ -794,8 +818,14 @@
     };
     if (!payload.group_name || !payload.start_date || !payload.start_time) return setMessage(groupMessageEl, "Enter a group name, start date, and start time.", "error");
     setMessage(groupMessageEl, "Saving group...");
-    const query = id ? client.from("junior_groups").update(payload).eq("id", id).select("id").single() : client.from("junior_groups").insert(payload).select("id").single();
-    const { data, error } = await query;
+    let query = id ? client.from("junior_groups").update(payload).eq("id", id).select("id").single() : client.from("junior_groups").insert(payload).select("id").single();
+    let { data, error } = await query;
+    if (error && isMissingColumnError(error)) {
+      console.warn("Junior group cost columns are not available yet; saving group without report cost fields.", error);
+      const fallback = withoutCostFields(payload);
+      query = id ? client.from("junior_groups").update(fallback).eq("id", id).select("id").single() : client.from("junior_groups").insert(fallback).select("id").single();
+      ({ data, error } = await query);
+    }
     if (error) return setMessage(groupMessageEl, `Could not save group: ${error.message}`, "error");
     const groupId = id || data?.id;
     if (groupId) await client.rpc("admin_generate_junior_group_sessions", { p_group_id: groupId });
@@ -816,6 +846,9 @@
     programmeFormEl.elements.level.value = programme.level || "";
     programmeFormEl.elements.coach_id.value = programme.coach_id || "";
     programmeFormEl.elements.club_id.value = programme.club_id || "";
+    if (programmeFormEl.elements.coach_cost_per_session) programmeFormEl.elements.coach_cost_per_session.value = programme.coach_cost_per_session ?? "";
+    if (programmeFormEl.elements.court_cost_per_session) programmeFormEl.elements.court_cost_per_session.value = programme.court_cost_per_session ?? "";
+    if (programmeFormEl.elements.fixed_programme_cost) programmeFormEl.elements.fixed_programme_cost.value = programme.fixed_programme_cost ?? "";
     programmeFormEl.elements.description.value = programme.description || "";
     programmeFormEl.elements.is_active.checked = programme.is_active !== false;
     programmeFormEl.elements.is_public.checked = programme.is_public === true;
@@ -842,6 +875,9 @@
     groupFormEl.elements.session_duration_minutes.value = group.session_duration_minutes || 60;
     groupFormEl.elements.capacity.value = group.capacity || 1;
     groupFormEl.elements.price.value = group.price || 0;
+    if (groupFormEl.elements.coach_cost_per_session) groupFormEl.elements.coach_cost_per_session.value = group.coach_cost_per_session ?? "";
+    if (groupFormEl.elements.court_cost_per_session) groupFormEl.elements.court_cost_per_session.value = group.court_cost_per_session ?? "";
+    if (groupFormEl.elements.fixed_programme_cost) groupFormEl.elements.fixed_programme_cost.value = group.fixed_programme_cost ?? "";
     groupFormEl.elements.payment_link_url.value = group.payment_link_url || "";
     groupFormEl.elements.whatsapp_group_link.value = group.whatsapp_group_link || "";
     groupFormEl.elements.description.value = group.description || "";

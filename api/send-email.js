@@ -17,6 +17,7 @@ const adminTypes = new Set([
   "junior_group_admin_notification",
   "junior_group_session_plan",
   "inventory_reorder_notification",
+  "report_email",
   "admin_alert"
 ]);
 
@@ -140,7 +141,8 @@ function getSubject(type, payload = {}) {
     junior_group_customer_confirmation: "Your junior group coaching place is confirmed",
     junior_group_assignment_notification: `${playerName} has been placed in a Kim Jones Coaching group`,
     junior_group_session_plan: `Session plan: ${payload.programmeName || payload.groupName || "Junior coaching"}`,
-    inventory_reorder_notification: `New order required: ${payload.productName || payload.product_name || "stock item"}`
+    inventory_reorder_notification: `New order required: ${payload.productName || payload.product_name || "stock item"}`,
+    report_email: `${payload.reportName || payload.report_name || "Kim Jones Coaching report"}: ${payload.dateRange || payload.date_range || "report"}`
   };
 
   return subjects[type] || "Kim Jones Coaching notification";
@@ -308,6 +310,18 @@ function renderInventoryReorderText(title, payload = {}) {
   ].filter(Boolean).join("\n");
 }
 
+function renderReportText(title, payload = {}) {
+  const totals = Array.isArray(payload.totals) ? payload.totals.join("\n") : payload.totals;
+  return [
+    title,
+    "",
+    lineIf("Date range", payload.dateRange || payload.date_range),
+    lineIf("Totals", totals),
+    "",
+    payload.reportText || payload.report_text || "Report rows were generated in the admin reports area."
+  ].filter(Boolean).join("\n");
+}
+
 function renderText(type, payload = {}) {
   if (type === "booking_admin_notification") return renderBookingText("New Kim Jones Coaching booking", payload);
   if (type === "booking_customer_confirmation") return renderBookingText("Your coaching booking has been booked", payload);
@@ -323,6 +337,7 @@ function renderText(type, payload = {}) {
   if (type === "purchase_order_email") return renderShopText("Kim Jones Coaching purchase order", payload);
   if (type === "product_enquiry_notification") return renderShopText("Kim Jones Coaching product enquiry", payload);
   if (type === "inventory_reorder_notification") return renderInventoryReorderText("Inventory reorder notification", payload);
+  if (type === "report_email") return renderReportText(payload.reportName || payload.report_name || "Kim Jones Coaching report", payload);
   if (type.includes("shop_order") || type.includes("product_")) return renderShopText("Kim Jones Coaching shop notification", payload);
   return [
     "Kim Jones Coaching notification",

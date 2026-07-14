@@ -196,6 +196,23 @@
 .invoice-review-table-row { grid-template-columns: minmax(190px, 1.15fr) minmax(100px, 0.6fr) minmax(72px, 0.4fr) minmax(96px, 0.5fr) minmax(96px, 0.5fr) minmax(210px, 1.05fr) minmax(120px, 0.65fr) minmax(150px, 0.75fr) minmax(96px, 0.5fr) minmax(90px, 0.45fr) minmax(145px, 0.7fr); min-width: 1460px; }
 .invoice-review-table-row input,
 .invoice-review-table-row select { width: 100%; min-width: 0; }
+
+.reports-controls { display: grid; gap: 0.85rem; }
+.reports-filter-grid { display: grid; grid-template-columns: minmax(220px, 1.2fr) repeat(2, minmax(145px, 0.65fr)) minmax(190px, 0.95fr) minmax(220px, 1fr); gap: 0.75rem; align-items: end; }
+.reports-filter-grid label { display: grid; gap: 0.35rem; color: var(--text); font-weight: 800; }
+.reports-preview { overflow: hidden; }
+.report-print-head { display: grid; gap: 0.2rem; margin-bottom: 0.85rem; }
+.report-print-head h3,
+.report-print-head p { margin: 0; }
+.report-print-head p { color: var(--muted); font-weight: 700; }
+.report-table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+.report-table { width: 100%; min-width: 980px; border-collapse: collapse; font-size: 0.88rem; line-height: 1.3; }
+.report-table th,
+.report-table td { padding: 0.5rem 0.55rem; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; }
+.report-table th { background: var(--surface-strong); color: var(--text); font-weight: 900; }
+.report-table tbody tr:nth-child(even) { background: #f8fafc; }
+.report-totals { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 0.85rem; }
+.report-totals strong { padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 7px; background: #fff; }
 .inventory-actions { position: relative; display: flex; justify-content: flex-end; overflow: visible !important; }
 .inventory-action-toggle { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font-size: 1.1rem; font-weight: 900; line-height: 1; cursor: pointer; }
 .inventory-action-list { position: absolute; top: calc(100% + 0.25rem); right: 0; z-index: 20; display: grid; min-width: 140px; padding: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14); }
@@ -206,6 +223,38 @@
 @media (max-width: 980px) { .admin-panel-grid, .availability-row, .admin-stat-grid, .settings-grid, .inventory-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; } .availability-actions { justify-content: flex-start; } }
 @media (max-width: 760px) { .admin-tabs { margin-inline: -4%; border-radius: 0; border-left: 0; border-right: 0; } .admin-section-head, .admin-data-row, .inventory-toolbar-head, .availability-list-head { display: grid; } .admin-section-head .btn, .inventory-toolbar-head .btn { width: 100%; } .settings-grid, .availability-grid, .lesson-settings-panels, .availability-form-grid, .availability-saved-grid, .inventory-review-controls, .inventory-filters, .inventory-form-section, .inventory-dashboard-grid, .availability-row { grid-template-columns: 1fr; } .settings-editor, .settings-list, .settings-panel-wide { grid-column: 1; } .availability-form-head { display: grid; } .availability-actions .btn { width: 100%; } .inventory-table-row { grid-template-columns: minmax(92px, 1.15fr) minmax(52px, 0.55fr) minmax(64px, 0.68fr) minmax(48px, 0.38fr) minmax(38px, 0.3fr) 34px; } .inventory-table-row span:nth-child(4), .inventory-table-row span:nth-child(6), .inventory-table-row span:nth-child(7) { display: none; } .shop-orders-table { gap: 0.65rem; border: 0; background: transparent; } .shop-orders-table-head { display: none; } .shop-orders-table-row { grid-template-columns: 1fr; gap: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; } .shop-orders-table-row:nth-child(odd):not(.shop-orders-table-head) { background: #fff; } .shop-orders-table-row > span, .shop-orders-table-row strong, .shop-orders-table-row small { white-space: normal; } }
 @media (max-width: 760px) { .junior-players-table { gap: 0.65rem; overflow: visible; border: 0; background: transparent; } .junior-players-table-head { display: none; } .junior-players-table-row { grid-template-columns: 1fr; min-width: 0; gap: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; } .junior-players-table-row:nth-child(odd):not(.junior-players-table-head) { background: #fff; } .junior-players-table-row > span, .junior-players-table-row strong, .junior-players-table-row small { white-space: normal; } .junior-players-table-row > span::before { content: attr(data-label); display: block; margin-bottom: 0.1rem; color: var(--muted); font-size: 0.75rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.02em; } }
+@media (max-width: 980px) { .reports-filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 760px) { .reports-filter-grid { grid-template-columns: 1fr; } .report-table { min-width: 760px; } }
+@media print {
+  body.admin-page { background: #fff; }
+  body.admin-page .site-header,
+  body.admin-page .admin-tabs,
+  body.admin-page .reports-controls,
+  body.admin-page .report-actions,
+  body.admin-page .admin-section-head,
+  body.admin-page [data-admin-section]:not([data-admin-section="reports"]) {
+    display: none !important;
+  }
+  body.admin-page main,
+  body.admin-page .owner-wrap,
+  body.admin-page #owner-panel,
+  body.admin-page .admin-section,
+  body.admin-page .reports-preview {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  body.admin-page .report-table-wrap { overflow: visible; border: 0; }
+  body.admin-page .report-table { min-width: 0; font-size: 10px; }
+  body.admin-page .report-table th,
+  body.admin-page .report-table td { padding: 4px 5px; border: 1px solid #cfd8e3; }
+  body.admin-page .report-totals strong { border: 0; padding: 0; }
+}
 
 /* Option 2: sports club dashboard layout experiment.
    This is intentionally CSS-only so admin logic, data loading and forms stay untouched. */

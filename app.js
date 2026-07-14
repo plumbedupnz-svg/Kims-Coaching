@@ -30,6 +30,7 @@ const ownerPanelEl = document.getElementById("owner-panel");
 const ownerAddFormEl = document.getElementById("owner-add-form");
 const ownerProductNameEl = document.getElementById("owner-product-name");
 const ownerProductPriceEl = document.getElementById("owner-product-price");
+const ownerProductPurchasePriceEl = document.getElementById("owner-product-purchase-price");
 const ownerProductDiscountEl = document.getElementById("owner-product-discount");
 const ownerProductCategoryEl = document.getElementById("owner-product-category");
 const ownerProductDescEl = document.getElementById("owner-product-desc");
@@ -130,10 +131,10 @@ const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
-const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
-const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
+const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -200,6 +201,8 @@ function normalizeShopProduct(row) {
     inventory_item_id: row.inventory_item_id || inventory.id || "",
     name: row.name || inventory.product_name,
     price: Number(row.price || 0),
+    purchase_price: Number(row.purchase_price ?? row.cost_price ?? inventory.cost_price ?? 0),
+    cost_price: Number(row.cost_price ?? row.purchase_price ?? inventory.cost_price ?? 0),
     discount: Number(row.discount || 0),
     category,
     category_id: row.category_id || inventory.category_id || row.product_categories?.id || inventory.product_categories?.id || "",
@@ -654,7 +657,7 @@ async function saveAdminProductToSupabase(product) {
   const isEditingProduct = Boolean(product.editing_product_id);
   const productRowId = product.editing_product_id || product.id;
 
-  const basePayload = {
+  const fallbackPayload = {
     name: product.name,
     description: product.description || null,
     price: product.price,
@@ -662,7 +665,13 @@ async function saveAdminProductToSupabase(product) {
     image_url: product.image_url || product.image || null,
     is_active: true
   };
+  const basePayload = {
+    ...fallbackPayload,
+    purchase_price: Number(product.purchase_price || 0),
+    cost_price: Number(product.purchase_price || product.cost_price || 0)
+  };
   if (currentUser?.id) basePayload.created_by = currentUser.id;
+  if (currentUser?.id) fallbackPayload.created_by = currentUser.id;
 
   const productPayload = {
     ...basePayload,
@@ -736,7 +745,7 @@ async function saveAdminProductToSupabase(product) {
         p_category_id: category?.id || null,
         p_category: category?.name || product.category,
         p_description: product.description,
-        p_cost_price: 0,
+        p_cost_price: Number(product.purchase_price || 0),
         p_sell_price: product.price,
         p_quantity_on_hand: 0,
         p_low_stock_threshold: 2,
@@ -759,7 +768,7 @@ async function saveAdminProductToSupabase(product) {
     }
   }
 
-  return saveProductRow(productPayload, basePayload);
+  return saveProductRow(productPayload, fallbackPayload);
 }
 
 async function uploadOwnerProductImage(file, productId) {
@@ -2115,6 +2124,7 @@ function editOwnerProduct(productId) {
   setProductFormMode("edit");
   ownerProductNameEl.value = product.name || "";
   ownerProductPriceEl.value = Number(product.price || 0).toFixed(2);
+  if (ownerProductPurchasePriceEl) ownerProductPurchasePriceEl.value = Number(product.purchase_price ?? product.cost_price ?? 0).toFixed(2);
   ownerProductDiscountEl.value = Number(product.discount || 0).toFixed(2);
   upsertCategoryOption(product.category || "");
   ownerProductCategorySelectEl.value = product.category || "";
@@ -2299,6 +2309,7 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     editing_product_id: editingProductId,
     name: ownerProductNameEl.value.trim(),
     price: Number(ownerProductPriceEl.value),
+    purchase_price: Number(ownerProductPurchasePriceEl?.value || 0),
     discount: Number(ownerProductDiscountEl.value || 0),
     category: getNormalizedCategoryName(ownerProductCategorySelectEl?.value || ""),
     description: ownerProductDescEl.value.trim(),
@@ -2314,6 +2325,8 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     !newProduct.category ||
     Number.isNaN(newProduct.price) ||
     newProduct.price < 0 ||
+    Number.isNaN(newProduct.purchase_price) ||
+    newProduct.purchase_price < 0 ||
     Number.isNaN(newProduct.discount) ||
     newProduct.discount < 0 ||
     newProduct.discount > 100
