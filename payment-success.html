@@ -32,6 +32,7 @@
             <p class="eyebrow">Payment Complete</p>
             <h1>Payment successful.</h1>
             <p>Your payment has been received. We are confirming your booking or order now, and you will receive an email confirmation shortly.</p>
+            <p class="shop-stock-note" data-shop-stock-success-note hidden>If your shop order includes items not held in stock, we'll confirm arrival once stock levels have been checked.</p>
             <div class="booking-hero-actions">
               <a class="btn btn-primary" href="account.html#customer-account">Go to My Account</a>
               <a class="btn btn-secondary" href="booking.html">Book Coaching</a>
@@ -47,7 +48,11 @@
     <script src="app.js"></script>
     <script>
       try {
-        if (sessionStorage.getItem("kims_pending_checkout_type") === "shop_order") localStorage.removeItem("kims_cart");
+        const isShopOrder = sessionStorage.getItem("kims_pending_checkout_type") === "shop_order";
+        if (isShopOrder) {
+          document.querySelector("[data-shop-stock-success-note]")?.removeAttribute("hidden");
+          localStorage.removeItem("kims_cart");
+        }
         sessionStorage.removeItem("kims_pending_checkout_type");
       } catch (error) {
         console.warn("Could not update checkout state after payment.", error);

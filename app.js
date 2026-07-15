@@ -3,6 +3,7 @@ const STRIPE_KEY = "kims_stripe_link";
 const PROMO_SETTINGS_KEY = "kims_promo_settings";
 const APPLIED_PROMO_CODE_KEY = "kims_applied_promo_code";
 const HOMEPAGE_PHOTO_SETTING_KEY = "homepage_photo";
+const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
 
 const defaultProducts = [
   { id: "agility-kit", name: "Speed Agility Kit", price: 59.99, discount: 0, category: "Training", description: "Cones, ladder, and bands for movement sessions.", image: "" },
@@ -1080,13 +1081,18 @@ function getStorableImage(image) {
 }
 
 function getMinimalCartItem(item) {
+  const fulfilmentType = item.fulfilment_type === "order_to_sale" ? "order_to_sale" : item.fulfilment_type === "stock" ? "stock" : "";
+  const availabilityNote = item.availability_note || getProductAvailabilityNote(item);
   return {
     id: item.id,
-    inventory_item_id: item.inventory_item_id || item.id || "",
+    inventory_item_id: fulfilmentType === "order_to_sale" ? "" : item.inventory_item_id || item.id || "",
     name: item.name || "Product",
     price: Number(item.price || 0),
     quantity: Math.max(1, Number(item.quantity || 1)),
-    image_url: getStorableImage(item.image_url || item.image)
+    image_url: getStorableImage(item.image_url || item.image),
+    fulfilment_type: fulfilmentType,
+    stock_status: item.stock_status || "",
+    availability_note: availabilityNote
   };
 }
 
@@ -1972,6 +1978,7 @@ function renderProducts() {
       const hasDiscount = Number(p.discount || 0) > 0;
       const outOfStock = isProductOutOfStock(p);
       const stockText = getProductStockText(p);
+      const availabilityNote = getProductAvailabilityNote(p);
       const imageLoading = index < 4 ? "eager" : "lazy";
       const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
       const productPath = getProductDetailPath(p);
@@ -1983,6 +1990,7 @@ function renderProducts() {
           <p class="owner-meta">${escapeHtml(p.category || "Uncategorized")}</p>
           <h3><a href="${escapeHtml(productPath)}">${escapeHtml(p.name)}</a></h3>
           <p class="owner-meta">${escapeHtml(stockText)}</p>
+          ${availabilityNote ? `<p class="product-availability-note">${escapeHtml(availabilityNote)}</p>` : ""}
           <div class="price-wrap">
             ${hasDiscount ? `<p class="old-price">${money(Number(p.price))}</p>` : ""}
             <p class="price">${money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(p.discount)}%</span>` : ""}</p>
@@ -2080,14 +2088,26 @@ function getProductStockText(product) {
   return `${quantity} in stock`;
 }
 
+function getProductAvailabilityNote(product = {}) {
+  return product.fulfilment_type === "order_to_sale" ? ORDER_TO_SALE_NOTICE : "";
+}
+
 function renderCart() {
   if (!cartItemsEl) return;
   const cart = loadCart();
+  const productsById = new Map(getCurrentShopProducts().map(normalizeInventoryShopProduct).map((product) => [String(product.id), product]));
+  const getCartItemAvailabilityNote = (item) => {
+    const product = productsById.get(String(item.id));
+    return item.availability_note || getProductAvailabilityNote({ ...product, ...item, fulfilment_type: item.fulfilment_type || product?.fulfilment_type });
+  };
   cartItemsEl.innerHTML = !cart.length
     ? `<p class="empty-cart">Your cart is empty. Add a SportsCo product above.</p>`
     : cart
         .map(
-          (item) => `<div class="cart-item"><div><h4>${item.name}</h4><p>${money(Number(item.price))} each</p></div><div class="qty-controls"><button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button><span>${item.quantity}</span><button class="qty-btn" data-action="increase" data-id="${item.id}">+</button></div></div>`
+          (item) => {
+            const availabilityNote = getCartItemAvailabilityNote(item);
+            return `<div class="cart-item"><div><h4>${item.name}</h4><p>${money(Number(item.price))} each</p>${availabilityNote ? `<p class="cart-item-note">${escapeHtml(availabilityNote)}</p>` : ""}</div><div class="qty-controls"><button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button><span>${item.quantity}</span><button class="qty-btn" data-action="increase" data-id="${item.id}">+</button></div></div>`;
+          }
         )
         .join("");
 
@@ -2104,8 +2124,9 @@ function renderCart() {
   if (promoDiscountEl) promoDiscountEl.textContent = `-${money(promoDiscount)}`;
   if (shippingEl) shippingEl.textContent = money(shipping);
   totalEl.textContent = money(finalTotal);
+  const hasOrderToSaleItems = cart.some((item) => Boolean(getCartItemAvailabilityNote(item)));
   window.dispatchEvent(new CustomEvent("kims:cart-rendered", {
-    detail: { subtotal, tax, promoDiscount, shipping, total: finalTotal }
+    detail: { subtotal, tax, promoDiscount, shipping, total: finalTotal, hasOrderToSaleItems }
   }));
 }
 
@@ -2874,6 +2895,7 @@ window.KimsShop = {
   getProductDetailPath,
   getPublicProductUrl,
   getProductStockText,
+  getProductAvailabilityNote,
   isProductOutOfStock,
   escapeHtml
 };

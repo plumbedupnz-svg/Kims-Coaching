@@ -445,6 +445,10 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .cart-item { padding: 0.8rem; display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.7rem; }
 .cart-item h4, .cart-item p { margin: 0; }
 .cart-item p { color: var(--muted); }
+.cart-item-note, .product-availability-note, .shop-stock-note { color: #615018; background: #fff8dd; border: 1px solid #ead78a; border-radius: var(--radius-sm); padding: 0.55rem 0.65rem; line-height: 1.45; font-size: 0.86rem; font-weight: 700; }
+.cart-item-note { margin-top: 0.45rem !important; max-width: 34rem; }
+.product-availability-note { margin: 0.2rem 0 0.8rem; }
+.shop-stock-note { margin: 0.7rem 0 0; }
 .qty-controls { display: flex; align-items: center; gap: 0.6rem; }
 .qty-btn { width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; }
 .cart-summary { padding: 1rem; height: fit-content; }

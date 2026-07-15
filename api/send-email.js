@@ -256,7 +256,10 @@ function renderSessionPlanText(title, payload = {}) {
 function renderItems(payload = {}) {
   if (Array.isArray(payload.items)) {
     return payload.items
-      .map((item) => `- ${item.name || item.product_name || "Product"} x ${item.quantity || 1} (${item.category || "Uncategorized"}) ${item.price || ""}`)
+      .map((item) => {
+        const availabilityNote = item.availability_note || item.availabilityNote || "";
+        return `- ${item.name || item.product_name || "Product"} x ${item.quantity || 1} (${item.category || "Uncategorized"}) ${item.price || ""}${availabilityNote ? `\n  Note: ${availabilityNote}` : ""}`;
+      })
       .join("\n");
   }
   return [

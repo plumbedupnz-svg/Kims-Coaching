@@ -11,6 +11,8 @@ const {
   verifyUser
 } = require("./_helpers");
 
+const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
+
 function getCustomerName(profile, user) {
   return `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || profile?.email || user?.email || "Kim Jones Coaching customer";
 }
@@ -387,7 +389,8 @@ async function getShopLineItems(cart) {
         cost_price_at_sale: Number(purchasePrice.toFixed(2)),
         gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
         gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
-        fulfilment_type: isStock ? "stock" : "order_to_sale"
+        fulfilment_type: isStock ? "stock" : "order_to_sale",
+        availability_note: isStock ? "" : ORDER_TO_SALE_NOTICE
       };
     }
 
@@ -413,7 +416,8 @@ async function getShopLineItems(cart) {
       cost_price_at_sale: Number(purchasePrice.toFixed(2)),
       gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
       gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
-      fulfilment_type: "stock"
+      fulfilment_type: "stock",
+      availability_note: ""
     };
   });
 }
@@ -548,7 +552,7 @@ async function createShopCheckout({ user, body }) {
 
   const lineItems = items.map((item) => ({
     name: item.name,
-    description: item.description,
+    description: [item.description, item.availability_note].filter(Boolean).join(" "),
     quantity: item.quantity,
     unitAmount: item.unitAmount
   }));

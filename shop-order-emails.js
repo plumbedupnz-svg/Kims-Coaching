@@ -32,6 +32,7 @@
     subtotal: document.getElementById("subtotal"),
     tax: document.getElementById("tax"),
     promoDiscount: document.getElementById("promo-discount"),
+    orderStockNote: document.querySelector("[data-order-stock-note]"),
     message: document.getElementById("checkout-account-message"),
     checkoutButton: document.getElementById("checkout-btn")
   };
@@ -91,6 +92,18 @@
     if (fields.promoDiscount) fields.promoDiscount.textContent = "-$0.00";
     if (fields.shipping) fields.shipping.textContent = money(shipping);
     if (fields.total) fields.total.textContent = money(total);
+  }
+
+  function cartHasOrderToSaleItems() {
+    return loadCart().some((item) => {
+      if (item.fulfilment_type === "order_to_sale" || item.availability_note) return true;
+      const product = window.KimsShop?.getProducts?.().find((entry) => String(entry.id) === String(item.id));
+      return product?.fulfilment_type === "order_to_sale";
+    });
+  }
+
+  function updateOrderStockNotice(hasOrderToSaleItems = cartHasOrderToSaleItems()) {
+    if (fields.orderStockNote) fields.orderStockNote.hidden = !hasOrderToSaleItems;
   }
 
   function updateFulfilmentHelp() {
@@ -248,10 +261,12 @@
     window.addEventListener("kims:cart-rendered", (event) => {
       lastSummary = { ...lastSummary, ...(event.detail || {}) };
       lastSummary.promoDiscount = 0;
+      updateOrderStockNotice(Boolean(event.detail?.hasOrderToSaleItems));
       updateTotals();
     });
     await loadCheckoutSettings();
     await prefillCheckoutDetails();
+    updateOrderStockNotice();
     updateFulfilmentHelp();
   });
 })();
