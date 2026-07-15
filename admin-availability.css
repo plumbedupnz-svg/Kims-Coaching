@@ -43,8 +43,8 @@
 .settings-grid > * { min-width: 0; }
 .settings-workspace-head { grid-column: 1 / -1; display: grid; gap: 0.85rem; }
 .settings-workspace-head h2, .settings-workspace-head p { margin: 0; }
-.settings-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
-.settings-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.settings-subtabs { display: flex; align-items: stretch; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: auto; scrollbar-gutter: stable; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
+.settings-subtabs button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: max-content; min-height: 40px; line-height: 1.2; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; transition: none; }
 .settings-subtabs button.active,
 .settings-subtabs button:hover { background: var(--surface-strong); color: var(--text); }
 .settings-editor { grid-column: 1; }
@@ -110,8 +110,8 @@
 .junior-workspace > .junior-tab-panel.admin-section {
   padding-top: 0;
 }
-.inventory-subtabs, .junior-subtabs, .lessons-subtabs, .products-subtabs { display: flex; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
-.inventory-subtabs button, .junior-subtabs button, .lessons-subtabs button, .products-subtabs button { flex: 0 0 auto; min-height: 40px; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; }
+.inventory-subtabs, .junior-subtabs, .lessons-subtabs, .products-subtabs { display: flex; align-items: stretch; width: 100%; max-width: 100%; min-width: 0; gap: 0.45rem; overflow-x: auto; overscroll-behavior-x: contain; scroll-behavior: auto; scrollbar-gutter: stable; padding: 0.45rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
+.inventory-subtabs button, .junior-subtabs button, .lessons-subtabs button, .products-subtabs button { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; min-width: max-content; min-height: 40px; line-height: 1.2; padding: 0.55rem 0.85rem; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-weight: 800; white-space: nowrap; cursor: pointer; transition: none; }
 .inventory-subtabs button.active,
 .inventory-subtabs button:hover,
 .junior-subtabs button.active,
@@ -449,6 +449,9 @@
   .lessons-subtabs,
   .products-subtabs,
   .settings-subtabs {
+    align-items: stretch;
+    overflow-anchor: none;
+    scroll-behavior: auto;
     padding: 0.35rem;
     border-radius: 8px;
     background: #ffffff;
@@ -459,8 +462,15 @@
   .lessons-subtabs button,
   .products-subtabs button,
   .settings-subtabs button {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: max-content;
+    line-height: 1.2;
     min-height: 38px;
     border-radius: 6px;
+    transition: none;
   }
 
   .btn,

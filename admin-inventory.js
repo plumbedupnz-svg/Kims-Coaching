@@ -1459,9 +1459,7 @@
   });
   inventoryTabEls.forEach((button) => {
     button.addEventListener("click", () => {
-      const selectedTab = button.dataset.inventoryTab;
-      const shouldCollapse = button.classList.contains("active") && selectedTab !== "dashboard";
-      setInventoryTab(shouldCollapse ? "dashboard" : selectedTab);
+      setInventoryTab(button.dataset.inventoryTab);
     });
   });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
