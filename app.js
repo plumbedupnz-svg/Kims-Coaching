@@ -2246,19 +2246,87 @@ function drawWrappedCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines =
   return y + Math.min(lines.length, maxLines) * lineHeight;
 }
 
-function renderQrToCanvas(canvas, url) {
+const QR_CODE_SIZE = 390;
+const QR_CODE_SCRIPT_SRC = "vendor/qrcode.min.js?v=20260715-local";
+let qrCodeLibraryLoadPromise = null;
+
+function ensureQrCodeLibrary() {
+  if (window.QRCode) return Promise.resolve();
+  if (!qrCodeLibraryLoadPromise) {
+    qrCodeLibraryLoadPromise = new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = QR_CODE_SCRIPT_SRC;
+      script.onload = () => window.QRCode ? resolve() : reject(new Error("QR code library could not be loaded. Please refresh and try again."));
+      script.onerror = () => reject(new Error("QR code library could not be loaded. Please refresh and try again."));
+      document.head.appendChild(script);
+    });
+  }
+  return qrCodeLibraryLoadPromise;
+}
+
+function drawQrSourceToCanvas(canvas, source) {
+  canvas.width = QR_CODE_SIZE;
+  canvas.height = QR_CODE_SIZE;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, QR_CODE_SIZE, QR_CODE_SIZE);
+  ctx.drawImage(source, 0, 0, QR_CODE_SIZE, QR_CODE_SIZE);
+  return canvas;
+}
+
+function waitForQrImage(image) {
+  if (image.complete && image.naturalWidth > 0) return Promise.resolve(image);
   return new Promise((resolve, reject) => {
-    if (!window.QRCode?.toCanvas) {
-      reject(new Error("QR code library is not loaded."));
-      return;
-    }
-    window.QRCode.toCanvas(canvas, url, {
-      errorCorrectionLevel: "M",
-      margin: 1,
-      width: 390,
-      color: { dark: "#13213d", light: "#ffffff" }
-    }, (error) => error ? reject(error) : resolve(canvas));
+    image.addEventListener("load", () => resolve(image), { once: true });
+    image.addEventListener("error", () => reject(new Error("QR code image could not be generated.")), { once: true });
   });
+}
+
+async function renderQrWithConstructor(canvas, url) {
+  const host = document.createElement("div");
+  host.setAttribute("aria-hidden", "true");
+  host.style.position = "fixed";
+  host.style.left = "-10000px";
+  host.style.top = "-10000px";
+  document.body.appendChild(host);
+
+  try {
+    new window.QRCode(host, {
+      text: url,
+      width: QR_CODE_SIZE,
+      height: QR_CODE_SIZE,
+      colorDark: "#13213d",
+      colorLight: "#ffffff",
+      correctLevel: window.QRCode.CorrectLevel?.M
+    });
+    const generatedCanvas = host.querySelector("canvas");
+    if (generatedCanvas) return drawQrSourceToCanvas(canvas, generatedCanvas);
+
+    const generatedImage = host.querySelector("img");
+    if (generatedImage) {
+      await waitForQrImage(generatedImage);
+      return drawQrSourceToCanvas(canvas, generatedImage);
+    }
+    throw new Error("QR code image could not be generated.");
+  } finally {
+    host.remove();
+  }
+}
+
+async function renderQrToCanvas(canvas, url) {
+  await ensureQrCodeLibrary();
+  if (window.QRCode?.toCanvas) {
+    return new Promise((resolve, reject) => {
+      window.QRCode.toCanvas(canvas, url, {
+        errorCorrectionLevel: "M",
+        margin: 1,
+        width: QR_CODE_SIZE,
+        color: { dark: "#13213d", light: "#ffffff" }
+      }, (error) => error ? reject(error) : resolve(canvas));
+    });
+  }
+  if (typeof window.QRCode === "function") return renderQrWithConstructor(canvas, url);
+  throw new Error("QR code library could not be loaded. Please refresh and try again.");
 }
 
 async function drawProductQrLabel(canvas, product) {
@@ -2602,6 +2670,10 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
   const button = event.target.closest(".owner-remove-btn");
   if (!button) return;
   const id = button.dataset.id;
+  const product = loadProducts().find((item) => String(item.id) === String(id));
+  const productName = product?.name || "this product";
+  const confirmed = window.confirm(`Remove ${productName} from the product catalogue? It will be hidden from the shop and product detail/QR links.`);
+  if (!confirmed) return;
   button.disabled = true;
   button.textContent = "Removing...";
   if (supabaseClient && isAdminProfile()) {
