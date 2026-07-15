@@ -29,12 +29,15 @@ const ownerStatusEl = document.getElementById("owner-status");
 const ownerPanelEl = document.getElementById("owner-panel");
 const ownerAddFormEl = document.getElementById("owner-add-form");
 const ownerProductNameEl = document.getElementById("owner-product-name");
+const ownerProductSlugEl = document.getElementById("owner-product-slug");
 const ownerProductPriceEl = document.getElementById("owner-product-price");
 const ownerProductPurchasePriceEl = document.getElementById("owner-product-purchase-price");
 const ownerProductDiscountEl = document.getElementById("owner-product-discount");
 const ownerProductCategoryEl = document.getElementById("owner-product-category");
+const ownerProductShortDescEl = document.getElementById("owner-product-short-desc");
 const ownerProductDescEl = document.getElementById("owner-product-desc");
 const ownerProductImageEl = document.getElementById("owner-product-image");
+const ownerProductVisibleEl = document.getElementById("owner-product-visible");
 const ownerProductsListEl = document.getElementById("owner-products-list");
 const ownerProductSearchEl = document.getElementById("owner-product-search");
 const ownerProductsSummaryEl = document.querySelector("[data-owner-products-summary]");
@@ -99,7 +102,9 @@ const money = (v) => `$${v.toFixed(2)}`;
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 const isAdminPage = Boolean(document.body?.classList.contains("admin-page") || document.getElementById("owner-panel"));
 const isShopPage = Boolean(productListEl);
+const isProductDetailPage = Boolean(document.querySelector("[data-product-detail]"));
 const SHOP_ALL_CATEGORY = "all";
+const PUBLIC_PRODUCT_BASE_URL = "https://kimjonescoaching.co.nz";
 let selectedCategory = SHOP_ALL_CATEGORY;
 const urlParams = new URLSearchParams(window.location.search);
 const showShopDebug = urlParams.get("debug") === "shop";
@@ -129,12 +134,12 @@ let adminInventoryLinkItems = [];
 let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
-const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
+const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
-const PUBLIC_PRODUCTS_SELECT = "id,name,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+const PUBLIC_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
-const ADMIN_PRODUCTS_SELECT = "id,name,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
+const ADMIN_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
 const ADMIN_INVENTORY_LINK_SELECT = "id,product_name,sku,category,category_id,sell_price,quantity_on_hand,status,is_active,archived_at,visible_in_shop";
 
 const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"];
@@ -152,6 +157,40 @@ function escapeHtml(value = "") {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function normalizeProductSlug(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 90);
+}
+
+function getProductSlug(product = {}) {
+  const savedSlug = normalizeProductSlug(product.slug || "");
+  if (savedSlug) return savedSlug;
+  const base = normalizeProductSlug(product.name || "product") || "product";
+  const suffix = String(product.id || "").replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+  return suffix ? `${base}-${suffix.toLowerCase()}` : base;
+}
+
+function getProductDetailPath(product = {}) {
+  return `product.html?slug=${encodeURIComponent(getProductSlug(product))}`;
+}
+
+function getPublicProductUrl(product = {}) {
+  return `${PUBLIC_PRODUCT_BASE_URL}/${getProductDetailPath(product)}`;
+}
+
+function getProductShortDescription(product = {}) {
+  const explicit = String(product.short_description || "").trim();
+  if (explicit) return explicit;
+  const description = String(product.description || "").replace(/\s+/g, " ").trim();
+  if (!description) return "";
+  return description.length > 140 ? `${description.slice(0, 137).trim()}...` : description;
 }
 
 function safeStorageGet(key, fallback = "") {
@@ -200,6 +239,8 @@ function normalizeShopProduct(row) {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
     name: row.name || inventory.product_name,
+    slug: row.slug || "",
+    short_description: row.short_description || inventory.short_description || "",
     price: Number(row.price || 0),
     purchase_price: Number(row.purchase_price ?? row.cost_price ?? inventory.cost_price ?? 0),
     cost_price: Number(row.cost_price ?? row.purchase_price ?? inventory.cost_price ?? 0),
@@ -558,7 +599,7 @@ function setPublicShopProducts(products) {
 }
 
 function getCurrentShopProducts() {
-  if (isShopPage && Array.isArray(publicShopProducts)) return publicShopProducts;
+  if (Array.isArray(publicShopProducts)) return publicShopProducts;
   return loadProducts();
 }
 
@@ -583,7 +624,7 @@ async function syncShopProductsFromSupabase() {
   if (!supabaseClient) {
     return setPublicShopProducts(loadProducts());
   }
-  if (!isShopPage) return loadProducts();
+  if (!isShopPage && !isProductDetailPage) return loadProducts();
 
   try {
     const syncStart = performance.now();
@@ -667,6 +708,8 @@ async function saveAdminProductToSupabase(product) {
   };
   const basePayload = {
     ...fallbackPayload,
+    slug: normalizeProductSlug(product.slug || `${product.name}-${productRowId}`),
+    short_description: product.short_description || null,
     purchase_price: Number(product.purchase_price || 0),
     cost_price: Number(product.purchase_price || product.cost_price || 0)
   };
@@ -681,7 +724,7 @@ async function saveAdminProductToSupabase(product) {
     inventory_item_id: product.fulfilment_type === "stock" ? product.inventory_item_id || null : null,
     quantity_on_hand: product.fulfilment_type === "stock" ? Number(product.quantity_on_hand || 0) : 0,
     stock_status: product.fulfilment_type === "stock" ? product.stock_status || "in_stock" : "order_to_sale",
-    visible_in_shop: true,
+    visible_in_shop: product.visible_in_shop !== false,
     archived_at: null
   };
 
@@ -697,7 +740,7 @@ async function saveAdminProductToSupabase(product) {
         category: category?.name || product.category,
         category_id: category?.id || null,
         fulfilment_type: product.fulfilment_type === "stock" ? "stock" : "order_to_sale",
-        visible_in_shop: true,
+        visible_in_shop: product.visible_in_shop !== false,
         archived_at: null
       };
       const fallbackQuery = isEditingProduct
@@ -1871,7 +1914,7 @@ function renderProducts() {
   const publicProducts = products.filter((product) => {
     const outOfStock = isProductOutOfStock(product);
     if (shopInventorySettings.hide_out_of_stock && outOfStock) return false;
-    if (product.source_row === "products") return product.is_active !== false;
+    if (product.source_row === "products") return product.is_active !== false && product.visible_in_shop !== false && !product.archived_at;
     return product.visible_in_shop === true && product.is_active !== false && !product.archived_at;
   });
   logShopFilterState("products before filtering", {
@@ -1931,26 +1974,23 @@ function renderProducts() {
       const stockText = getProductStockText(p);
       const imageLoading = index < 4 ? "eager" : "lazy";
       const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
-      const description = p.description || "Product description";
-      const showDescriptionToggle = description.length > 260;
-      const descriptionId = `product-description-${String(p.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+      const productPath = getProductDetailPath(p);
       return `
-        <article class="product-card" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" data-price="${discounted}">
-          <div class="product-image-wrap">
+        <article class="product-card product-card-compact" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" data-price="${discounted}" data-slug="${escapeHtml(getProductSlug(p))}">
+          <a class="product-card-link" href="${escapeHtml(productPath)}" aria-label="View ${escapeHtml(p.name)} details">
             ${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="product-image" loading="${imageLoading}" decoding="async"${imagePriority} />` : `<div class="product-image product-image-placeholder">No image</div>`}
-          </div>
+          </a>
           <p class="owner-meta">${escapeHtml(p.category || "Uncategorized")}</p>
-          <h3>${escapeHtml(p.name)}</h3>
-          <div class="product-description-wrap">
-            <p class="product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>
-            ${showDescriptionToggle ? `<button class="product-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-description-toggle>Show more</button>` : ""}
-          </div>
+          <h3><a href="${escapeHtml(productPath)}">${escapeHtml(p.name)}</a></h3>
           <p class="owner-meta">${escapeHtml(stockText)}</p>
           <div class="price-wrap">
             ${hasDiscount ? `<p class="old-price">${money(Number(p.price))}</p>` : ""}
             <p class="price">${money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(p.discount)}%</span>` : ""}</p>
           </div>
-          <button class="btn btn-primary add-to-cart" ${outOfStock ? "disabled" : ""}>${outOfStock ? "Out of stock" : "Add to Cart"}</button>
+          <div class="product-card-actions">
+            <button class="btn btn-primary add-to-cart" ${outOfStock ? "disabled" : ""}>${outOfStock ? "Out of stock" : "Add to Cart"}</button>
+            <a class="btn btn-secondary" href="${escapeHtml(productPath)}">View Details</a>
+          </div>
         </article>`;
     })
     .join("");
@@ -2069,19 +2109,21 @@ function renderCart() {
   }));
 }
 
-function addToCart(product) {
+function addToCart(product, quantity = 1) {
+  const requestedQuantity = Math.max(1, Number(quantity || 1));
   const cart = loadCart();
   const existing = cart.find((item) => item.id === product.id);
   const availableQuantity = product.fulfilment_type === "order_to_sale" ? Infinity : Number(product.quantity_on_hand ?? Infinity);
-  const nextQuantity = existing ? existing.quantity + 1 : 1;
+  const nextQuantity = existing ? existing.quantity + requestedQuantity : requestedQuantity;
   if (Number.isFinite(availableQuantity) && nextQuantity > availableQuantity) {
     alert("Not enough stock is available for that product.");
     return;
   }
-  if (existing) existing.quantity += 1;
-  else cart.push(getMinimalCartItem({ ...product, quantity: 1 }));
+  if (existing) existing.quantity += requestedQuantity;
+  else cart.push(getMinimalCartItem({ ...product, quantity: requestedQuantity }));
   saveCart(cart);
   renderCart();
+  return true;
 }
 
 function updateQuantity(productId, action) {
@@ -2123,12 +2165,15 @@ function editOwnerProduct(productId) {
   editingProductId = product.id;
   setProductFormMode("edit");
   ownerProductNameEl.value = product.name || "";
+  if (ownerProductSlugEl) ownerProductSlugEl.value = product.slug || getProductSlug(product);
   ownerProductPriceEl.value = Number(product.price || 0).toFixed(2);
   if (ownerProductPurchasePriceEl) ownerProductPurchasePriceEl.value = Number(product.purchase_price ?? product.cost_price ?? 0).toFixed(2);
   ownerProductDiscountEl.value = Number(product.discount || 0).toFixed(2);
   upsertCategoryOption(product.category || "");
   ownerProductCategorySelectEl.value = product.category || "";
+  if (ownerProductShortDescEl) ownerProductShortDescEl.value = product.short_description || getProductShortDescription(product);
   ownerProductDescEl.value = product.description || "";
+  if (ownerProductVisibleEl) ownerProductVisibleEl.checked = product.visible_in_shop !== false && product.is_active !== false;
   const hasInventoryLink = Boolean(product.inventory_item_id);
   if (ownerProductFulfilmentEl) ownerProductFulfilmentEl.value = product.fulfilment_type === "stock" && hasInventoryLink ? "stock" : "order_to_sale";
   if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.value = product.inventory_item_id || "";
@@ -2171,12 +2216,131 @@ function renderOwnerProducts() {
         const description = p.description || "No description";
         const showDescriptionToggle = description.length > 220;
         const descriptionId = `owner-product-description-${String(p.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-        return `<div class="owner-product-row"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""}</p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}</div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
+        const productUrl = getPublicProductUrl(p);
+        return `<div class="owner-product-row" data-owner-product-id="${escapeHtml(p.id)}"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""} · ${p.visible_in_shop === false ? "Hidden from shop" : "Visible in shop"}</p><p class="owner-meta"><a href="${escapeHtml(productUrl)}" target="_blank" rel="noopener">${escapeHtml(productUrl)}</a></p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}<div class="product-qr-panel" data-product-qr-panel hidden><canvas width="520" height="680" data-product-qr-canvas></canvas><p class="helper-text" data-product-qr-message></p></div></div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary" data-product-qr="${escapeHtml(p.id)}" type="button">Generate QR Code</button><button class="btn btn-secondary" data-product-qr-download="${escapeHtml(p.id)}" type="button">Download QR</button><button class="btn btn-secondary" data-product-qr-print="${escapeHtml(p.id)}" type="button">Print QR</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
       }
     )
     .join("") : search
       ? '<p class="helper-text">No products matched that search.</p>'
       : '<p class="helper-text">No products yet. Add an order-to-sale product or link a stock item from inventory.</p>';
+}
+
+function drawWrappedCanvasText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+  const words = String(text || "").split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = "";
+  words.forEach((word) => {
+    const testLine = line ? `${line} ${word}` : word;
+    if (ctx.measureText(testLine).width > maxWidth && line) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = testLine;
+    }
+  });
+  if (line) lines.push(line);
+  lines.slice(0, maxLines).forEach((item, index) => {
+    const output = index === maxLines - 1 && lines.length > maxLines ? `${item.replace(/\s+\S+$/, "")}...` : item;
+    ctx.fillText(output, x, y + index * lineHeight);
+  });
+  return y + Math.min(lines.length, maxLines) * lineHeight;
+}
+
+function renderQrToCanvas(canvas, url) {
+  return new Promise((resolve, reject) => {
+    if (!window.QRCode?.toCanvas) {
+      reject(new Error("QR code library is not loaded."));
+      return;
+    }
+    window.QRCode.toCanvas(canvas, url, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 390,
+      color: { dark: "#13213d", light: "#ffffff" }
+    }, (error) => error ? reject(error) : resolve(canvas));
+  });
+}
+
+async function drawProductQrLabel(canvas, product) {
+  const url = getPublicProductUrl(product);
+  const qrCanvas = document.createElement("canvas");
+  await renderQrToCanvas(qrCanvas, url);
+  const ctx = canvas.getContext("2d");
+  canvas.width = 520;
+  canvas.height = 680;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#dbe3f1";
+  ctx.lineWidth = 4;
+  ctx.strokeRect(18, 18, canvas.width - 36, canvas.height - 36);
+  ctx.fillStyle = "#13213d";
+  ctx.textAlign = "center";
+  ctx.font = "800 24px Inter, Arial, sans-serif";
+  ctx.fillText("KIM JONES COACHING", canvas.width / 2, 56);
+  ctx.font = "800 28px Inter, Arial, sans-serif";
+  const afterTitleY = drawWrappedCanvasText(ctx, product.name || "Shop product", canvas.width / 2, 92, 430, 32, 2);
+  ctx.font = "700 20px Inter, Arial, sans-serif";
+  ctx.fillStyle = "#5f6f8f";
+  ctx.fillText(product.category || "Shop product", canvas.width / 2, afterTitleY + 18);
+  ctx.font = "800 34px Inter, Arial, sans-serif";
+  ctx.fillStyle = "#13213d";
+  ctx.fillText(money(getDiscountedPrice(product)), canvas.width / 2, afterTitleY + 62);
+  ctx.drawImage(qrCanvas, 65, 275, 390, 390);
+  ctx.font = "800 22px Inter, Arial, sans-serif";
+  ctx.fillText("Scan to view and buy", canvas.width / 2, 252);
+  ctx.font = "600 13px Inter, Arial, sans-serif";
+  ctx.fillStyle = "#5f6f8f";
+  ctx.fillText(url.replace(/^https?:\/\//, ""), canvas.width / 2, 648);
+}
+
+function findOwnerProductRow(productId) {
+  return Array.from(ownerProductsListEl?.querySelectorAll("[data-owner-product-id]") || [])
+    .find((row) => row.dataset.ownerProductId === productId);
+}
+
+async function generateProductQr(productId) {
+  const product = loadProducts().find((item) => item.id === productId);
+  const row = findOwnerProductRow(productId);
+  const panel = row?.querySelector("[data-product-qr-panel]");
+  const canvas = row?.querySelector("[data-product-qr-canvas]");
+  const message = row?.querySelector("[data-product-qr-message]");
+  if (!product || !canvas || !panel) return;
+  panel.hidden = false;
+  if (message) message.textContent = "Generating QR code...";
+  try {
+    await drawProductQrLabel(canvas, product);
+    if (message) message.textContent = "QR code links to the public product detail page.";
+  } catch (error) {
+    if (message) message.textContent = error.message || "Could not generate QR code.";
+  }
+}
+
+async function downloadProductQr(productId) {
+  await generateProductQr(productId);
+  const product = loadProducts().find((item) => item.id === productId);
+  const row = findOwnerProductRow(productId);
+  const canvas = row?.querySelector("[data-product-qr-canvas]");
+  if (!product || !canvas) return;
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/png");
+  link.download = `${getProductSlug(product)}-qr.png`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function printProductQr(productId) {
+  await generateProductQr(productId);
+  const product = loadProducts().find((item) => item.id === productId);
+  const row = findOwnerProductRow(productId);
+  const canvas = row?.querySelector("[data-product-qr-canvas]");
+  if (!product || !canvas) return;
+  const printWindow = window.open("", "_blank", "width=720,height=900");
+  if (!printWindow) return alert("Allow pop-ups to print the QR code.");
+  printWindow.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(product.name)} QR Code</title><style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:Arial,sans-serif;background:#fff}img{width:min(92vw,520px);height:auto}</style></head><body><img src="${canvas.toDataURL("image/png")}" alt="${escapeHtml(product.name)} QR code" /></body></html>`);
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
 }
 
 function setOwnerUI() {
@@ -2308,16 +2472,19 @@ if (ownerAddFormEl) ownerAddFormEl.addEventListener("submit", async (event) => {
     id: productId,
     editing_product_id: editingProductId,
     name: ownerProductNameEl.value.trim(),
+    slug: normalizeProductSlug(ownerProductSlugEl?.value || `${ownerProductNameEl.value.trim()}-${productId}`),
     price: Number(ownerProductPriceEl.value),
     purchase_price: Number(ownerProductPurchasePriceEl?.value || 0),
     discount: Number(ownerProductDiscountEl.value || 0),
     category: getNormalizedCategoryName(ownerProductCategorySelectEl?.value || ""),
+    short_description: ownerProductShortDescEl?.value.trim() || "",
     description: ownerProductDescEl.value.trim(),
     image: existingProduct?.image || "",
     image_url: existingProduct?.image_url || existingProduct?.image || "",
     fulfilment_type: ownerProductFulfilmentEl?.value === "stock" ? "stock" : "order_to_sale",
     inventory_item_id: ownerProductInventoryLinkEl?.value || "",
-    create_inventory: Boolean(ownerCreateInventoryEl?.checked)
+    create_inventory: Boolean(ownerCreateInventoryEl?.checked),
+    visible_in_shop: ownerProductVisibleEl ? ownerProductVisibleEl.checked : true
   };
 
   if (
@@ -2411,6 +2578,24 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
   const editButton = event.target.closest(".owner-edit-btn");
   if (editButton) {
     editOwnerProduct(editButton.dataset.id);
+    return;
+  }
+
+  const qrButton = event.target.closest("[data-product-qr]");
+  if (qrButton) {
+    await generateProductQr(qrButton.dataset.productQr);
+    return;
+  }
+
+  const qrDownloadButton = event.target.closest("[data-product-qr-download]");
+  if (qrDownloadButton) {
+    await downloadProductQr(qrDownloadButton.dataset.productQrDownload);
+    return;
+  }
+
+  const qrPrintButton = event.target.closest("[data-product-qr-print]");
+  if (qrPrintButton) {
+    await printProductQr(qrPrintButton.dataset.productQrPrint);
     return;
   }
 
@@ -2601,5 +2786,24 @@ function handleAdminStartupError(error) {
   }
   throw error;
 }
+
+window.KimsShop = {
+  addToCart,
+  getProducts: () => getCurrentShopProducts().map(normalizeInventoryShopProduct),
+  loadPublicProducts: async () => {
+    await syncShopProductsFromSupabase();
+    return getCurrentShopProducts().map(normalizeInventoryShopProduct);
+  },
+  renderCart,
+  loadCart,
+  money,
+  getDiscountedPrice,
+  getProductSlug,
+  getProductDetailPath,
+  getPublicProductUrl,
+  getProductStockText,
+  isProductOutOfStock,
+  escapeHtml
+};
 
 init().catch(handleAdminStartupError);

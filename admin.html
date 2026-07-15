@@ -271,6 +271,8 @@
                       <p class="helper-text">Products are items or services customers can buy. Link to inventory only when stock is physically held.</p>
                       <label for="owner-product-name">Product name</label>
                       <input id="owner-product-name" type="text" placeholder="Product name" required />
+                      <label for="owner-product-slug">Product URL slug</label>
+                      <input id="owner-product-slug" type="text" placeholder="Auto-generated if left blank" />
                       <label for="owner-product-price">Sell price</label>
                       <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
                       <label for="owner-product-purchase-price">Purchase price / cost</label>
@@ -283,8 +285,14 @@
                         <input id="owner-new-category" type="text" placeholder="Add new category" />
                         <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
                       </div>
-                      <label for="owner-product-desc">Product description</label>
-                      <textarea id="owner-product-desc" placeholder="Product description"></textarea>
+                      <label for="owner-product-short-desc">Short description</label>
+                      <textarea id="owner-product-short-desc" rows="2" placeholder="Short card/search summary"></textarea>
+                      <label for="owner-product-desc">Full product description</label>
+                      <textarea id="owner-product-desc" placeholder="Full product description"></textarea>
+                      <label class="availability-repeat">
+                        <span>Visible in shop</span>
+                        <input id="owner-product-visible" type="checkbox" checked />
+                      </label>
                       <label for="owner-product-fulfilment">Product fulfilment type</label>
                       <select id="owner-product-fulfilment" data-product-fulfilment-type>
                         <option value="order_to_sale">Order-to-sale / no inventory tracking</option>
@@ -932,6 +940,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" referrerpolicy="no-referrer"></script>
     <script src="supabase-config.js?v=20260626-slot-defaults"></script>
     <script src="admin-runtime.js?v=20260626-slot-defaults"></script>
     <script src="product-categories.js?v=20260626-slot-defaults"></script>

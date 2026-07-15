@@ -203,11 +203,20 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
   padding: 1rem;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
+.product-card-compact {
+  display: grid;
+  grid-template-rows: auto auto minmax(3.1rem, auto) auto auto 1fr;
+  gap: 0.55rem;
+  align-content: start;
+}
 .product-card:hover {
   transform: translateY(-4px);
   border-color: rgba(39, 173, 255, 0.32);
   box-shadow: 0 16px 32px rgba(19, 33, 61, 0.1);
 }
+.product-card h3 a,
+.product-card-link { color: inherit; text-decoration: none; }
+.product-card-compact h3 { margin: 0; font-size: 1.05rem; }
 .feature-card { min-height: 245px; display: flex; flex-direction: column; }
 .card-number {
   width: 42px;
@@ -363,6 +372,8 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .product-image-wrap { margin-bottom: 0.7rem; }
 .product-image { width: 100%; height: 180px; object-fit: contain; border-radius: 10px; border: 1px solid var(--border); background: #fff; }
 .product-image-placeholder { display: grid; place-items: center; color: var(--muted); font-size: 0.9rem; }
+.product-card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; align-self: end; margin-top: auto; }
+.product-card-actions .btn { width: 100%; min-height: 42px; padding-inline: 0.75rem; }
 .product-description-wrap { display: grid; gap: 0.45rem; margin: 0.35rem 0 0.55rem; }
 .product-description { margin: 0; line-height: 1.55; color: var(--muted); }
 .product-description.is-collapsed {
@@ -385,6 +396,28 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 }
 .product-description-toggle:hover { color: var(--brand); }
 .owner-thumb { margin-top: 0.5rem; width: 90px; height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
+.product-qr-panel { display: grid; gap: 0.45rem; margin-top: 0.75rem; }
+.product-qr-panel canvas { width: min(260px, 100%); height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
+
+.product-detail-section { background: #fbfdff; }
+.product-detail { display: grid; grid-template-columns: minmax(300px, 0.95fr) minmax(320px, 1.05fr); gap: clamp(1.25rem, 4vw, 3rem); align-items: start; }
+.product-detail-media,
+.product-detail-summary,
+.product-detail-description,
+.product-not-found { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; box-shadow: 0 10px 28px rgba(19, 33, 61, 0.06); }
+.product-detail-media { padding: clamp(0.75rem, 2vw, 1.2rem); }
+.product-detail-image { width: 100%; aspect-ratio: 1 / 1; height: auto; object-fit: contain; border-radius: 12px; background: #fff; }
+.product-detail-summary { display: grid; gap: 0.85rem; padding: clamp(1rem, 3vw, 1.5rem); }
+.product-detail-summary h1 { margin: 0; }
+.product-detail-status { margin: 0; color: var(--muted); font-weight: 800; }
+.product-detail-price .price { margin: 0; font-size: 1.6rem; }
+.product-quantity-label { font-weight: 800; color: var(--text); }
+.product-detail-quantity { max-width: 140px; }
+.product-detail-actions { display: flex; flex-wrap: wrap; gap: 0.65rem; }
+.product-detail-description { grid-column: 1 / -1; padding: clamp(1rem, 3vw, 1.5rem); }
+.product-detail-description h2,
+.product-detail-description p { margin-top: 0; }
+.product-not-found { max-width: 680px; padding: clamp(1rem, 4vw, 2rem); }
 
 .btn {
   display: inline-flex;
@@ -672,10 +705,11 @@ textarea { resize: vertical; min-height: 120px; }
 
 @media (max-width: 980px) {
   .hero-grid, .split-section, .experience-layout, .credentials-grid, .achievement-layout, .impact-grid, .contact-panel,
-  .cart-layout, .owner-product-row, .account-grid, .dashboard-grid {
+  .cart-layout, .owner-product-row, .account-grid, .dashboard-grid, .product-detail {
     grid-template-columns: 1fr;
     display: grid;
   }
+  .product-detail-description { grid-column: 1; }
   .about-hero h1 { max-width: 13ch; }
   .programme-grid, .three-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .kim-photo-panel { min-height: auto; transform: none; }
@@ -714,6 +748,8 @@ textarea { resize: vertical; min-height: 120px; }
   .shop-toolbar { display: grid; align-items: stretch; }
   .achievement-item { grid-template-columns: 1fr; }
   .category-add-row { grid-template-columns: 1fr; }
+  .product-card-actions,
+  .product-detail-actions { grid-template-columns: 1fr; display: grid; }
   .profile-grid, .player-grid { grid-template-columns: 1fr; }
   .player-tab-add { margin-left: 0; }
   .footer-inner { flex-direction: column; justify-content: center; padding: 0.9rem 0; text-align: center; }

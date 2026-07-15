@@ -34,7 +34,7 @@ module.exports = async function handler(request, response) {
       is_active: "eq.true",
       order: "name.asc"
     };
-    const fullSelect = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
+    const fullSelect = "id,name,slug,short_description,category,category_id,description,price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
     try {
       return await fetchRows("products", fullSelect, params);
     } catch (error) {
@@ -54,7 +54,7 @@ module.exports = async function handler(request, response) {
     const [inventoryResult, productResult] = await Promise.allSettled([
       fetchRows(
         "inventory_items",
-        "id,product_name,category,category_id,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at",
+        "id,product_name,category,category_id,description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,archived_at",
         {
           visible_in_shop: "eq.true",
           is_active: "eq.true",
