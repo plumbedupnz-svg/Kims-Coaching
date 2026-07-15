@@ -1978,7 +1978,6 @@ function renderProducts() {
       const hasDiscount = Number(p.discount || 0) > 0;
       const outOfStock = isProductOutOfStock(p);
       const stockText = getProductStockText(p);
-      const availabilityNote = getProductAvailabilityNote(p);
       const imageLoading = index < 4 ? "eager" : "lazy";
       const imagePriority = index < 4 ? ' fetchpriority="high"' : "";
       const productPath = getProductDetailPath(p);
@@ -1990,7 +1989,6 @@ function renderProducts() {
           <p class="owner-meta">${escapeHtml(p.category || "Uncategorized")}</p>
           <h3><a href="${escapeHtml(productPath)}">${escapeHtml(p.name)}</a></h3>
           <p class="owner-meta">${escapeHtml(stockText)}</p>
-          ${availabilityNote ? `<p class="product-availability-note">${escapeHtml(availabilityNote)}</p>` : ""}
           <div class="price-wrap">
             ${hasDiscount ? `<p class="old-price">${money(Number(p.price))}</p>` : ""}
             <p class="price">${money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(p.discount)}%</span>` : ""}</p>
@@ -2104,10 +2102,7 @@ function renderCart() {
     ? `<p class="empty-cart">Your cart is empty. Add a SportsCo product above.</p>`
     : cart
         .map(
-          (item) => {
-            const availabilityNote = getCartItemAvailabilityNote(item);
-            return `<div class="cart-item"><div><h4>${item.name}</h4><p>${money(Number(item.price))} each</p>${availabilityNote ? `<p class="cart-item-note">${escapeHtml(availabilityNote)}</p>` : ""}</div><div class="qty-controls"><button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button><span>${item.quantity}</span><button class="qty-btn" data-action="increase" data-id="${item.id}">+</button></div></div>`;
-          }
+          (item) => `<div class="cart-item"><div><h4>${item.name}</h4><p>${money(Number(item.price))} each</p></div><div class="qty-controls"><button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button><span>${item.quantity}</span><button class="qty-btn" data-action="increase" data-id="${item.id}">+</button></div></div>`
         )
         .join("");
 

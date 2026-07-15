@@ -35,7 +35,6 @@
     const hasDiscount = Number(product.discount || 0) > 0;
     const outOfStock = shop.isProductOutOfStock(product);
     const stockText = shop.getProductStockText(product);
-    const availabilityNote = shop.getProductAvailabilityNote?.(product) || "";
     document.title = `${product.name} | Kim Jones Coaching`;
     detailEl.innerHTML = `
       <article class="product-detail">
@@ -44,7 +43,6 @@
           <p class="eyebrow">${escapeHtml(product.category || "Shop")}</p>
           <h1>${escapeHtml(product.name || "Shop product")}</h1>
           <p class="product-detail-status">${escapeHtml(stockText)}</p>
-          ${availabilityNote ? `<p class="product-availability-note">${escapeHtml(availabilityNote)}</p>` : ""}
           <div class="price-wrap product-detail-price">
             ${hasDiscount ? `<p class="old-price">${shop.money(Number(product.price))}</p>` : ""}
             <p class="price">${shop.money(discounted)} ${hasDiscount ? `<span class="discount-badge">-${Number(product.discount)}%</span>` : ""}</p>
