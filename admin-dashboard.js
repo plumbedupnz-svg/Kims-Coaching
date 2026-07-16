@@ -83,6 +83,11 @@
   };
   const juniorStorageKey = "kims_admin_junior_tab";
 
+  function resetAdminHorizontalScroll() {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+  }
+
   function setupJuniorWorkspace() {
     const adminNav = document.querySelector(".admin-tabs");
     const firstJuniorSection = document.querySelector('[data-admin-section="junior-programmes"]');
@@ -164,6 +169,7 @@
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.juniorPanel !== activeTab;
     });
+    resetAdminHorizontalScroll();
 
     try {
       sessionStorage.setItem(juniorStorageKey, activeTab);
@@ -200,6 +206,7 @@
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.lessonsPanel !== activeTab;
     });
+    resetAdminHorizontalScroll();
 
     try {
       sessionStorage.setItem(lessonsStorageKey, activeTab);
@@ -240,6 +247,7 @@
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.productsPanel !== activeTab;
     });
+    resetAdminHorizontalScroll();
 
     try {
       sessionStorage.setItem(productsStorageKey, activeTab);
@@ -286,6 +294,7 @@
     sections.forEach((section) => {
       section.hidden = section.dataset.adminSection !== activeTab;
     });
+    resetAdminHorizontalScroll();
     tabLinks.forEach((link) => {
       const isActive = link.dataset.adminTab === activeTab;
       link.classList.toggle("active", isActive);

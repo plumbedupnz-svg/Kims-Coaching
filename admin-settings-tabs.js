@@ -6,6 +6,11 @@
   const storageKey = "kims_admin_settings_tab";
   const validTabs = new Set(tabs.map((tab) => tab.dataset.settingsTab));
 
+  function resetAdminHorizontalScroll() {
+    document.documentElement.scrollLeft = 0;
+    document.body.scrollLeft = 0;
+  }
+
   function setActiveSettingsTab(tabName, { focus = false } = {}) {
     const activeTab = validTabs.has(tabName) ? tabName : tabs[0].dataset.settingsTab;
 
@@ -20,6 +25,7 @@
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.settingsPanel !== activeTab;
     });
+    resetAdminHorizontalScroll();
 
     sessionStorage.setItem(storageKey, activeTab);
   }

@@ -1,5 +1,20 @@
-.admin-page { background: #fbfdff; }
-.owner-wrap, #owner-panel { min-width: 0; }
+.admin-page { max-width: 100%; overflow-x: clip; background: #fbfdff; }
+.admin-page main,
+.owner-wrap,
+#owner-panel,
+.admin-section,
+.admin-section-head,
+.admin-list-panel,
+.settings-grid,
+.availability-admin-layout,
+.availability-form,
+.availability-list,
+.inventory-workspace,
+.junior-workspace,
+.lessons-workspace,
+.products-workspace,
+.reports-controls,
+.reports-preview { min-width: 0; max-width: 100%; }
 #owner-panel { width: 100%; }
 .admin-tabs { display: flex; gap: 0.55rem; overflow-x: auto; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; scrollbar-width: thin; }
 .admin-tabs a { flex: 0 0 auto; padding: 0.65rem 0.9rem; border-radius: 999px; color: var(--muted); text-decoration: none; font-weight: 800; white-space: nowrap; }
