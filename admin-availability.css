@@ -229,7 +229,7 @@
 .report-totals { display: flex; flex-wrap: wrap; gap: 0.65rem; margin-top: 0.85rem; }
 .report-totals strong { padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 7px; background: #fff; }
 .inventory-actions { position: relative; display: flex; justify-content: flex-end; overflow: visible !important; }
-.inventory-qr-panel { position: absolute; top: calc(100% + 0.35rem); right: 0; z-index: 18; width: min(300px, 82vw); padding: 0.65rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16); white-space: normal; }
+.inventory-qr-panel { position: absolute; top: calc(100% + 0.35rem); right: 0; z-index: 18; width: min(300px, 82vw); max-height: min(390px, calc(100vh - 220px)); overflow: auto; padding: 0.65rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16); white-space: normal; overscroll-behavior: contain; }
 .inventory-qr-panel[hidden] { display: none; }
 .inventory-action-toggle { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font-size: 1.1rem; font-weight: 900; line-height: 1; cursor: pointer; }
 .inventory-action-list { position: absolute; top: calc(100% + 0.25rem); right: 0; z-index: 20; display: grid; min-width: 140px; padding: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14); }

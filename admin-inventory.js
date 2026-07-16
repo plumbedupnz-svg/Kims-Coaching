@@ -723,6 +723,10 @@
                 <button type="button" data-inventory-action="delete">Delete</button>
               </div>
               <div class="product-qr-panel inventory-qr-panel" data-inventory-qr-panel hidden>
+                <div class="qr-panel-head">
+                  <strong>QR Code</strong>
+                  <button class="qr-panel-close" type="button" data-inventory-qr-close="${escapeHtml(item.id)}" aria-label="Hide QR code">Close</button>
+                </div>
                 <canvas width="520" height="680" data-inventory-qr-canvas></canvas>
                 <p class="helper-text" data-inventory-qr-message></p>
                 <div class="admin-action-row">
@@ -1576,6 +1580,7 @@
       const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
       const shouldOpen = Boolean(menu?.hidden);
       closeInventoryActionMenus();
+      closeInventoryQrPanels();
       if (menu) {
         menu.hidden = !shouldOpen;
         menuToggle.setAttribute("aria-expanded", String(shouldOpen));
@@ -1681,6 +1686,19 @@
     }
   });
   inventoryListEl?.addEventListener("click", handleInventoryAction);
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest("[data-inventory-qr-panel], [data-inventory-action-list], [data-inventory-menu-toggle], [data-inventory-action]")) {
+      closeInventoryQrPanels();
+      closeInventoryActionMenus();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeInventoryQrPanels();
+    closeInventoryActionMenus();
+  });
   invoiceFormEl?.addEventListener("submit", uploadInvoice);
   invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);
   invoiceReviewTableEl?.addEventListener("input", syncInvoiceReviewFromDom);

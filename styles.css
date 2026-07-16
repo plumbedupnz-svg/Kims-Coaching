@@ -397,6 +397,10 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .product-description-toggle:hover { color: var(--brand); }
 .owner-thumb { margin-top: 0.5rem; width: 90px; height: 90px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
 .product-qr-panel { display: grid; gap: 0.45rem; margin-top: 0.75rem; }
+.qr-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.qr-panel-head strong { color: var(--text); font-size: 0.9rem; font-weight: 900; }
+.qr-panel-close { flex: 0 0 auto; min-height: 30px; padding: 0.3rem 0.55rem; border: 1px solid var(--border); border-radius: 7px; background: #fff; color: var(--text); font: inherit; font-size: 0.82rem; font-weight: 900; cursor: pointer; }
+.qr-panel-close:hover { background: var(--surface); }
 .product-qr-panel canvas { width: min(260px, 100%); height: auto; border: 1px solid var(--border); border-radius: 8px; background: #fff; }
 
 .product-detail-section { background: #fbfdff; }
