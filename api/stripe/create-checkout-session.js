@@ -12,6 +12,82 @@ const {
 } = require("./_helpers");
 
 const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
+const SHOP_SETTINGS_DEFAULTS = {
+  pickup_label: "Pick up from coaching / club",
+  pickup_instructions: "Kim will confirm the pickup details with you.",
+  local_delivery_enabled: true,
+  local_delivery_fee: 0,
+  courier_delivery_enabled: true,
+  courier_delivery_fee: 0,
+  free_shipping_threshold: null,
+  tax_mode: "none",
+  tax_label: "GST",
+  tax_rate_percent: 15,
+  prices_include_tax: false,
+  stripe_automatic_tax: false
+};
+
+function formatTaxRate(rate) {
+  const number = Number(rate || 0);
+  return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+}
+
+function normalizeTaxMode(value) {
+  return ["gst_inclusive", "gst_exclusive"].includes(value) ? value : "none";
+}
+
+function normalizeShopSettings(row = {}) {
+  const taxMode = normalizeTaxMode(row.tax_mode);
+  const taxRate = row.tax_rate_percent === null || row.tax_rate_percent === undefined || row.tax_rate_percent === ""
+    ? SHOP_SETTINGS_DEFAULTS.tax_rate_percent
+    : Number(row.tax_rate_percent);
+  return {
+    ...SHOP_SETTINGS_DEFAULTS,
+    ...row,
+    tax_mode: taxMode,
+    tax_label: String(row.tax_label || SHOP_SETTINGS_DEFAULTS.tax_label).trim() || SHOP_SETTINGS_DEFAULTS.tax_label,
+    tax_rate_percent: Number.isFinite(taxRate) ? taxRate : SHOP_SETTINGS_DEFAULTS.tax_rate_percent,
+    prices_include_tax: taxMode === "gst_inclusive",
+    stripe_automatic_tax: taxMode === "none" ? false : Boolean(row.stripe_automatic_tax)
+  };
+}
+
+function calculateShopTaxSummary(subtotal, settings) {
+  const normalized = normalizeShopSettings(settings);
+  const base = Math.max(0, Number(subtotal || 0));
+  const rate = Math.max(0, Number(normalized.tax_rate_percent || 0));
+  const label = normalized.tax_label || "GST";
+  if (normalized.tax_mode === "gst_exclusive") {
+    const amount = Number((base * rate / 100).toFixed(2));
+    return {
+      mode: normalized.tax_mode,
+      label: `${label} (${formatTaxRate(rate)}%)`,
+      amount,
+      includedAmount: 0,
+      ratePercent: rate,
+      pricesIncludeTax: false
+    };
+  }
+  if (normalized.tax_mode === "gst_inclusive") {
+    const includedAmount = rate > 0 ? Number((base * rate / (100 + rate)).toFixed(2)) : 0;
+    return {
+      mode: normalized.tax_mode,
+      label: `${label} included`,
+      amount: 0,
+      includedAmount,
+      ratePercent: rate,
+      pricesIncludeTax: true
+    };
+  }
+  return {
+    mode: "none",
+    label: "Tax",
+    amount: 0,
+    includedAmount: 0,
+    ratePercent: rate,
+    pricesIncludeTax: false
+  };
+}
 
 function getCustomerName(profile, user) {
   return `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || profile?.email || user?.email || "Kim Jones Coaching customer";
@@ -427,33 +503,21 @@ async function getShopLineItems(cart) {
 }
 
 async function getShopSettings() {
+  const baseColumns = "pickup_label,pickup_instructions,local_delivery_enabled,local_delivery_fee,courier_delivery_enabled,courier_delivery_fee,free_shipping_threshold";
+  const taxColumns = "tax_mode,tax_label,tax_rate_percent,prices_include_tax,stripe_automatic_tax";
   try {
-    const rows = await restSelect(
-      "shop_inventory_settings",
-      "pickup_label,pickup_instructions,local_delivery_enabled,local_delivery_fee,courier_delivery_enabled,courier_delivery_fee,free_shipping_threshold",
-      { id: "eq.true", limit: "1" }
-    );
-    return {
-      pickup_label: "Pick up from coaching / club",
-      pickup_instructions: "Kim will confirm the pickup details with you.",
-      local_delivery_enabled: true,
-      local_delivery_fee: 0,
-      courier_delivery_enabled: true,
-      courier_delivery_fee: 0,
-      free_shipping_threshold: null,
-      ...(rows[0] || {})
-    };
+    const rows = await restSelect("shop_inventory_settings", `${baseColumns},${taxColumns}`, { id: "eq.true", limit: "1" })
+      .catch(async (error) => {
+        if (/tax_mode|tax_label|tax_rate_percent|prices_include_tax|stripe_automatic_tax|schema cache|PGRST|42703/i.test(error.message || "")) {
+          console.warn("[Stripe checkout] shop tax settings are not available yet; defaulting to no tax.", { message: error.message });
+          return restSelect("shop_inventory_settings", baseColumns, { id: "eq.true", limit: "1" });
+        }
+        throw error;
+      });
+    return normalizeShopSettings(rows[0] || {});
   } catch (error) {
     console.warn("[Stripe checkout] using default shop settings", { message: error.message });
-    return {
-      pickup_label: "Pick up from coaching / club",
-      pickup_instructions: "Kim will confirm the pickup details with you.",
-      local_delivery_enabled: true,
-      local_delivery_fee: 0,
-      courier_delivery_enabled: true,
-      courier_delivery_fee: 0,
-      free_shipping_threshold: null
-    };
+    return normalizeShopSettings();
   }
 }
 
@@ -509,6 +573,24 @@ function validateFulfilment(method, address) {
   }
 }
 
+async function insertShopOrder(payload) {
+  try {
+    return await restInsert("shop_orders", payload);
+  } catch (error) {
+    if (!/tax_mode|tax_label|tax_rate_percent|prices_include_tax|tax_included_amount|schema cache|PGRST|42703/i.test(error.message || "")) {
+      throw error;
+    }
+    console.warn("[Stripe checkout] shop order tax columns are not available yet; inserting legacy order shape.", { message: error.message });
+    const legacyPayload = { ...payload };
+    delete legacyPayload.tax_mode;
+    delete legacyPayload.tax_label;
+    delete legacyPayload.tax_rate_percent;
+    delete legacyPayload.prices_include_tax;
+    delete legacyPayload.tax_included_amount;
+    return restInsert("shop_orders", legacyPayload);
+  }
+}
+
 async function createShopCheckout({ user, body }) {
   const cart = Array.isArray(body.cart) ? body.cart : [];
   if (!cart.length) throw new Error("Your cart is empty.");
@@ -521,11 +603,12 @@ async function createShopCheckout({ user, body }) {
   validateFulfilment(fulfilmentMethod, deliveryAddress);
   const items = await getShopLineItems(cart);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
-  const tax = subtotal * 0.1;
+  const taxSummary = calculateShopTaxSummary(subtotal, settings);
+  const tax = taxSummary.amount;
   const discount = 0;
   const shipping = calculateShippingAmount(fulfilmentMethod, subtotal, settings);
   const total = Math.max(0, subtotal + tax + shipping - discount);
-  const order = await restInsert("shop_orders", {
+  const order = await insertShopOrder({
     user_id: user?.id || null,
     customer_name: customer.name,
     customer_email: customer.email,
@@ -537,6 +620,11 @@ async function createShopCheckout({ user, body }) {
     shipping_amount: Number(shipping.toFixed(2)),
     subtotal_amount: Number(subtotal.toFixed(2)),
     tax_amount: Number(tax.toFixed(2)),
+    tax_included_amount: Number(taxSummary.includedAmount.toFixed(2)),
+    tax_mode: taxSummary.mode,
+    tax_label: settings.tax_label || "GST",
+    tax_rate_percent: Number(taxSummary.ratePercent.toFixed(2)),
+    prices_include_tax: taxSummary.pricesIncludeTax,
     discount_amount: Number(discount.toFixed(2)),
     total_amount: Number(total.toFixed(2)),
     payment_status: "pending",
@@ -562,7 +650,7 @@ async function createShopCheckout({ user, body }) {
   }));
   if (tax > 0) {
     lineItems.push({
-      name: "Estimated tax",
+      name: taxSummary.label || "Tax",
       description: "Kim Jones Coaching shop order tax",
       quantity: 1,
       unitAmount: tax

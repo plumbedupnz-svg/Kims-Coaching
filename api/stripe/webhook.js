@@ -330,6 +330,7 @@ async function sendInventoryReorderEmailIfNeeded({ order, item, inventory, quant
 async function sendShopEmails(order) {
   const address = order.delivery_address || {};
   const fulfilmentMethod = order.fulfilment_method || "pickup";
+  const taxAmount = Number(order.tax_amount || 0);
   const payload = {
     traceId: `stripe-shop-${order.id}`,
     relatedType: "shop_order",
@@ -355,7 +356,7 @@ async function sendShopEmails(order) {
     pickupInstructions: order.pickup_instructions || "",
     shipping: moneyText(order.shipping_amount),
     subtotal: moneyText(order.subtotal_amount ?? order.subtotal),
-    tax: moneyText(order.tax_amount),
+    tax: taxAmount > 0 ? moneyText(taxAmount) : "",
     discount: moneyText(order.discount_amount),
     total: moneyText(order.total_amount ?? order.total),
     orderStatus: "paid"

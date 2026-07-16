@@ -11,7 +11,12 @@
     local_delivery_fee: 0,
     courier_delivery_enabled: true,
     courier_delivery_fee: 0,
-    free_shipping_threshold: null
+    free_shipping_threshold: null,
+    tax_mode: "none",
+    tax_label: "GST",
+    tax_rate_percent: 15,
+    prices_include_tax: false,
+    stripe_automatic_tax: false
   };
 
   const fields = {
@@ -31,6 +36,8 @@
     total: document.getElementById("total"),
     subtotal: document.getElementById("subtotal"),
     tax: document.getElementById("tax"),
+    taxRow: document.querySelector("[data-tax-row]"),
+    taxLabel: document.querySelector("[data-tax-label]"),
     promoDiscount: document.getElementById("promo-discount"),
     orderStockNote: document.querySelector("[data-order-stock-note]"),
     message: document.getElementById("checkout-account-message"),
@@ -42,6 +49,75 @@
 
   function money(value) {
     return `$${Number(value || 0).toFixed(2)}`;
+  }
+
+  function formatTaxRate(rate) {
+    const number = Number(rate || 0);
+    return Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+  }
+
+  function normalizeTaxMode(value) {
+    return ["gst_inclusive", "gst_exclusive"].includes(value) ? value : "none";
+  }
+
+  function normalizeCheckoutSettings(data = {}) {
+    const taxMode = normalizeTaxMode(data.tax_mode);
+    const taxRate = data.tax_rate_percent === null || data.tax_rate_percent === undefined || data.tax_rate_percent === ""
+      ? defaults.tax_rate_percent
+      : Number(data.tax_rate_percent);
+    return {
+      ...defaults,
+      ...data,
+      tax_mode: taxMode,
+      tax_label: String(data.tax_label || defaults.tax_label).trim() || defaults.tax_label,
+      tax_rate_percent: Number.isFinite(taxRate) ? taxRate : defaults.tax_rate_percent,
+      prices_include_tax: taxMode === "gst_inclusive",
+      stripe_automatic_tax: taxMode === "none" ? false : Boolean(data.stripe_automatic_tax)
+    };
+  }
+
+  function getTaxSummary(subtotal = lastSummary.subtotal, sourceSettings = checkoutSettings) {
+    const settings = normalizeCheckoutSettings(sourceSettings);
+    const rate = Math.max(0, Number(settings.tax_rate_percent || 0));
+    const label = settings.tax_label || "GST";
+    const base = Math.max(0, Number(subtotal || 0));
+    if (settings.tax_mode === "gst_exclusive") {
+      const amount = Number((base * rate / 100).toFixed(2));
+      return {
+        mode: settings.tax_mode,
+        label: `${label} (${formatTaxRate(rate)}%)`,
+        amount,
+        displayAmount: amount,
+        includedAmount: 0,
+        shouldShow: amount > 0
+      };
+    }
+    if (settings.tax_mode === "gst_inclusive") {
+      const includedAmount = rate > 0 ? Number((base * rate / (100 + rate)).toFixed(2)) : 0;
+      return {
+        mode: settings.tax_mode,
+        label: `${label} included`,
+        amount: 0,
+        displayAmount: includedAmount,
+        includedAmount,
+        shouldShow: includedAmount > 0
+      };
+    }
+    return {
+      mode: "none",
+      label: "Tax",
+      amount: 0,
+      displayAmount: 0,
+      includedAmount: 0,
+      shouldShow: false
+    };
+  }
+
+  function updateTaxRow(taxSummary = getTaxSummary()) {
+    if (!fields.tax) return;
+    if (fields.taxLabel) fields.taxLabel.textContent = taxSummary.label || "Tax";
+    fields.tax.textContent = money(taxSummary.displayAmount ?? taxSummary.amount ?? 0);
+    if (fields.taxRow) fields.taxRow.hidden = !taxSummary.shouldShow;
   }
 
   function loadCart() {
@@ -58,11 +134,14 @@
   }
 
   function refreshSummaryFromDom() {
+    const subtotal = readMoney(fields.subtotal?.textContent);
+    const taxSummary = getTaxSummary(subtotal);
     lastSummary = {
-      subtotal: readMoney(fields.subtotal?.textContent),
-      tax: readMoney(fields.tax?.textContent),
+      subtotal,
+      tax: taxSummary.amount,
       promoDiscount: Math.abs(readMoney(fields.promoDiscount?.textContent))
     };
+    updateTaxRow(taxSummary);
   }
 
   async function getSession() {
@@ -87,8 +166,11 @@
   function updateTotals() {
     if (!lastSummary.subtotal && fields.subtotal?.textContent) refreshSummaryFromDom();
     lastSummary.promoDiscount = 0;
+    const taxSummary = getTaxSummary(lastSummary.subtotal);
+    lastSummary.tax = taxSummary.amount;
     const shipping = getShippingAmount(lastSummary.subtotal);
     const total = Math.max(0, Number(lastSummary.subtotal || 0) + Number(lastSummary.tax || 0) - Number(lastSummary.promoDiscount || 0) + shipping);
+    updateTaxRow(taxSummary);
     if (fields.promoDiscount) fields.promoDiscount.textContent = "-$0.00";
     if (fields.shipping) fields.shipping.textContent = money(shipping);
     if (fields.total) fields.total.textContent = money(total);
@@ -142,17 +224,30 @@
       renderFulfilmentOptions();
       return;
     }
-    const { data, error } = await client
+    const baseColumns = "pickup_label,pickup_instructions,local_delivery_enabled,local_delivery_fee,courier_delivery_enabled,courier_delivery_fee,free_shipping_threshold";
+    const taxColumns = "tax_mode,tax_label,tax_rate_percent,prices_include_tax,stripe_automatic_tax";
+    let { data, error } = await client
       .from("shop_inventory_settings")
-      .select("pickup_label,pickup_instructions,local_delivery_enabled,local_delivery_fee,courier_delivery_enabled,courier_delivery_fee,free_shipping_threshold")
+      .select(`${baseColumns},${taxColumns}`)
       .eq("id", true)
       .maybeSingle();
+    if (error && /tax_mode|tax_label|tax_rate_percent|prices_include_tax|stripe_automatic_tax|schema cache|PGRST|42703/i.test(error.message || "")) {
+      const fallback = await client
+        .from("shop_inventory_settings")
+        .select(baseColumns)
+        .eq("id", true)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) {
       console.warn("Could not load shop checkout settings.", error.message);
       if (fields.message) fields.message.textContent = "Checkout settings could not be loaded, using pickup by default.";
     } else if (data) {
-      checkoutSettings = { ...defaults, ...data };
+      checkoutSettings = normalizeCheckoutSettings(data);
     }
+    window.dispatchEvent(new CustomEvent("kims:shop-settings-loaded", { detail: { settings: checkoutSettings } }));
+    window.KimsShop?.renderCart?.();
     renderFulfilmentOptions();
   }
 
@@ -252,7 +347,11 @@
     }
   }
 
-  window.KimsShopCheckout = { getShippingAmount };
+  window.KimsShopCheckout = {
+    getShippingAmount,
+    getTaxSummary,
+    getSettings: () => ({ ...checkoutSettings })
+  };
 
   document.addEventListener("DOMContentLoaded", async () => {
     if (!fields.checkoutButton) return;

@@ -6,6 +6,13 @@ const HOMEPAGE_PHOTO_SETTING_KEY = "homepage_photo";
 const HOMEPAGE_PHOTO_MAX_BYTES = 20 * 1024 * 1024;
 const HOMEPAGE_PHOTO_MAX_LABEL = "20MB";
 const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
+const DEFAULT_SHOP_TAX_SUMMARY = {
+  mode: "none",
+  label: "Tax",
+  amount: 0,
+  displayAmount: 0,
+  shouldShow: false
+};
 
 const defaultProducts = [
   { id: "agility-kit", name: "Speed Agility Kit", price: 59.99, discount: 0, category: "Training", description: "Cones, ladder, and bands for movement sessions.", image: "" },
@@ -17,6 +24,8 @@ const productListEl = document.getElementById("product-list");
 const cartItemsEl = document.getElementById("cart-items");
 const subtotalEl = document.getElementById("subtotal");
 const taxEl = document.getElementById("tax");
+const taxRowEl = document.querySelector("[data-tax-row]");
+const taxLabelEl = document.querySelector("[data-tax-label]");
 const shippingEl = document.getElementById("shipping");
 const totalEl = document.getElementById("total");
 const stripeInputEl = document.getElementById("stripe-link");
@@ -102,6 +111,18 @@ const menuToggleEl = document.querySelector("[data-menu-toggle]");
 const navLinksEl = document.querySelector("[data-nav-links]");
 
 const money = (v) => `$${v.toFixed(2)}`;
+function getShopTaxSummary(subtotal = 0) {
+  return window.KimsShopCheckout?.getTaxSummary?.(subtotal) || DEFAULT_SHOP_TAX_SUMMARY;
+}
+
+function updateShopTaxRow(taxSummary = DEFAULT_SHOP_TAX_SUMMARY) {
+  if (!taxEl) return;
+  const row = taxRowEl || taxEl.closest(".summary-row");
+  if (taxLabelEl) taxLabelEl.textContent = taxSummary.label || "Tax";
+  taxEl.textContent = money(Number(taxSummary.displayAmount ?? taxSummary.amount ?? 0));
+  if (row) row.hidden = !taxSummary.shouldShow;
+}
+
 const slugify = (v) => v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
 const isAdminPage = Boolean(document.body?.classList.contains("admin-page") || document.getElementById("owner-panel"));
 const isShopPage = Boolean(productListEl);
@@ -1486,7 +1507,7 @@ function renderCustomerAccount() {
   }
   if (customerCartEl) {
     customerCartEl.textContent = itemCount
-      ? `${itemCount} item${itemCount === 1 ? "" : "s"} saved, currently ${money(cartTotal)} before tax.`
+      ? `${itemCount} item${itemCount === 1 ? "" : "s"} saved, currently ${money(cartTotal)} before shipping.`
       : "Your cart is empty.";
   }
 
@@ -2121,7 +2142,8 @@ function renderCart() {
         .join("");
 
   const subtotal = cart.reduce((sum, item) => sum + Number(item.price) * item.quantity, 0);
-  const tax = subtotal * 0.1;
+  const taxSummary = getShopTaxSummary(subtotal);
+  const tax = Number(taxSummary.amount || 0);
   const prePromoTotal = subtotal + tax;
   const promoPercent = getAppliedPromoPercent();
   const promoDiscount = prePromoTotal * (promoPercent / 100);
@@ -2129,7 +2151,7 @@ function renderCart() {
   const finalTotal = Math.max(0, prePromoTotal - promoDiscount + shipping);
 
   subtotalEl.textContent = money(subtotal);
-  taxEl.textContent = money(tax);
+  updateShopTaxRow(taxSummary);
   if (promoDiscountEl) promoDiscountEl.textContent = `-${money(promoDiscount)}`;
   if (shippingEl) shippingEl.textContent = money(shipping);
   totalEl.textContent = money(finalTotal);
