@@ -3,6 +3,8 @@ const STRIPE_KEY = "kims_stripe_link";
 const PROMO_SETTINGS_KEY = "kims_promo_settings";
 const APPLIED_PROMO_CODE_KEY = "kims_applied_promo_code";
 const HOMEPAGE_PHOTO_SETTING_KEY = "homepage_photo";
+const HOMEPAGE_PHOTO_MAX_BYTES = 20 * 1024 * 1024;
+const HOMEPAGE_PHOTO_MAX_LABEL = "20MB";
 const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
 
 const defaultProducts = [
@@ -902,8 +904,8 @@ async function uploadHomepagePhoto(file) {
   if (!/^image\/(jpe?g|png|webp)$/i.test(file.type)) {
     throw new Error("Front page photo must be JPG, PNG, or WebP.");
   }
-  if (file.size > 3 * 1024 * 1024) {
-    throw new Error("Front page photo must be smaller than 3MB.");
+  if (file.size > HOMEPAGE_PHOTO_MAX_BYTES) {
+    throw new Error(`Front page photo must be smaller than ${HOMEPAGE_PHOTO_MAX_LABEL}.`);
   }
 
   const extension = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
