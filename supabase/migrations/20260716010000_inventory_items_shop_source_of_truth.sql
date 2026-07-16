@@ -153,7 +153,7 @@ begin
 end $$;
 
 create or replace function public.recalculate_inventory_status(p_inventory_item_id uuid)
-returns public.inventory_items
+returns text
 language plpgsql
 security definer
 set search_path = public
@@ -187,10 +187,9 @@ begin
   update public.inventory_items
   set status = v_status,
       updated_at = now()
-  where id = p_inventory_item_id
-  returning * into v_item;
+  where id = p_inventory_item_id;
 
-  return v_item;
+  return v_status;
 end;
 $$;
 
