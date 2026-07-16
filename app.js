@@ -2247,7 +2247,7 @@ function renderOwnerProducts() {
         const showDescriptionToggle = description.length > 220;
         const descriptionId = `owner-product-description-${String(p.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
         const productUrl = getPublicProductUrl(p);
-        return `<div class="owner-product-row" data-owner-product-id="${escapeHtml(p.id)}"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""} · ${p.visible_in_shop === false ? "Hidden from shop" : "Visible in shop"}</p><p class="owner-meta"><a href="${escapeHtml(productUrl)}" target="_blank" rel="noopener">${escapeHtml(productUrl)}</a></p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}<div class="product-qr-panel" data-product-qr-panel hidden><canvas width="520" height="680" data-product-qr-canvas></canvas><p class="helper-text" data-product-qr-message></p></div></div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary" data-product-qr="${escapeHtml(p.id)}" type="button">Generate QR Code</button><button class="btn btn-secondary" data-product-qr-download="${escapeHtml(p.id)}" type="button">Download QR</button><button class="btn btn-secondary" data-product-qr-print="${escapeHtml(p.id)}" type="button">Print QR</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
+        return `<div class="owner-product-row" data-owner-product-id="${escapeHtml(p.id)}"><div class="owner-product-info"><strong>${escapeHtml(p.name)}</strong><div class="owner-product-description-wrap"><p class="owner-product-description ${showDescriptionToggle ? "is-collapsed" : ""}" id="${descriptionId}">${escapeHtml(description)}</p>${showDescriptionToggle ? `<button class="product-description-toggle owner-description-toggle" type="button" aria-expanded="false" aria-controls="${descriptionId}" data-owner-description-toggle>Show more</button>` : ""}</div><p class="owner-meta">Category: ${escapeHtml(p.category || "Uncategorized")} · ${isStock ? "Held in stock" : "Order-to-sale"}${isStock ? ` · ${escapeHtml(getProductStockText(p))}` : ""} · ${p.visible_in_shop === false ? "Hidden from shop" : "Visible in shop"}</p><p class="owner-meta"><a href="${escapeHtml(productUrl)}" target="_blank" rel="noopener">${escapeHtml(productUrl)}</a></p>${isImageUrl(p.image) ? `<img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.name)}" class="owner-thumb" />` : ""}<div class="product-qr-panel" data-product-qr-panel hidden><canvas width="520" height="680" data-product-qr-canvas></canvas><p class="helper-text" data-product-qr-message></p><button class="btn btn-secondary" type="button" data-product-qr-close="${escapeHtml(p.id)}">Hide QR</button></div></div><div class="owner-row-actions"><label>Price</label><input type="number" step="0.01" min="0" data-id="${escapeHtml(p.id)}" class="owner-price-input" value="${Number(p.price).toFixed(2)}" /><label>Discount %</label><input type="number" step="0.01" min="0" max="100" data-id="${escapeHtml(p.id)}" class="owner-discount-input" value="${Number(p.discount || 0).toFixed(2)}" /><button class="btn btn-secondary owner-edit-btn" data-id="${escapeHtml(p.id)}" type="button">Edit</button><button class="btn btn-secondary" data-product-qr="${escapeHtml(p.id)}" type="button">Generate QR Code</button><button class="btn btn-secondary" data-product-qr-download="${escapeHtml(p.id)}" type="button">Download QR</button><button class="btn btn-secondary" data-product-qr-print="${escapeHtml(p.id)}" type="button">Print QR</button><button class="btn btn-secondary owner-remove-btn" data-id="${escapeHtml(p.id)}" type="button">Remove</button></div></div>`;
       }
     )
     .join("") : search
@@ -2394,6 +2394,32 @@ async function drawProductQrLabel(canvas, product) {
 function findOwnerProductRow(productId) {
   return Array.from(ownerProductsListEl?.querySelectorAll("[data-owner-product-id]") || [])
     .find((row) => row.dataset.ownerProductId === productId);
+}
+
+function closeProductQrPanels(exceptProductId = "") {
+  ownerProductsListEl?.querySelectorAll("[data-product-qr-panel]").forEach((panel) => {
+    const row = panel.closest("[data-owner-product-id]");
+    if (exceptProductId && row?.dataset.ownerProductId === exceptProductId) return;
+    panel.hidden = true;
+  });
+}
+
+function hideProductQr(productId) {
+  const row = findOwnerProductRow(productId);
+  const panel = row?.querySelector("[data-product-qr-panel]");
+  if (panel) panel.hidden = true;
+}
+
+async function toggleProductQr(productId) {
+  const row = findOwnerProductRow(productId);
+  const panel = row?.querySelector("[data-product-qr-panel]");
+  if (!panel) return;
+  if (!panel.hidden) {
+    panel.hidden = true;
+    return;
+  }
+  closeProductQrPanels(productId);
+  await generateProductQr(productId);
 }
 
 async function generateProductQr(productId) {
@@ -2681,7 +2707,13 @@ if (ownerProductsListEl) ownerProductsListEl.addEventListener("click", async (ev
 
   const qrButton = event.target.closest("[data-product-qr]");
   if (qrButton) {
-    await generateProductQr(qrButton.dataset.productQr);
+    await toggleProductQr(qrButton.dataset.productQr);
+    return;
+  }
+
+  const qrCloseButton = event.target.closest("[data-product-qr-close]");
+  if (qrCloseButton) {
+    hideProductQr(qrCloseButton.dataset.productQrClose);
     return;
   }
 

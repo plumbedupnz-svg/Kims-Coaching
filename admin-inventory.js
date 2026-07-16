@@ -233,6 +233,41 @@
       .find((row) => row.dataset.inventoryItem === itemId);
   }
 
+  function closeInventoryQrPanels(exceptItemId = "") {
+    inventoryListEl?.querySelectorAll("[data-inventory-qr-panel]").forEach((panel) => {
+      const row = panel.closest("[data-inventory-item]");
+      if (exceptItemId && row?.dataset.inventoryItem === exceptItemId) return;
+      panel.hidden = true;
+    });
+  }
+
+  function closeInventoryActionMenus() {
+    document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
+      list.hidden = true;
+    });
+    document.querySelectorAll("[data-inventory-menu-toggle]").forEach((toggle) => {
+      toggle.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  function hideInventoryQr(itemId) {
+    const row = findInventoryRow(itemId);
+    const panel = row?.querySelector("[data-inventory-qr-panel]");
+    if (panel) panel.hidden = true;
+  }
+
+  async function toggleInventoryQr(itemId) {
+    const row = findInventoryRow(itemId);
+    const panel = row?.querySelector("[data-inventory-qr-panel]");
+    if (!panel) return;
+    if (!panel.hidden) {
+      panel.hidden = true;
+      return;
+    }
+    closeInventoryQrPanels(itemId);
+    await generateInventoryQr(itemId);
+  }
+
   async function generateInventoryQr(itemId) {
     const item = inventoryItems.find((entry) => entry.id === itemId);
     const row = findInventoryRow(itemId);
@@ -679,7 +714,7 @@
             <span>${money(item.sell_price)}</span>
             <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
             <span class="inventory-actions">
-              <button class="inventory-action-toggle" type="button" aria-label="Open actions menu" data-inventory-menu-toggle>⋮</button>
+              <button class="inventory-action-toggle" type="button" aria-label="Open actions menu" aria-expanded="false" data-inventory-menu-toggle>⋮</button>
               <div class="inventory-action-list" data-inventory-action-list hidden>
                 <button type="button" data-inventory-action="edit">Edit</button>
                 <button type="button" data-inventory-action="qr">QR Code</button>
@@ -693,6 +728,7 @@
                 <div class="admin-action-row">
                   <button class="btn btn-secondary" type="button" data-inventory-qr-download="${escapeHtml(item.id)}">Download QR</button>
                   <button class="btn btn-secondary" type="button" data-inventory-qr-print="${escapeHtml(item.id)}">Print QR</button>
+                  <button class="btn btn-secondary" type="button" data-inventory-qr-close="${escapeHtml(item.id)}">Hide QR</button>
                 </div>
               </div>
             </span>
@@ -1517,6 +1553,12 @@
   }
 
   async function handleInventoryAction(event) {
+    const qrCloseButton = event.target.closest("[data-inventory-qr-close]");
+    if (qrCloseButton) {
+      hideInventoryQr(qrCloseButton.dataset.inventoryQrClose);
+      return;
+    }
+
     const qrDownloadButton = event.target.closest("[data-inventory-qr-download]");
     if (qrDownloadButton) {
       await downloadInventoryQr(qrDownloadButton.dataset.inventoryQrDownload);
@@ -1533,10 +1575,11 @@
     if (menuToggle) {
       const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
       const shouldOpen = Boolean(menu?.hidden);
-      document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
-        list.hidden = true;
-      });
-      if (menu) menu.hidden = !shouldOpen;
+      closeInventoryActionMenus();
+      if (menu) {
+        menu.hidden = !shouldOpen;
+        menuToggle.setAttribute("aria-expanded", String(shouldOpen));
+      }
       return;
     }
 
@@ -1548,9 +1591,7 @@
     if (!item) return;
 
     const action = button.dataset.inventoryAction;
-    document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
-      list.hidden = true;
-    });
+    closeInventoryActionMenus();
 
     if (action === "edit") {
       showProductForm(item);
@@ -1565,7 +1606,7 @@
     }
 
     if (action === "qr") {
-      await generateInventoryQr(item.id);
+      await toggleInventoryQr(item.id);
       return;
     }
 
