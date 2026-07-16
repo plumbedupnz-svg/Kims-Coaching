@@ -137,7 +137,7 @@ let adminInventoryLinkItems = [];
 let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
-const PUBLIC_SHOP_SELECT = "id,product_name,category,category_id,description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,archived_at";
+const PUBLIC_SHOP_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const PUBLIC_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
@@ -284,21 +284,31 @@ function normalizeInventoryShopProduct(row) {
   }
   const inventoryId = row.inventory_item_id || row.id || "";
   const imageUrl = getStorableImage(row.image_url || row.image);
+  const trackStock = row.track_stock !== false && !isTruthy(row.is_order_to_sale);
+  const isOrderToSale = isTruthy(row.is_order_to_sale) || !trackStock;
   return {
     id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
     inventory_item_id: inventoryId,
     name: row.product_name || row.name || "Unnamed product",
+    brand: row.brand || "",
+    sku: row.sku || "",
+    slug: row.slug || "",
+    short_description: row.short_description || "",
     price: Number(row.sell_price ?? row.price ?? 0),
+    purchase_price: Number(row.purchase_price ?? row.cost_price ?? 0),
+    cost_price: Number(row.cost_price ?? row.purchase_price ?? 0),
     discount: Number(row.discount || 0),
     category,
     category_id: row.category_id || row.product_categories?.id || "",
-    description: row.description || "",
+    description: row.full_description || row.description || row.short_description || "",
     image: imageUrl,
     image_url: imageUrl,
     is_active: !isFalsy(row.is_active),
     quantity_on_hand: Number(row.quantity_on_hand ?? 0),
     stock_status: row.status || row.stock_status || "out_of_stock",
-    fulfilment_type: "stock",
+    track_stock: trackStock,
+    is_order_to_sale: isOrderToSale,
+    fulfilment_type: isOrderToSale ? "order_to_sale" : "stock",
     visible_in_shop: isTruthy(row.visible_in_shop),
     archived_at: row.archived_at || null,
     source_row: "inventory_items"
@@ -459,13 +469,15 @@ async function fetchPublicInventoryProductsRest() {
   }
   const errors = [inventoryResult.error, productSchemaMissing ? null : productResult.error].filter(Boolean);
   const productRows = productSchemaMissing ? [] : (productResult.data || []);
+  const inventoryIds = new Set((inventoryResult.data || []).map((row) => String(row.id)));
+  const legacyProductRows = productRows.filter((row) => !row.inventory_item_id || !inventoryIds.has(String(row.inventory_item_id)));
   console.info("[Kim Shop] products rows returned from Supabase", {
-    count: productRows.length,
-    sample: productRows.slice(0, 5)
+    count: legacyProductRows.length,
+    sample: legacyProductRows.slice(0, 5)
   });
   return {
     data: [
-      ...productRows.map((row) => ({ ...row, source_row: "products" })),
+      ...legacyProductRows.map((row) => ({ ...row, source_row: "products" })),
       ...(inventoryResult.data || []).map((row) => ({ ...row, source_row: "inventory_items" }))
     ],
     error: errors[0] || null
@@ -1087,7 +1099,7 @@ function getMinimalCartItem(item) {
   const availabilityNote = item.availability_note || getProductAvailabilityNote(item);
   return {
     id: item.id,
-    inventory_item_id: fulfilmentType === "order_to_sale" ? "" : item.inventory_item_id || item.id || "",
+    inventory_item_id: item.inventory_item_id || "",
     name: item.name || "Product",
     price: Number(item.price || 0),
     quantity: Math.max(1, Number(item.quantity || 1)),
@@ -2894,6 +2906,7 @@ window.KimsShop = {
   getProductStockText,
   getProductAvailabilityNote,
   isProductOutOfStock,
+  drawProductQrLabel,
   escapeHtml
 };
 

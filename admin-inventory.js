@@ -139,17 +139,22 @@
     return {
       ...item,
       product_name: item.product_name || item.name || "Unnamed inventory item",
+      brand: item.brand || "",
       sku: item.sku || "",
       supplier: item.supplier || "Sportco",
       category: category?.name || item.category || "Other",
       product_categories: category || item.product_categories || null,
       quantity_on_hand: Number(item.quantity_on_hand || 0),
       cost_price: Number(item.cost_price || 0),
+      purchase_price: Number(item.purchase_price ?? item.cost_price ?? 0),
       sell_price: Number(item.sell_price || item.price || 0),
       low_stock_threshold: Number(item.low_stock_threshold ?? 2),
       need_order_threshold: Number(item.need_order_threshold ?? item.reorder_threshold ?? 0),
       status: item.status || "out_of_stock",
       visible_in_shop: Boolean(item.visible_in_shop),
+      track_stock: item.track_stock !== false && item.is_order_to_sale !== true,
+      is_order_to_sale: Boolean(item.is_order_to_sale) || item.track_stock === false,
+      short_description: item.short_description || "",
       is_active: item.is_active !== false,
       image_url: imageUrl,
       image: imageUrl
@@ -167,8 +172,28 @@
 
   function getStatusClass(status = "") {
     if (status === "out_of_stock" || status === "new_supplier_item") return "blocked";
-    if (status === "low_stock" || status === "need_order" || status === "need_to_order") return "warning";
+    if (status === "low_stock" || status === "need_order" || status === "need_to_order" || status === "order_to_sale") return "warning";
     return "available";
+  }
+
+  function getItemTypeLabel(item = {}) {
+    if (item.is_order_to_sale || item.track_stock === false) return "Order-to-sale";
+    return "Stock tracked";
+  }
+
+  function getShopVisibilityLabel(item = {}) {
+    if (!item.visible_in_shop) return "Hidden";
+    return item.is_order_to_sale || item.track_stock === false ? "Shop - order" : "Shop - stock";
+  }
+
+  function matchesInventoryViewFilter(item = {}, status = "all") {
+    const normalized = normalizeStatusFilter(status);
+    if (normalized === "all") return true;
+    if (normalized === "stock_on_hand") return item.track_stock !== false && Number(item.quantity_on_hand || 0) > 0;
+    if (normalized === "online_shop") return item.visible_in_shop === true;
+    if (normalized === "order_to_sale") return item.is_order_to_sale === true || item.track_stock === false;
+    if (normalized === "hidden") return item.visible_in_shop !== true;
+    return normalizeStatusFilter(item.status) === normalized;
   }
 
   function getMargin(item) {
@@ -177,6 +202,87 @@
     const profit = sell - cost;
     const margin = sell > 0 ? (profit / sell) * 100 : 0;
     return `${money(profit)} / ${margin.toFixed(1)}%`;
+  }
+
+  function getInventoryProductForShop(item = {}) {
+    const inventoryId = item.id || item.inventory_item_id || "";
+    const isOrderToSale = item.is_order_to_sale || item.track_stock === false;
+    return {
+      id: item.shop_product_id || item.id || inventoryId,
+      inventory_item_id: inventoryId,
+      name: item.product_name || item.name || "Inventory item",
+      slug: item.slug || "",
+      price: Number(item.sell_price || 0),
+      discount: 0,
+      category: getItemCategory(item),
+      category_id: item.category_id || "",
+      description: item.description || item.full_description || item.short_description || "",
+      short_description: item.short_description || "",
+      image: item.image_url || item.image || "",
+      image_url: item.image_url || item.image || "",
+      fulfilment_type: isOrderToSale ? "order_to_sale" : "stock",
+      stock_status: item.status || "",
+      quantity_on_hand: Number(item.quantity_on_hand || 0),
+      visible_in_shop: item.visible_in_shop !== false,
+      is_active: item.is_active !== false
+    };
+  }
+
+  function findInventoryRow(itemId) {
+    return Array.from(inventoryListEl?.querySelectorAll("[data-inventory-item]") || [])
+      .find((row) => row.dataset.inventoryItem === itemId);
+  }
+
+  async function generateInventoryQr(itemId) {
+    const item = inventoryItems.find((entry) => entry.id === itemId);
+    const row = findInventoryRow(itemId);
+    const panel = row?.querySelector("[data-inventory-qr-panel]");
+    const canvas = row?.querySelector("[data-inventory-qr-canvas]");
+    const message = row?.querySelector("[data-inventory-qr-message]");
+    if (!item || !panel || !canvas) return;
+    panel.hidden = false;
+    if (message) message.textContent = "Generating QR code...";
+    try {
+      if (!window.KimsShop?.drawProductQrLabel) throw new Error("QR code tools are not ready. Please refresh and try again.");
+      await window.KimsShop.drawProductQrLabel(canvas, getInventoryProductForShop(item));
+      if (message) message.textContent = "QR code links to the public product detail page.";
+    } catch (error) {
+      if (message) message.textContent = error.message || "Could not generate QR code.";
+    }
+  }
+
+  async function downloadInventoryQr(itemId) {
+    await generateInventoryQr(itemId);
+    const item = inventoryItems.find((entry) => entry.id === itemId);
+    const row = findInventoryRow(itemId);
+    const canvas = row?.querySelector("[data-inventory-qr-canvas]");
+    if (!item || !canvas) return;
+    const product = getInventoryProductForShop(item);
+    const slug = window.KimsShop?.getProductSlug?.(product) || String(product.name || "inventory-item").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    const link = document.createElement("a");
+    link.href = canvas.toDataURL("image/png");
+    link.download = `${slug || "inventory-item"}-qr.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  }
+
+  async function printInventoryQr(itemId) {
+    await generateInventoryQr(itemId);
+    const item = inventoryItems.find((entry) => entry.id === itemId);
+    const row = findInventoryRow(itemId);
+    const canvas = row?.querySelector("[data-inventory-qr-canvas]");
+    if (!item || !canvas) return;
+    const product = getInventoryProductForShop(item);
+    const printWindow = window.open("", "_blank", "width=720,height=900");
+    if (!printWindow) {
+      alert("Allow pop-ups to print the QR code.");
+      return;
+    }
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(product.name)} QR Code</title><style>body{margin:0;display:grid;place-items:center;min-height:100vh;font-family:Arial,sans-serif;background:#fff}img{width:min(92vw,520px);height:auto}</style></head><body><img src="${canvas.toDataURL("image/png")}" alt="${escapeHtml(product.name)} QR code" /></body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
   }
 
   function sumItems(items, field) {
@@ -482,9 +588,7 @@
     const categoryFiltered = categoryId === "all"
       ? archiveFiltered
       : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
-    const statusFiltered = status === "all"
-      ? categoryFiltered
-      : categoryFiltered.filter((item) => normalizeStatusFilter(item.status) === status);
+    const statusFiltered = categoryFiltered.filter((item) => matchesInventoryViewFilter(item, status));
     const supplierFiltered = supplier === "all"
       ? statusFiltered
       : statusFiltered.filter((item) => normalizeText(item.supplier) === supplier);
@@ -505,9 +609,7 @@
     const categoryFiltered = categoryId === "all"
       ? archiveFiltered
       : archiveFiltered.filter((item) => itemMatchesCategory(item, categoryId));
-    const statusFiltered = status === "all"
-      ? categoryFiltered
-      : categoryFiltered.filter((item) => normalizeStatusFilter(item.status) === status);
+    const statusFiltered = categoryFiltered.filter((item) => matchesInventoryViewFilter(item, status));
     const supplierFiltered = supplier === "all"
       ? statusFiltered
       : statusFiltered.filter((item) => normalizeText(item.supplier) === supplier);
@@ -557,6 +659,8 @@
           <span>Category</span>
           <span>Supplier</span>
           <span>Quantity</span>
+          <span>Type</span>
+          <span>Shop</span>
           <span>Cost Price</span>
           <span>Sell Price</span>
           <span>Status</span>
@@ -569,6 +673,8 @@
             <span>${escapeHtml(getItemCategory(item))}</span>
             <span>${escapeHtml(item.supplier || "Sportco")}</span>
             <span>${Number(item.quantity_on_hand || 0)}</span>
+            <span>${escapeHtml(getItemTypeLabel(item))}</span>
+            <span>${escapeHtml(getShopVisibilityLabel(item))}</span>
             <span>${money(item.cost_price)}</span>
             <span>${money(item.sell_price)}</span>
             <span><span class="status-pill ${getStatusClass(item.status)}">${escapeHtml(normaliseStatus(item.status))}</span></span>
@@ -576,9 +682,18 @@
               <button class="inventory-action-toggle" type="button" aria-label="Open actions menu" data-inventory-menu-toggle>⋮</button>
               <div class="inventory-action-list" data-inventory-action-list hidden>
                 <button type="button" data-inventory-action="edit">Edit</button>
+                <button type="button" data-inventory-action="qr">QR Code</button>
                 <button type="button" data-inventory-action="adjust">Adjust Stock</button>
                 <button type="button" data-inventory-action="archive">${item.archived_at ? "Archived" : "Archive"}</button>
                 <button type="button" data-inventory-action="delete">Delete</button>
+              </div>
+              <div class="product-qr-panel inventory-qr-panel" data-inventory-qr-panel hidden>
+                <canvas width="520" height="680" data-inventory-qr-canvas></canvas>
+                <p class="helper-text" data-inventory-qr-message></p>
+                <div class="admin-action-row">
+                  <button class="btn btn-secondary" type="button" data-inventory-qr-download="${escapeHtml(item.id)}">Download QR</button>
+                  <button class="btn btn-secondary" type="button" data-inventory-qr-print="${escapeHtml(item.id)}">Print QR</button>
+                </div>
               </div>
             </span>
           </div>
@@ -593,6 +708,8 @@
     const lowItems = activeItems.filter((item) => ["low_stock", "need_order", "need_to_order"].includes(item.status));
     const outItems = activeItems.filter((item) => item.status === "out_of_stock" || Number(item.quantity_on_hand || 0) <= 0);
     const visibleItems = activeItems.filter((item) => item.visible_in_shop);
+    const orderToSaleItems = activeItems.filter((item) => item.is_order_to_sale || item.track_stock === false);
+    const hiddenItems = activeItems.filter((item) => !item.visible_in_shop);
     const totalQuantity = sumItems(activeItems, "quantity_on_hand");
     const costValue = activeItems.reduce((total, item) => total + (Number(item.quantity_on_hand || 0) * Number(item.cost_price || 0)), 0);
     const sellValue = activeItems.reduce((total, item) => total + (Number(item.quantity_on_hand || 0) * Number(item.sell_price || 0)), 0);
@@ -603,6 +720,8 @@
       ["Low / need order", lowItems.length],
       ["Out of stock", outItems.length],
       ["Visible in shop", visibleItems.length],
+      ["Order-to-sale", orderToSaleItems.length],
+      ["Hidden", hiddenItems.length],
       ["Cost value", money(costValue)],
       ["Retail value", money(sellValue)],
       ["Archived items", inventoryItems.filter(isArchivedOrInactive).length]
@@ -902,21 +1021,27 @@
     fields.inventory_item_id.value = item?.id || "";
     fields.product_name.value = item?.product_name || "";
     fields.sku.value = item?.sku || "";
+    if (fields.brand) fields.brand.value = item?.brand || "";
     fields.supplier.value = item?.supplier || "Sportco";
     fields.category.value = item?.category_id || "";
+    if (fields.short_description) fields.short_description.value = item?.short_description || "";
     fields.description.value = item?.description || "";
     fields.cost_price.value = Number(item?.cost_price || 0).toFixed(2);
     fields.sell_price.value = Number(item?.sell_price || 0).toFixed(2);
     fields.quantity_on_hand.value = Number(item?.quantity_on_hand || 0);
     fields.low_stock_threshold.value = Number(item?.low_stock_threshold ?? 2);
     fields.need_order_threshold.value = Number(item?.need_order_threshold ?? 0);
+    if (fields.track_stock) fields.track_stock.checked = item ? item.track_stock !== false && !item.is_order_to_sale : true;
     fields.visible_in_shop.checked = Boolean(item?.visible_in_shop);
+    if (fields.is_order_to_sale) fields.is_order_to_sale.checked = Boolean(item?.is_order_to_sale) || item?.track_stock === false;
+    if (fields.hidden_admin_only) fields.hidden_admin_only.checked = item ? !item.visible_in_shop : false;
     fields.is_active.checked = item?.is_active !== false;
     const existingImage = item?.image_url || item?.image || "";
     const imageWarning = existingImage.startsWith("data:")
       ? "Replace this image to optimise loading."
       : "";
     setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
+    syncInventoryOptionControls();
   }
 
   function hideProductForm() {
@@ -924,6 +1049,24 @@
     productFormEl.reset();
     setMessage(productMessageEl, "");
     setInventoryTab("stock-list");
+  }
+
+  function syncInventoryOptionControls() {
+    if (!productFormEl) return;
+    const fields = productFormEl.elements;
+    const isOrderToSale = Boolean(fields.is_order_to_sale?.checked);
+    const hiddenAdminOnly = Boolean(fields.hidden_admin_only?.checked);
+
+    if (fields.track_stock) {
+      if (isOrderToSale) fields.track_stock.checked = false;
+      else if (fields.track_stock.disabled && !fields.track_stock.checked) fields.track_stock.checked = true;
+      fields.track_stock.disabled = isOrderToSale;
+    }
+
+    if (fields.visible_in_shop) {
+      if (hiddenAdminOnly) fields.visible_in_shop.checked = false;
+      fields.visible_in_shop.disabled = hiddenAdminOnly;
+    }
   }
 
   function buildInvoiceReviewItems(parsedItems) {
@@ -1059,6 +1202,11 @@
     }
 
     const formData = new FormData(productFormEl);
+    const fields = productFormEl.elements;
+    const isOrderToSale = Boolean(fields.is_order_to_sale?.checked);
+    const hiddenAdminOnly = Boolean(fields.hidden_admin_only?.checked);
+    const trackStock = !isOrderToSale && Boolean(fields.track_stock?.checked);
+    const visibleInShop = !hiddenAdminOnly && Boolean(fields.visible_in_shop?.checked);
     const imageFile = productFormEl.elements.image.files[0];
     let imageUrl = null;
     if (imageFile) {
@@ -1091,8 +1239,13 @@
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
       p_need_order_threshold: Number(formData.get("need_order_threshold") || 0),
       p_image: imageUrl,
-      p_visible_in_shop: Boolean(formData.get("visible_in_shop")),
-      p_is_active: Boolean(formData.get("is_active"))
+      p_visible_in_shop: visibleInShop,
+      p_is_active: Boolean(fields.is_active?.checked),
+      p_brand: formData.get("brand"),
+      p_short_description: formData.get("short_description"),
+      p_track_stock: trackStock,
+      p_is_order_to_sale: isOrderToSale,
+      p_slug: null
     };
 
     const { data: savedItem, error } = await client.rpc("admin_save_inventory_item", payload);
@@ -1364,6 +1517,18 @@
   }
 
   async function handleInventoryAction(event) {
+    const qrDownloadButton = event.target.closest("[data-inventory-qr-download]");
+    if (qrDownloadButton) {
+      await downloadInventoryQr(qrDownloadButton.dataset.inventoryQrDownload);
+      return;
+    }
+
+    const qrPrintButton = event.target.closest("[data-inventory-qr-print]");
+    if (qrPrintButton) {
+      await printInventoryQr(qrPrintButton.dataset.inventoryQrPrint);
+      return;
+    }
+
     const menuToggle = event.target.closest("[data-inventory-menu-toggle]");
     if (menuToggle) {
       const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
@@ -1396,6 +1561,11 @@
       if (adjustItemEl) adjustItemEl.value = item.id;
       setInventoryTab("stock-adjustments");
       adjustFormEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (action === "qr") {
+      await generateInventoryQr(item.id);
       return;
     }
 
@@ -1464,6 +1634,11 @@
   });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
+  productFormEl?.addEventListener("change", (event) => {
+    if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
+      syncInventoryOptionControls();
+    }
+  });
   inventoryListEl?.addEventListener("click", handleInventoryAction);
   invoiceFormEl?.addEventListener("submit", uploadInvoice);
   invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);

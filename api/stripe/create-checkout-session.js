@@ -342,11 +342,11 @@ async function getShopLineItems(cart) {
   }
   async function selectInventoryForShop() {
     if (!inventoryIds.length) return [];
-    return restSelect("inventory_items", "id,product_name,category,description,sell_price,cost_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at", { id: uuidList(inventoryIds) })
+    return restSelect("inventory_items", "id,product_name,sku,category,description,short_description,full_description,sell_price,cost_price,purchase_price,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at", { id: uuidList(inventoryIds) })
       .catch((error) => {
         if (/cost_price|schema cache|PGRST|42703/i.test(error.message || "")) {
           console.warn("[Stripe checkout] inventory cost columns are not available yet; continuing without cost snapshots.", { message: error.message });
-          return restSelect("inventory_items", "id,product_name,category,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at", { id: uuidList(inventoryIds) });
+          return restSelect("inventory_items", "id,product_name,sku,category,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at", { id: uuidList(inventoryIds) });
         }
         throw error;
       });
@@ -367,7 +367,8 @@ async function getShopLineItems(cart) {
       const isStock = product.fulfilment_type === "stock" || Boolean(product.inventory_item_id);
       if (isStock) {
         const linked = inventoryById.get(String(product.inventory_item_id)) || inventory;
-        if (!linked || linked.quantity_on_hand < quantity) throw new Error(`Not enough stock available for ${product.name}.`);
+        const linkedTracksStock = linked && linked.track_stock !== false && linked.is_order_to_sale !== true;
+        if (!linked || (linkedTracksStock && linked.quantity_on_hand < quantity)) throw new Error(`Not enough stock available for ${product.name}.`);
       }
       const unitAmount = calculateDiscountedPrice(product.price, product.discount);
       const linked = product.inventory_item_id ? inventoryById.get(String(product.inventory_item_id)) : null;
@@ -379,7 +380,7 @@ async function getShopLineItems(cart) {
         inventory_item_id: product.inventory_item_id || "",
         name: product.name,
         category: product.category || linked?.category || "Uncategorized",
-        description: product.description || "",
+        description: product.description || linked?.full_description || linked?.description || "",
         price: moneyText(unitAmount),
         quantity,
         unitAmount,
@@ -389,16 +390,18 @@ async function getShopLineItems(cart) {
         cost_price_at_sale: Number(purchasePrice.toFixed(2)),
         gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
         gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
-        fulfilment_type: isStock ? "stock" : "order_to_sale",
-        availability_note: isStock ? "" : ORDER_TO_SALE_NOTICE
+        sku: linked?.sku || "",
+        fulfilment_type: isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "stock" : "order_to_sale",
+        availability_note: isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "" : ORDER_TO_SALE_NOTICE
       };
     }
 
     if (!inventory) throw new Error(`${item.name || "Product"} is not available.`);
     if (inventory.visible_in_shop !== true || inventory.is_active === false || inventory.archived_at) throw new Error(`${inventory.product_name} is not available.`);
-    if (Number(inventory.quantity_on_hand || 0) < quantity) throw new Error(`Not enough stock available for ${inventory.product_name}.`);
+    const tracksStock = inventory.track_stock !== false && inventory.is_order_to_sale !== true;
+    if (tracksStock && Number(inventory.quantity_on_hand || 0) < quantity) throw new Error(`Not enough stock available for ${inventory.product_name}.`);
     const unitAmount = Number(inventory.sell_price || 0);
-    const purchasePrice = Number(inventory.cost_price || 0);
+    const purchasePrice = Number(inventory.purchase_price ?? inventory.cost_price ?? 0);
     const lineTotal = unitAmount * quantity;
     const costTotal = purchasePrice * quantity;
     return {
@@ -406,7 +409,7 @@ async function getShopLineItems(cart) {
       inventory_item_id: inventory.id,
       name: inventory.product_name,
       category: inventory.category || "Uncategorized",
-      description: inventory.description || "",
+      description: inventory.full_description || inventory.description || inventory.short_description || "",
       price: moneyText(unitAmount),
       quantity,
       unitAmount,
@@ -416,8 +419,9 @@ async function getShopLineItems(cart) {
       cost_price_at_sale: Number(purchasePrice.toFixed(2)),
       gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
       gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
-      fulfilment_type: "stock",
-      availability_note: ""
+      sku: inventory.sku || "",
+      fulfilment_type: tracksStock ? "stock" : "order_to_sale",
+      availability_note: tracksStock ? "" : ORDER_TO_SALE_NOTICE
     };
   });
 }

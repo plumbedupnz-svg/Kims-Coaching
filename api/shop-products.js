@@ -54,7 +54,7 @@ module.exports = async function handler(request, response) {
     const [inventoryResult, productResult] = await Promise.allSettled([
       fetchRows(
         "inventory_items",
-        "id,product_name,category,category_id,description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,archived_at",
+        "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at",
         {
           visible_in_shop: "eq.true",
           is_active: "eq.true",
@@ -65,8 +65,11 @@ module.exports = async function handler(request, response) {
       fetchProductRows()
     ]);
     if (inventoryResult.status === "rejected") throw inventoryResult.reason;
+    const inventoryRows = inventoryResult.value;
+    const inventoryIds = new Set(inventoryRows.map((row) => String(row.id)));
     const productRows = productResult.status === "fulfilled"
       ? productResult.value
+        .filter((row) => !row.inventory_item_id || !inventoryIds.has(String(row.inventory_item_id)))
       : [];
     if (productResult.status === "rejected" && !/products\\.|does not exist|PGRST|42703/i.test(productResult.reason?.message || "")) {
       throw productResult.reason;
@@ -77,7 +80,7 @@ module.exports = async function handler(request, response) {
     });
     const products = [
       ...productRows.map((row) => ({ ...row, source_row: "products" })),
-      ...inventoryResult.value.map((row) => ({ ...row, source_row: "inventory_items" }))
+      ...inventoryRows.map((row) => ({ ...row, source_row: "inventory_items" }))
     ];
     response.setHeader("Cache-Control", "s-maxage=300, stale-while-revalidate=3600");
     response.status(200).json({ products });

@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="admin-availability.css?v=20260716-admin-overflow" />
+    <link rel="stylesheet" href="admin-availability.css?v=20260716-inventory-source" />
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -248,13 +248,13 @@
               <div class="admin-section-head">
                 <div>
                   <h2>Products</h2>
-                  <p class="helper-text">Manage shop products and customer shop orders.</p>
+                  <p class="helper-text">Shop orders live here. Add and edit sellable items from Inventory so products only need to be entered once.</p>
                 </div>
               </div>
 
               <div class="products-workspace">
                 <nav class="products-subtabs" aria-label="Product sections">
-                  <button type="button" class="active" data-products-tab="catalog">Products</button>
+                  <button type="button" class="active" data-products-tab="catalog">Online Shop Items</button>
                   <button type="button" data-products-tab="orders">Shop Orders</button>
                 </nav>
 
@@ -265,64 +265,13 @@
                 </section>
 
                 <section class="products-tab-panel" data-products-panel="catalog">
-                  <div class="admin-panel-grid">
-                    <form id="owner-add-form" class="owner-add-form">
-                      <h3 data-product-form-title>Add Product</h3>
-                      <p class="helper-text">Products are items or services customers can buy. Link to inventory only when stock is physically held.</p>
-                      <label for="owner-product-name">Product name</label>
-                      <input id="owner-product-name" type="text" placeholder="Product name" required />
-                      <label for="owner-product-slug">Product URL slug</label>
-                      <input id="owner-product-slug" type="text" placeholder="Auto-generated if left blank" />
-                      <label for="owner-product-price">Sell price</label>
-                      <input id="owner-product-price" type="number" step="0.01" min="0" placeholder="Price" required />
-                      <label for="owner-product-purchase-price">Purchase price / cost</label>
-                      <input id="owner-product-purchase-price" type="number" step="0.01" min="0" placeholder="Cost price (optional)" />
-                      <label for="owner-product-discount">Discount %</label>
-                      <input id="owner-product-discount" type="number" step="0.01" min="0" max="100" placeholder="Discount % (optional)" />
-                      <label for="owner-product-category">Category</label>
-                      <select id="owner-product-category" required><option value="">Select category</option></select>
-                      <div class="category-add-row">
-                        <input id="owner-new-category" type="text" placeholder="Add new category" />
-                        <button type="button" class="btn btn-secondary" id="add-category-btn">Add Category</button>
-                      </div>
-                      <label for="owner-product-short-desc">Short description</label>
-                      <textarea id="owner-product-short-desc" rows="2" placeholder="Short card/search summary"></textarea>
-                      <label for="owner-product-desc">Full product description</label>
-                      <textarea id="owner-product-desc" placeholder="Full product description"></textarea>
-                      <label class="availability-repeat">
-                        <span>Visible in shop</span>
-                        <input id="owner-product-visible" type="checkbox" checked />
-                      </label>
-                      <label for="owner-product-fulfilment">Product fulfilment type</label>
-                      <select id="owner-product-fulfilment" data-product-fulfilment-type>
-                        <option value="order_to_sale">Order-to-sale / no inventory tracking</option>
-                        <option value="stock">Held in stock / track inventory</option>
-                      </select>
-                      <div class="product-stock-options" data-product-stock-options hidden>
-                        <label for="owner-product-inventory-link">Link existing inventory item</label>
-                        <select id="owner-product-inventory-link" data-product-inventory-link>
-                          <option value="">Select inventory item</option>
-                        </select>
-                        <label class="availability-repeat">
-                          <span>Create inventory item from this product</span>
-                          <input id="owner-create-inventory" type="checkbox" data-product-create-inventory />
-                        </label>
-                        <p class="helper-text" data-product-stock-summary>Choose an existing stock item or create one from this product.</p>
-                      </div>
-                      <label for="owner-product-image">Product image</label>
-                      <input id="owner-product-image" type="file" accept="image/*" />
-                      <button type="submit" class="btn btn-primary" data-product-submit>Add Product</button>
-                      <button type="button" class="btn btn-secondary" data-product-cancel-edit hidden>Cancel Edit</button>
-                    </form>
-                    <aside class="owner-products-panel" aria-label="Saved products">
-                      <div class="owner-products-search">
-                        <h3>Saved products</h3>
-                        <label for="owner-product-search">Search products</label>
-                        <input id="owner-product-search" type="search" placeholder="Search name, category or description" autocomplete="off" />
-                        <p class="helper-text" data-owner-products-summary>Showing the latest saved product.</p>
-                      </div>
-                      <div class="owner-products" id="owner-products-list"></div>
-                    </aside>
+                  <div class="admin-list-panel">
+                    <h3>Inventory is now the product catalogue</h3>
+                    <p class="helper-text">Use Inventory to add one item, set cost and sell price, choose whether it tracks stock, and tick Sell in online shop when it should appear publicly.</p>
+                    <div class="admin-action-row">
+                      <a class="btn btn-primary" href="#inventory" data-admin-tab-link="inventory">Open Inventory</a>
+                      <button class="btn btn-secondary" type="button" data-products-tab="orders">View Shop Orders</button>
+                    </div>
                   </div>
                 </section>
 
@@ -346,15 +295,15 @@
               <div class="admin-section-head">
                 <div>
                   <h2>Inventory</h2>
-                  <p class="helper-text">Stock we physically hold.</p>
+                  <p class="helper-text">Manage every item once, including stock on hand, order-to-sale products, hidden admin-only items, and online shop visibility.</p>
                 </div>
               </div>
 
               <div class="inventory-workspace">
                 <nav class="inventory-subtabs" aria-label="Inventory sections">
                   <button type="button" class="active" data-inventory-tab="dashboard">Inventory Dashboard</button>
-                  <button type="button" data-inventory-tab="stock-list">Inventory List</button>
-                  <button type="button" data-inventory-tab="add-product">Add Product</button>
+                  <button type="button" data-inventory-tab="stock-list">All Items</button>
+                  <button type="button" data-inventory-tab="add-product">Add Item</button>
                   <button type="button" data-inventory-tab="stock-adjustments">Stock Adjustments</button>
                   <button type="button" data-inventory-tab="supplier-invoices">Supplier Invoices</button>
                   <button type="button" data-inventory-tab="settings">Settings</button>
@@ -387,9 +336,13 @@
                           <option value="all">All categories</option>
                         </select>
                       </label>
-                      <label>Status filter
+                      <label>View filter
                         <select data-inventory-status-filter>
-                          <option value="all">All statuses</option>
+                          <option value="all">All items</option>
+                          <option value="stock_on_hand">Stock on hand</option>
+                          <option value="online_shop">Online shop items</option>
+                          <option value="order_to_sale">Order-to-sale items</option>
+                          <option value="hidden">Hidden/admin-only items</option>
                           <option value="in_stock">In stock</option>
                           <option value="low_stock">Low stock</option>
                           <option value="out_of_stock">Out of stock</option>
@@ -417,22 +370,28 @@
                 <section class="inventory-tab-panel" data-inventory-panel="add-product" hidden>
                   <form class="owner-add-form inventory-wide-form" data-inventory-product-form>
                     <div class="availability-form-head">
-                      <h3 data-inventory-form-title>Add inventory product</h3>
+                      <h3 data-inventory-form-title>Add inventory item</h3>
                       <button class="btn btn-secondary" type="button" data-inventory-cancel-edit>Cancel</button>
                     </div>
                     <input type="hidden" name="inventory_item_id" />
                     <fieldset class="inventory-form-section">
-                      <legend>Product Details</legend>
+                      <legend>Item Details</legend>
                       <label>Product name
                         <input name="product_name" type="text" placeholder="Product name" required />
                       </label>
                       <label>SKU/code
                         <input name="sku" type="text" placeholder="SKU/code" />
                       </label>
+                      <label>Brand
+                        <input name="brand" type="text" placeholder="Brand" />
+                      </label>
                       <label>Category
                         <select name="category" data-inventory-form-category required>
                           <option value="">Select category</option>
                         </select>
+                      </label>
+                      <label class="inventory-field-wide">Short shop description
+                        <textarea name="short_description" rows="2" placeholder="Short card/search summary"></textarea>
                       </label>
                       <label class="inventory-field-wide">Description
                         <textarea name="description" placeholder="Description"></textarea>
@@ -453,7 +412,7 @@
                     </fieldset>
 
                     <fieldset class="inventory-form-section">
-                      <legend>Stock Management</legend>
+                      <legend>Shop and stock options</legend>
                       <label>Quantity on hand
                         <input name="quantity_on_hand" type="number" step="1" min="0" placeholder="0" />
                       </label>
@@ -466,8 +425,20 @@
                         <span class="field-helper">Show need to order when quantity on hand is at or below this number.</span>
                       </label>
                       <label class="availability-repeat">
-                        <span>Visible in public shop</span>
+                        <span>Track physical stock</span>
+                        <input name="track_stock" type="checkbox" checked />
+                      </label>
+                      <label class="availability-repeat">
+                        <span>Sell in online shop</span>
                         <input name="visible_in_shop" type="checkbox" />
+                      </label>
+                      <label class="availability-repeat">
+                        <span>Order-to-sale item</span>
+                        <input name="is_order_to_sale" type="checkbox" />
+                      </label>
+                      <label class="availability-repeat">
+                        <span>Hidden/admin-only item</span>
+                        <input name="hidden_admin_only" type="checkbox" />
                       </label>
                       <label class="availability-repeat">
                         <span>Active</span>
@@ -481,7 +452,7 @@
                         <input name="supplier" type="text" placeholder="Supplier" value="Sportco" />
                       </label>
                     </fieldset>
-                    <button class="btn btn-primary" type="submit">Save product</button>
+                    <button class="btn btn-primary" type="submit">Save item</button>
                     <p class="form-message" data-inventory-product-message></p>
                   </form>
                 </section>
@@ -944,7 +915,7 @@
     <script src="supabase-config.js?v=20260626-slot-defaults"></script>
     <script src="admin-runtime.js?v=20260626-slot-defaults"></script>
     <script src="product-categories.js?v=20260626-slot-defaults"></script>
-    <script src="app.js?v=20260715-qr-remove-confirm"></script>
+    <script src="app.js?v=20260716-inventory-source"></script>
     <script src="email-settings.js?v=20260626-slot-defaults"></script>
     <script src="email-service.js?v=20260702-adult-junior-split"></script>
     <script src="admin-reports.js?v=20260714-reports"></script>
@@ -957,7 +928,7 @@
     <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260715-stable-tabs"></script>
+    <script src="admin-inventory.js?v=20260716-inventory-source"></script>
     <script src="admin-availability-state.js?v=20260702-junior-times"></script>
     <script src="admin-availability.js?v=20260626-slot-defaults"></script>
   </body>
