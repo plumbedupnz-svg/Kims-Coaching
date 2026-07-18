@@ -160,7 +160,6 @@ const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
-const PUBLIC_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
 const ADMIN_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
@@ -369,14 +368,14 @@ function logShopFilterState(stage, details = {}) {
 }
 
 async function loadPublicInventoryProducts() {
-  const filters = "inventory_items: visible_in_shop=true,is_active=true,archived_at=null; products: is_active=true";
+  const filters = "inventory_items: visible_in_shop=true,is_active=true,archived_at=null";
   const queryStart = performance.now();
   const result = await fetchPublicInventoryProductsRest();
 
   const productQueryMs = Math.round(performance.now() - queryStart);
 
   shopLoadDebug = {
-    source: "products + inventory_items",
+    source: "inventory_items",
     rowsReturned: Array.isArray(result.data) ? result.data.length : 0,
     rowsAfterFilters: Array.isArray(result.data) ? result.data.length : 0,
     rowsSentToRenderer: 0,
@@ -454,54 +453,16 @@ async function fetchPublicInventoryProductsRest() {
     }
   };
 
-  const [inventoryResult, initialProductResult] = await Promise.all([
-    fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, {
-      visible_in_shop: "eq.true",
-      is_active: "eq.true",
-      archived_at: "is.null",
-      order: "product_name.asc"
-    }),
-    fetchRestRows("products", PUBLIC_PRODUCTS_SELECT, {
-      is_active: "eq.true",
-      order: "name.asc"
-    })
-  ]);
-
-  let productResult = initialProductResult;
-  const productSchemaMismatch = productResult.error && /column|does not exist|PGRST|42703/i.test(productResult.error.message || "");
-  if (productSchemaMismatch) {
-    console.warn("Products table has not been fully migrated; falling back to minimal product shop fields.", productResult.error);
-    productResult = await fetchRestRows("products", PUBLIC_PRODUCTS_FALLBACK_SELECT, {
-      is_active: "eq.true",
-      order: "name.asc"
-    });
-    if (productResult.error && /column|does not exist|PGRST|42703/i.test(productResult.error.message || "")) {
-      console.warn("Products table is missing category fields; falling back to minimal product shop fields.", productResult.error);
-      productResult = await fetchRestRows("products", PUBLIC_PRODUCTS_MINIMAL_SELECT, {
-        is_active: "eq.true",
-        order: "name.asc"
-      });
-    }
-  }
-
-  const productSchemaMissing = productResult.error && /products\\.|does not exist|PGRST|42703/i.test(productResult.error.message || "");
-  if (productSchemaMissing) {
-    console.warn("Products table columns are unavailable; loading stock inventory products only.", productResult.error);
-  }
-  const errors = [inventoryResult.error, productSchemaMissing ? null : productResult.error].filter(Boolean);
-  const productRows = productSchemaMissing ? [] : (productResult.data || []);
-  const inventoryIds = new Set((inventoryResult.data || []).map((row) => String(row.id)));
-  const legacyProductRows = productRows.filter((row) => !row.inventory_item_id || !inventoryIds.has(String(row.inventory_item_id)));
-  console.info("[Kim Shop] products rows returned from Supabase", {
-    count: legacyProductRows.length,
-    sample: legacyProductRows.slice(0, 5)
+  const inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, {
+    visible_in_shop: "eq.true",
+    is_active: "eq.true",
+    archived_at: "is.null",
+    order: "product_name.asc"
   });
+
   return {
-    data: [
-      ...legacyProductRows.map((row) => ({ ...row, source_row: "products" })),
-      ...(inventoryResult.data || []).map((row) => ({ ...row, source_row: "inventory_items" }))
-    ],
-    error: errors[0] || null
+    data: (inventoryResult.data || []).map((row) => ({ ...row, source_row: "inventory_items" })),
+    error: inventoryResult.error || null
   };
 }
 
@@ -675,10 +636,6 @@ async function syncShopProductsFromSupabase() {
     }
 
     const products = setPublicShopProducts(inventoryProductResult.data || []);
-    hydratePublicShopProductImages().catch((error) => {
-      if (showShopDebug) console.warn("Public shop image hydration failed.", error);
-      appendShopLoadError(error);
-    });
     shopLoadDebug.timings = {
       ...shopLoadDebug.timings,
       syncProductsMs: Math.round(performance.now() - syncStart)
@@ -1846,10 +1803,14 @@ function productCategoriesAreReady() {
 
 function getCategoryList(products, options = {}) {
   const sourceCategories = window.KimsProductCategories?.getAll?.().map((category) => category.name) || [];
-  if (sourceCategories.length) return [...new Set(sourceCategories)].sort((a,b)=>a.localeCompare(b));
+  const productCategories = options.allowProductFallback
+    ? products.map((p) => (p.category?.trim() || "Uncategorized"))
+    : [];
+  if (sourceCategories.length || productCategories.length) {
+    return [...new Set([...sourceCategories, ...productCategories])].sort((a,b)=>a.localeCompare(b));
+  }
   if (window.KimsProductCategories) return [];
   if (!options.allowProductFallback) return [];
-  const productCategories = products.map((p) => (p.category?.trim() || "Uncategorized"));
   return [...new Set(productCategories)].sort((a,b)=>a.localeCompare(b));
 }
 
@@ -2062,20 +2023,11 @@ async function renderInitialShopProducts() {
       beforeFirstRenderMs: Math.round(performance.now() - initialStart)
     };
     renderProducts();
-    refreshShopCategoriesBeforeRender().then(() => {
-      selectedCategory = getSelectedShopCategory();
-      renderProducts();
-    });
   } catch (error) {
     console.warn("Shop initial load failed.", error);
     appendShopLoadError(error);
     setPublicShopProducts([]);
     renderProducts();
-  } finally {
-    if (isShopPage && Array.isArray(publicShopProducts)) {
-      setSelectedShopCategory(SHOP_ALL_CATEGORY);
-      renderProducts();
-    }
   }
 }
 
