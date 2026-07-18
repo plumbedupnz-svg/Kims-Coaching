@@ -1,5 +1,5 @@
 (function () {
-  const defaultCategories = ["Recovery", "Strength", "Training", "Tennis Gear", "Accessories", "Other"];
+  const defaultCategories = ["Accessories", "Other", "Recovery", "Strength", "Tennis Gear", "Training"];
   const categorySelectEl = document.getElementById("owner-product-category");
   const categoryFilterEl = document.getElementById("category-filter");
   const newCategoryEl = document.getElementById("owner-new-category");
@@ -36,7 +36,7 @@
         const key = normalizeCategory(row.name).toLowerCase();
         if (!byName.has(key)) byName.set(key, { id: row.id || "", name: normalizeCategory(row.name) });
       });
-    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
   }
 
   async function saveCategory(categoryName) {
@@ -66,31 +66,31 @@
     categoriesError = "";
 
     categoryLoadPromise = (async () => {
-    if (!supabaseClient) {
-      categories = defaultCategories.map((name) => ({ id: "", name }));
+      if (!supabaseClient) {
+        categories = getUniqueCategories(defaultCategories.map((name) => ({ id: "", name })));
+        return categories;
+      }
+
+      const { data, error } = await supabaseClient
+        .from("product_categories")
+        .select("id,name")
+        .order("name", { ascending: true });
+
+      if (error) {
+        console.warn("Could not load product categories from Supabase.", error.message);
+        categoriesError = "Could not load categories";
+        if (!categoriesReady) categories = [];
+        return categories;
+      }
+
+      if (!Array.isArray(data) || !data.length) {
+        const seeded = await Promise.all(defaultCategories.map(saveCategory));
+        categories = getUniqueCategories(seeded.filter(Boolean));
+        return categories;
+      }
+
+      categories = getUniqueCategories(data);
       return categories;
-    }
-
-    const { data, error } = await supabaseClient
-      .from("product_categories")
-      .select("id,name")
-      .order("name", { ascending: true });
-
-    if (error) {
-      console.warn("Could not load product categories from Supabase.", error.message);
-      categoriesError = "Could not load categories";
-      if (!categoriesReady) categories = [];
-      return categories;
-    }
-
-    if (!Array.isArray(data) || !data.length) {
-      const seeded = await Promise.all(defaultCategories.map(saveCategory));
-      categories = getUniqueCategories(seeded.filter(Boolean));
-      return categories;
-    }
-
-    categories = getUniqueCategories(data);
-    return categories;
     })();
 
     try {

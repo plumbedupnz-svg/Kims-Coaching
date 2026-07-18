@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260716-qr-close" />
+    <link rel="stylesheet" href="styles.css?v=20260718-inventory-categories" />
     <link rel="stylesheet" href="admin-availability.css?v=20260716-qr-close" />
   </head>
   <body class="admin-page">
@@ -511,15 +511,30 @@
                 </section>
 
                 <section class="inventory-tab-panel" data-inventory-panel="settings" hidden>
-                  <form class="owner-add-form inventory-wide-form" data-inventory-settings-form>
-                    <h3>Shop stock settings</h3>
-                    <label class="availability-repeat">
-                      <span>Hide out of stock products</span>
-                      <input name="hide_out_of_stock" type="checkbox" data-hide-out-of-stock />
-                    </label>
-                    <button class="btn btn-secondary" type="submit">Save stock settings</button>
-                    <p class="form-message" data-inventory-settings-message></p>
-                  </form>
+                  <div class="inventory-stacked-panels">
+                    <form class="owner-add-form inventory-wide-form" data-inventory-settings-form>
+                      <h3>Shop stock settings</h3>
+                      <label class="availability-repeat">
+                        <span>Hide out of stock products</span>
+                        <input name="hide_out_of_stock" type="checkbox" data-hide-out-of-stock />
+                      </label>
+                      <button class="btn btn-secondary" type="submit">Save stock settings</button>
+                      <p class="form-message" data-inventory-settings-message></p>
+                    </form>
+                    <form class="owner-add-form inventory-wide-form" data-inventory-category-form>
+                      <h3>Categories</h3>
+                      <div class="category-add-row">
+                        <label>Category name
+                          <input name="category_name" type="text" placeholder="Category name" data-inventory-category-name />
+                        </label>
+                        <button class="btn btn-secondary" type="submit">Create category</button>
+                      </div>
+                      <div class="inventory-category-list" data-inventory-category-list>
+                        <p class="helper-text">Loading categories...</p>
+                      </div>
+                      <p class="form-message" data-inventory-category-message></p>
+                    </form>
+                  </div>
                 </section>
 
               </div>
@@ -930,7 +945,7 @@
     <script src="vendor/qrcode.min.js?v=20260715-local" referrerpolicy="no-referrer"></script>
     <script src="supabase-config.js?v=20260626-slot-defaults"></script>
     <script src="admin-runtime.js?v=20260626-slot-defaults"></script>
-    <script src="product-categories.js?v=20260626-slot-defaults"></script>
+    <script src="product-categories.js?v=20260718-inventory-categories"></script>
     <script src="app.js?v=20260716-qr-close"></script>
     <script src="email-settings.js?v=20260626-slot-defaults"></script>
     <script src="email-service.js?v=20260702-adult-junior-split"></script>
@@ -944,7 +959,7 @@
     <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260716-qr-close"></script>
+    <script src="admin-inventory.js?v=20260718-inventory-categories"></script>
     <script src="admin-availability-state.js?v=20260702-junior-times"></script>
     <script src="admin-availability.js?v=20260626-slot-defaults"></script>
   </body>

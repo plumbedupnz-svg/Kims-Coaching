@@ -35,6 +35,10 @@
   const settingsFormEl = document.querySelector("[data-inventory-settings-form]");
   const hideOutOfStockEl = document.querySelector("[data-hide-out-of-stock]");
   const settingsMessageEl = document.querySelector("[data-inventory-settings-message]");
+  const categoryFormEl = document.querySelector("[data-inventory-category-form]");
+  const categoryNameEl = document.querySelector("[data-inventory-category-name]");
+  const categoryListEl = document.querySelector("[data-inventory-category-list]");
+  const categoryMessageEl = document.querySelector("[data-inventory-category-message]");
   const PRODUCT_IMAGE_BUCKET = "product-images";
   const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
   const PRODUCT_IMAGE_MAX_DIMENSION = 1000;
@@ -100,6 +104,23 @@
 
   function normalizeText(value) {
     return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function getSortedProductCategories(rows = productCategories) {
+    const byName = new Map();
+    rows
+      .filter((category) => category?.name)
+      .forEach((category) => {
+        const name = String(category.name || "").trim().replace(/\s+/g, " ");
+        const key = name.toLowerCase();
+        if (!byName.has(key)) byName.set(key, { ...category, id: category.id || "", name });
+      });
+    return [...byName.values()].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+  }
+
+  function setProductCategories(rows = []) {
+    productCategories = getSortedProductCategories(rows);
+    return productCategories;
   }
 
   function getItemCategory(item) {
@@ -389,7 +410,8 @@
   function renderCategoryControls() {
     const currentFilter = categoryFilterEl?.value || "all";
     const currentFormCategory = productCategoryEl?.value || "";
-    const categoryOptions = productCategories
+    const sortedCategories = getSortedProductCategories();
+    const categoryOptions = sortedCategories
       .map((category) => `<option value="${escapeHtml(category.id)}">${escapeHtml(category.name)}</option>`)
       .join("");
 
@@ -401,11 +423,11 @@
         categoryFilterEl.innerHTML = '<option value="all">Could not load categories</option>';
         categoryFilterEl.value = "all";
       } else {
-        const fallback = currentFilter !== "all" && !productCategories.some((category) => category.id === currentFilter)
+        const fallback = currentFilter !== "all" && !sortedCategories.some((category) => category.id === currentFilter)
           ? `<option value="${escapeHtml(currentFilter)}">Selected category</option>`
           : "";
         categoryFilterEl.innerHTML = '<option value="all">All categories</option>' + fallback + categoryOptions;
-        categoryFilterEl.value = currentFilter === "all" || fallback || productCategories.some((category) => category.id === currentFilter)
+        categoryFilterEl.value = currentFilter === "all" || fallback || sortedCategories.some((category) => category.id === currentFilter)
           ? currentFilter
           : "all";
       }
@@ -419,16 +441,37 @@
         productCategoryEl.innerHTML = '<option value="">Could not load categories</option>';
         productCategoryEl.disabled = false;
       } else {
-        const fallback = currentFormCategory && !productCategories.some((category) => category.id === currentFormCategory)
+        const fallback = currentFormCategory && !sortedCategories.some((category) => category.id === currentFormCategory)
           ? `<option value="${escapeHtml(currentFormCategory)}">Selected category</option>`
           : "";
         productCategoryEl.innerHTML = '<option value="">Select category</option>' + fallback + categoryOptions;
-        productCategoryEl.value = currentFormCategory && (fallback || productCategories.some((category) => category.id === currentFormCategory))
+        productCategoryEl.value = currentFormCategory && (fallback || sortedCategories.some((category) => category.id === currentFormCategory))
           ? currentFormCategory
           : "";
         productCategoryEl.disabled = false;
       }
     }
+
+    renderInventoryCategoryList();
+  }
+
+  function renderInventoryCategoryList() {
+    if (!categoryListEl) return;
+
+    if (productCategoriesLoading && !productCategoriesLoaded && !productCategories.length) {
+      categoryListEl.innerHTML = '<p class="helper-text">Loading categories...</p>';
+      return;
+    }
+
+    if (productCategoriesError && !productCategories.length) {
+      categoryListEl.innerHTML = '<p class="helper-text">Could not load categories.</p>';
+      return;
+    }
+
+    const sortedCategories = getSortedProductCategories();
+    categoryListEl.innerHTML = sortedCategories.length
+      ? sortedCategories.map((category) => `<span class="inventory-category-pill">${escapeHtml(category.name)}</span>`).join("")
+      : '<p class="helper-text">No categories yet.</p>';
   }
 
   function renderSupplierControls() {
@@ -459,9 +502,9 @@
     });
   }
 
-  async function loadProductCategories() {
+  async function loadProductCategories({ force = false } = {}) {
     if (!client) return productCategories;
-    if (productCategoriesLoaded) return productCategories;
+    if (productCategoriesLoaded && !force) return productCategories;
     if (productCategoriesPromise) return productCategoriesPromise;
 
     productCategoriesLoading = true;
@@ -480,7 +523,7 @@
         return productCategories;
       }
 
-      productCategories = data || [];
+      setProductCategories(data || []);
       productCategoriesLoaded = true;
       return productCategories;
     })();
@@ -492,6 +535,45 @@
       productCategoriesPromise = null;
       renderCategoryControls();
     }
+  }
+
+  async function saveInventoryCategory(event) {
+    event.preventDefault();
+    if (!client) {
+      setMessage(categoryMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const categoryName = String(categoryNameEl?.value || "").trim().replace(/\s+/g, " ");
+    if (!categoryName) {
+      setMessage(categoryMessageEl, "Enter a category name.", "error");
+      return;
+    }
+
+    const submitButton = categoryFormEl?.querySelector('button[type="submit"]');
+    if (submitButton) submitButton.disabled = true;
+    setMessage(categoryMessageEl, "Saving category...");
+
+    const { data, error } = await client
+      .from("product_categories")
+      .upsert({ name: categoryName, is_default: false }, { onConflict: "normalized_name" })
+      .select("id,name")
+      .single();
+
+    if (submitButton) submitButton.disabled = false;
+
+    if (error) {
+      setMessage(categoryMessageEl, error.message, "error");
+      return;
+    }
+
+    if (categoryNameEl) categoryNameEl.value = "";
+    productCategoriesLoaded = false;
+    await loadProductCategories({ force: true });
+    await window.KimsProductCategories?.refresh?.(categoryFilterEl?.value || "all", { force: true });
+    if (productCategoryEl && data?.id) productCategoryEl.value = data.id;
+    renderInventoryList();
+    setMessage(categoryMessageEl, `Category saved: ${data?.name || categoryName}.`, "success");
   }
 
   async function loadInventory() {
@@ -1707,6 +1789,7 @@
   reviewListEl?.addEventListener("click", handleReviewAction);
   adjustFormEl?.addEventListener("submit", saveStockAdjustment);
   settingsFormEl?.addEventListener("submit", saveInventorySettings);
+  categoryFormEl?.addEventListener("submit", saveInventoryCategory);
 
   document.addEventListener("DOMContentLoaded", () => {
     loadProductCategories().then(loadInventory);

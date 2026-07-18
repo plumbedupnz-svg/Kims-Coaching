@@ -514,6 +514,8 @@ textarea { resize: vertical; min-height: 120px; }
 .owner-description-toggle { font-size: 0.85rem; }
 .owner-row-actions { display: grid; gap: 0.4rem; width: 180px; }
 .category-add-row { display: grid; grid-template-columns: 1fr auto; gap: 0.6rem; align-items: end; }
+.inventory-category-list { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+.inventory-category-pill { display: inline-flex; align-items: center; min-height: 32px; padding: 0.35rem 0.65rem; border: 1px solid var(--border); border-radius: 999px; background: #fff; color: var(--text); font-size: 0.9rem; font-weight: 800; }
 .product-stock-options { display: grid; gap: 0.6rem; padding: 0.75rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 
 .account-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; gap: 1.5rem; align-items: start; }
