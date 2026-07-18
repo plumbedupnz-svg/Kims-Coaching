@@ -1,5 +1,16 @@
 (function () {
-  const defaultCategories = ["Accessories", "Other", "Recovery", "Strength", "Tennis Gear", "Training"];
+  const defaultCategories = [
+    "Accessories",
+    "Other",
+    "Pickle Ball Paddle",
+    "Recovery",
+    "Shock Absorbers",
+    "Socks",
+    "Strength",
+    "Tennis Gear",
+    "Tennis Grips",
+    "Training"
+  ];
   const categorySelectEl = document.getElementById("owner-product-category");
   const categoryFilterEl = document.getElementById("category-filter");
   const newCategoryEl = document.getElementById("owner-new-category");
@@ -79,7 +90,9 @@
       if (error) {
         console.warn("Could not load product categories from Supabase.", error.message);
         categoriesError = "Could not load categories";
-        if (!categoriesReady) categories = [];
+        if (!categoriesReady) {
+          categories = getUniqueCategories(defaultCategories.map((name) => ({ id: "", name })));
+        }
         return categories;
       }
 

@@ -1857,16 +1857,20 @@ function productCategoriesAreReady() {
 }
 
 function getCategoryList(products, options = {}) {
-  const sourceCategories = window.KimsProductCategories?.getAll?.().map((category) => category.name) || [];
+  const sourceCategories = window.KimsProductCategories?.getAll?.()
+    .map((category) => category.name)
+    .filter(Boolean) || [];
   const productCategories = options.allowProductFallback
-    ? products.map((p) => (p.category?.trim() || "Uncategorized"))
+    ? products.map((p) => (p.category?.trim() || "Uncategorized")).filter(Boolean)
     : [];
   if (sourceCategories.length || productCategories.length) {
-    return [...new Set([...sourceCategories, ...productCategories])].sort((a,b)=>a.localeCompare(b));
+    return [...new Set([...sourceCategories, ...productCategories])]
+      .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
   }
   if (window.KimsProductCategories) return [];
   if (!options.allowProductFallback) return [];
-  return [...new Set(productCategories)].sort((a,b)=>a.localeCompare(b));
+  return [...new Set(productCategories)]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
 
@@ -1924,9 +1928,27 @@ function renderOwnerCategorySelect(products) {
 }
 function renderCategoryFilter(products) {
   if (!categoryFilterEl) return;
-  const categories = getCategoryList(products, { allowProductFallback: true });
   const requestedCategory = normalizeSelectedCategory(selectedCategory);
-  const options = ["<option value=\"all\">All categories</option>", ...categories.map((cat)=>`<option value=\"${cat}\">${cat}</option>`)].join("");
+  const hasCategoryModule = Boolean(window.KimsProductCategories);
+  const categoryError = window.KimsProductCategories?.getError?.();
+
+  if (hasCategoryModule && !productCategoriesAreReady()) {
+    if (categoryFilterEl.options.length <= 1) {
+      categoryFilterEl.innerHTML = '<option value="all">All categories</option>';
+      categoryFilterEl.value = SHOP_ALL_CATEGORY;
+    }
+    selectedCategory = requestedCategory;
+    return;
+  }
+
+  const sourceCategoryCount = window.KimsProductCategories?.getAll?.().length || 0;
+  const categories = getCategoryList(products, {
+    allowProductFallback: !hasCategoryModule || Boolean(categoryError) || sourceCategoryCount === 0
+  });
+  const options = [
+    "<option value=\"all\">All categories</option>",
+    ...categories.map((cat) => `<option value="${escapeHtml(cat)}">${escapeHtml(cat)}</option>`)
+  ].join("");
   categoryFilterEl.innerHTML = options;
   const matchingCategory = categories.find((cat) => cat.toLowerCase() === requestedCategory.toLowerCase());
   categoryFilterEl.value = requestedCategory === SHOP_ALL_CATEGORY ? SHOP_ALL_CATEGORY : matchingCategory || SHOP_ALL_CATEGORY;
