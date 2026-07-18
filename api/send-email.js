@@ -129,9 +129,9 @@ function getSubject(type, payload = {}) {
     booking_changed: "Your Kim Jones Coaching booking has been updated",
     booking_cancelled: "Your Kim Jones Coaching booking has been cancelled",
     shop_order_admin_notification: `New shop order from ${customerName}`,
-    shop_order_customer_confirmation: "Your Kim Jones Coaching shop order",
+    shop_order_customer_confirmation: "Your Kim Jones Coaching order confirmation",
     product_admin_notification: `New shop order from ${customerName}`,
-    product_customer_confirmation: "Your Kim Jones Coaching shop order",
+    product_customer_confirmation: "Your Kim Jones Coaching order confirmation",
     product_enquiry_notification: `Product enquiry: ${productName}`,
     purchase_order_email: `Purchase order: ${productName}`,
     waitlist_notification: `New waitlist request from ${customerName}`,
@@ -146,6 +146,32 @@ function getSubject(type, payload = {}) {
   };
 
   return subjects[type] || "Kim Jones Coaching notification";
+}
+
+function escapeHtml(value = "") {
+  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;"
+  }[char]));
+}
+
+function moneyNumber(value) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const number = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(number) ? number : 0;
+}
+
+function moneyDisplay(value) {
+  if (value === null || typeof value === "undefined" || value === "") return "";
+  if (typeof value === "number") return `$${value.toFixed(2)}`;
+  const text = String(value).trim();
+  if (!text) return "";
+  if (/^\$/.test(text) || /\bNZD\b/i.test(text)) return text;
+  const number = moneyNumber(text);
+  return Number.isFinite(number) ? `$${number.toFixed(2)}` : text;
 }
 
 function line(label, value) {
@@ -270,6 +296,158 @@ function renderItems(payload = {}) {
   ].filter(Boolean).join("\n");
 }
 
+function shopItems(payload = {}) {
+  if (Array.isArray(payload.items) && payload.items.length) return payload.items;
+  if (payload.productName || payload.product_name) {
+    return [{
+      name: payload.productName || payload.product_name,
+      category: payload.category,
+      price: payload.price,
+      quantity: payload.quantity || 1,
+      lineTotal: moneyNumber(payload.price) * Number(payload.quantity || 1)
+    }];
+  }
+  return [];
+}
+
+function shopItemUnitPrice(item = {}) {
+  return moneyDisplay(item.sale_price_at_sale ?? item.unitAmount ?? item.unit_amount ?? item.price);
+}
+
+function shopItemLineTotal(item = {}) {
+  const quantity = Math.max(1, Number(item.quantity || 1));
+  const directTotal = item.lineTotal ?? item.line_total ?? item.total ?? item.total_amount;
+  if (directTotal !== null && typeof directTotal !== "undefined" && directTotal !== "") return moneyDisplay(directTotal);
+  const unit = moneyNumber(item.sale_price_at_sale ?? item.unitAmount ?? item.unit_amount ?? item.price);
+  return unit ? moneyDisplay(unit * quantity) : "";
+}
+
+function renderShopCustomerHtml(payload = {}) {
+  const customerName = payload.customerName || payload.customer_name || "there";
+  const orderId = payload.orderId || payload.order_id || payload.relatedId || payload.related_id || "";
+  const orderDate = formatEmailDate(payload.createdAt || payload.created_at || new Date(), {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric"
+  });
+  const fulfilment = payload.fulfilmentLabel || payload.fulfilment_label || payload.fulfilment_method || payload.fulfilmentMethod || "";
+  const deliveryAddress = payload.deliveryAddress || payload.delivery_address || "";
+  const pickupInstructions = payload.pickupInstructions || payload.pickup_instructions || "";
+  const items = shopItems(payload);
+  const availabilityNotes = items
+    .map((item) => item.availability_note || item.availabilityNote || "")
+    .filter(Boolean);
+  const hasOrderToSaleNote = availabilityNotes.length > 0;
+  const itemRows = items.length
+    ? items.map((item) => `
+        <tr>
+          <td style="padding:16px 0;border-bottom:1px solid #e5edf8;">
+            <div style="font-size:16px;line-height:1.35;font-weight:700;color:#12203a;">${escapeHtml(item.name || item.product_name || "Product")}</div>
+            <div style="margin-top:4px;font-size:13px;line-height:1.4;color:#60708c;">${escapeHtml([item.category, item.sku ? `SKU ${item.sku}` : ""].filter(Boolean).join(" | "))}</div>
+            ${item.availability_note || item.availabilityNote ? `<div style="margin-top:8px;font-size:13px;line-height:1.45;color:#7a4b00;background:#fff8e6;border:1px solid #ffe0a3;border-radius:8px;padding:8px 10px;">${escapeHtml(item.availability_note || item.availabilityNote)}</div>` : ""}
+          </td>
+          <td align="center" style="padding:16px 8px;border-bottom:1px solid #e5edf8;font-size:14px;color:#12203a;">${escapeHtml(item.quantity || 1)}</td>
+          <td align="right" style="padding:16px 0;border-bottom:1px solid #e5edf8;font-size:14px;color:#12203a;">${escapeHtml(shopItemUnitPrice(item))}</td>
+          <td align="right" style="padding:16px 0 16px 12px;border-bottom:1px solid #e5edf8;font-size:15px;font-weight:700;color:#12203a;">${escapeHtml(shopItemLineTotal(item))}</td>
+        </tr>
+      `).join("")
+    : `<tr><td colspan="4" style="padding:16px 0;color:#60708c;">Your order details are being prepared.</td></tr>`;
+  const discount = moneyNumber(payload.discount);
+  const tax = moneyNumber(payload.tax);
+
+  return `<!doctype html>
+<html>
+  <body style="margin:0;padding:0;background:#f3f6fb;font-family:Arial,Helvetica,sans-serif;color:#12203a;">
+    <div style="display:none;max-height:0;overflow:hidden;color:transparent;">Your Kim Jones Coaching order has been confirmed.</div>
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f3f6fb;margin:0;padding:24px 12px;">
+      <tr>
+        <td align="center">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #d9e3f2;border-radius:16px;overflow:hidden;">
+            <tr>
+              <td style="background:#09213d;padding:28px 30px;color:#ffffff;">
+                <div style="font-size:12px;letter-spacing:2.4px;text-transform:uppercase;font-weight:700;color:#69b7ff;">Kim Jones Coaching</div>
+                <h1 style="margin:12px 0 8px;font-size:28px;line-height:1.15;color:#ffffff;">Thanks for your order, ${escapeHtml(customerName)}.</h1>
+                <p style="margin:0;font-size:15px;line-height:1.55;color:#d9e9ff;">Your payment has been received and Kim is getting your shop order ready.</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:24px 30px 8px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:0 0 16px;">
+                      <div style="font-size:13px;color:#60708c;">Order</div>
+                      <div style="margin-top:3px;font-size:17px;font-weight:800;color:#12203a;">${escapeHtml(orderId ? `#${String(orderId).slice(0, 8)}` : "Confirmed")}</div>
+                    </td>
+                    <td align="right" style="padding:0 0 16px;">
+                      <div style="font-size:13px;color:#60708c;">Date</div>
+                      <div style="margin-top:3px;font-size:15px;font-weight:700;color:#12203a;">${escapeHtml(orderDate)}</div>
+                    </td>
+                  </tr>
+                </table>
+                <div style="border:1px solid #d9e3f2;border-radius:12px;padding:16px 18px;background:#f8fbff;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                    <tr>
+                      <td style="font-size:15px;line-height:1.5;color:#12203a;">
+                        <strong style="display:block;margin-bottom:4px;">${escapeHtml(fulfilment || "Fulfilment")}</strong>
+                        ${deliveryAddress ? escapeHtml(deliveryAddress) : escapeHtml(pickupInstructions || "Kim will confirm collection details shortly.")}
+                      </td>
+                      <td align="right" style="vertical-align:top;">
+                        <span style="display:inline-block;background:#e7f7ee;color:#137333;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:800;">Paid</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                ${hasOrderToSaleNote ? `<div style="margin-top:14px;border:1px solid #ffe0a3;border-radius:12px;background:#fff8e6;padding:13px 16px;font-size:14px;line-height:1.5;color:#7a4b00;">Some items are ordered in as needed. Kim will confirm arrival once stock levels have been checked.</div>` : ""}
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:10px 30px 4px;">
+                <h2 style="margin:0 0 8px;font-size:18px;line-height:1.3;color:#12203a;">Order summary</h2>
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">
+                  <thead>
+                    <tr>
+                      <th align="left" style="padding:10px 0;border-bottom:2px solid #d9e3f2;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#60708c;">Item</th>
+                      <th align="center" style="padding:10px 8px;border-bottom:2px solid #d9e3f2;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#60708c;">Qty</th>
+                      <th align="right" style="padding:10px 0;border-bottom:2px solid #d9e3f2;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#60708c;">Price</th>
+                      <th align="right" style="padding:10px 0 10px 12px;border-bottom:2px solid #d9e3f2;font-size:12px;letter-spacing:.8px;text-transform:uppercase;color:#60708c;">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>${itemRows}</tbody>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:12px 30px 28px;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:320px;margin-left:auto;border-collapse:collapse;">
+                  <tr>
+                    <td style="padding:7px 0;font-size:14px;color:#60708c;">Subtotal</td>
+                    <td align="right" style="padding:7px 0;font-size:14px;color:#12203a;">${escapeHtml(moneyDisplay(payload.subtotal))}</td>
+                  </tr>
+                  ${moneyDisplay(payload.shipping) ? `<tr><td style="padding:7px 0;font-size:14px;color:#60708c;">Shipping</td><td align="right" style="padding:7px 0;font-size:14px;color:#12203a;">${escapeHtml(moneyDisplay(payload.shipping))}</td></tr>` : ""}
+                  ${discount > 0 ? `<tr><td style="padding:7px 0;font-size:14px;color:#60708c;">Discount</td><td align="right" style="padding:7px 0;font-size:14px;color:#137333;">-${escapeHtml(moneyDisplay(discount))}</td></tr>` : ""}
+                  ${tax > 0 ? `<tr><td style="padding:7px 0;font-size:14px;color:#60708c;">Tax</td><td align="right" style="padding:7px 0;font-size:14px;color:#12203a;">${escapeHtml(moneyDisplay(tax))}</td></tr>` : ""}
+                  <tr>
+                    <td style="padding:12px 0 0;border-top:1px solid #d9e3f2;font-size:16px;font-weight:800;color:#12203a;">Order total</td>
+                    <td align="right" style="padding:12px 0 0;border-top:1px solid #d9e3f2;font-size:20px;font-weight:800;color:#12203a;">${escapeHtml(moneyDisplay(payload.total))}</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="background:#f8fbff;border-top:1px solid #d9e3f2;padding:20px 30px;">
+                <p style="margin:0 0 6px;font-size:14px;line-height:1.5;color:#12203a;"><strong>Need help with this order?</strong></p>
+                <p style="margin:0;font-size:14px;line-height:1.5;color:#60708c;">Reply to this email and Kim will help with collection, delivery, sizing, or product questions.</p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`;
+}
+
 function renderShopText(title, payload = {}) {
   return [
     title,
@@ -347,6 +525,13 @@ function renderText(type, payload = {}) {
     "",
     JSON.stringify({ ...payload, ics: payload.ics ? "[calendar invite omitted from log text]" : undefined }, null, 2)
   ].join("\n");
+}
+
+function renderHtml(type, payload = {}) {
+  if (type === "shop_order_customer_confirmation" || type === "product_customer_confirmation") {
+    return renderShopCustomerHtml(payload);
+  }
+  return "";
 }
 
 function getMissingEnv(provider) {
@@ -583,6 +768,7 @@ async function sendWithResend(message, settings) {
       reply_to: settings.reply_to_email,
       subject: message.subject,
       text: message.text,
+      html: message.html || undefined,
       attachments: message.ics
         ? [{ filename: "coaching-booking.ics", content: Buffer.from(message.ics).toString("base64") }]
         : undefined
@@ -852,6 +1038,7 @@ module.exports = async function handler(req, res) {
       settings,
       subject: getSubject(type, payload),
       text: renderText(type, payload),
+      html: renderHtml(type, payload),
       ics: payload.ics || ""
     };
 
