@@ -1665,3 +1665,421 @@
       ? `Inventory saved. Public product created/updated${publicProductId ? `: ${publicProductId}` : "."}`
       : `Inventory saved. Public product${publicProductId ? ` ${publicProductId}` : ""} hidden.`;
     hideProductForm();
+    await loadInventory();
+    setMessage(productMessageEl, publishMessage, "success");
+    setMessage(inventoryListMessageEl, publishMessage, "success");
+  }
+
+  async function uploadInvoice(event) {
+    event.preventDefault();
+    if (!client) {
+      setMessage(invoiceMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const file = invoiceFileEl?.files?.[0];
+    if (!file) {
+      setMessage(invoiceMessageEl, "Choose a Sportco PDF invoice first.", "error");
+      return;
+    }
+
+    if (file.type !== "application/pdf") {
+      setMessage(invoiceMessageEl, "Please upload a PDF invoice.", "error");
+      return;
+    }
+
+    const user = await getSessionUser();
+    const storagePath = `sportco/${Date.now()}-${file.name.replace(/[^a-z0-9._-]/gi, "-")}`;
+    setMessage(invoiceMessageEl, "Uploading invoice and preparing review...");
+    clearInvoiceReview();
+
+    const { error: uploadError } = await client.storage
+      .from("supplier-invoices")
+      .upload(storagePath, file, { upsert: false });
+
+    if (uploadError) {
+      setMessage(invoiceMessageEl, `Could not upload invoice: ${uploadError.message}`, "error");
+      return;
+    }
+
+    let parsed;
+    try {
+      parsed = parseSportcoInvoice(await extractPdfText(file));
+    } catch (error) {
+      setMessage(invoiceMessageEl, `Invoice uploaded, but PDF extraction failed: ${error.message}`, "error");
+      return;
+    }
+
+    if (!parsed.items.length) {
+      setMessage(invoiceMessageEl, "Invoice uploaded, but no line items could be detected. Check the PDF format and enter stock manually for now.", "error");
+      return;
+    }
+
+    const { data: invoice, error: invoiceError } = await client
+      .from("supplier_invoices")
+      .insert({
+        supplier: "Sportco",
+        invoice_number: parsed.invoiceNumber || null,
+        invoice_date: parsed.invoiceDate,
+        storage_path: storagePath,
+        file_name: file.name,
+        uploaded_by: user?.id || null
+      })
+      .select()
+      .single();
+
+    if (invoiceError) {
+      setMessage(invoiceMessageEl, `Could not save invoice record: ${invoiceError.message}`, "error");
+      return;
+    }
+
+    pendingInvoice = {
+      id: invoice.id,
+      invoiceNumber: parsed.invoiceNumber || "",
+      invoiceDate: parsed.invoiceDate,
+      fileName: file.name
+    };
+    invoiceReviewItems = buildInvoiceReviewItems(parsed.items);
+    renderInvoiceReviewTable();
+    invoiceFormEl.reset();
+    setMessage(invoiceMessageEl, `Found ${parsed.items.length} item${parsed.items.length === 1 ? "" : "s"}. Review and confirm before stock is updated.`, "success");
+    setMessage(invoiceReviewMessageEl, "");
+  }
+
+  async function confirmInvoiceImport() {
+    if (!client) {
+      setMessage(invoiceReviewMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const validationError = validateInvoiceReview();
+    if (validationError) {
+      setMessage(invoiceReviewMessageEl, validationError, "error");
+      return;
+    }
+
+    invoiceImportConfirmEl.disabled = true;
+    setMessage(invoiceReviewMessageEl, "Importing reviewed invoice items...");
+
+    for (const item of invoiceReviewItems) {
+      const category = getCategoryById(item.finalCategoryId);
+      const { error } = await client.rpc("import_reviewed_supplier_invoice_item", {
+        p_invoice_id: pendingInvoice.id,
+        p_inventory_item_id: item.matchedInventoryItemId || null,
+        p_product_name: item.productName,
+        p_sku: item.sku || null,
+        p_quantity: item.quantity,
+        p_unit_cost: item.unitCost,
+        p_total_cost: item.totalCost,
+        p_category_id: category?.id || null,
+        p_category: category?.name || "Other",
+        p_sell_price: item.sellPrice,
+        p_visible_in_shop: Boolean(item.visibleInShop),
+        p_review_status: item.reviewStatus,
+        p_invoice_number: pendingInvoice.invoiceNumber || null,
+        p_invoice_date: pendingInvoice.invoiceDate || null
+      });
+
+      if (error) {
+        setMessage(invoiceReviewMessageEl, `Import stopped on ${item.productName}: ${error.message}`, "error");
+        invoiceImportConfirmEl.disabled = false;
+        await loadInventory();
+        return;
+      }
+    }
+
+    const importedCount = invoiceReviewItems.length;
+    clearInvoiceReview();
+    setMessage(invoiceMessageEl, `Imported ${importedCount} reviewed Sportco invoice item${importedCount === 1 ? "" : "s"}.`, "success");
+    await loadInventory();
+    if (invoiceImportConfirmEl) invoiceImportConfirmEl.disabled = false;
+  }
+
+  function handleInvoiceReviewChange(event) {
+    const field = event.target.closest("[data-invoice-field]");
+    if (!field) return;
+
+    syncInvoiceReviewFromDom();
+    if (field.dataset.invoiceField === "matchedInventoryItemId") {
+      const row = field.closest("[data-invoice-review-index]");
+      const index = Number(row?.dataset.invoiceReviewIndex);
+      const item = invoiceReviewItems[index];
+      const matchedItem = inventoryItems.find((entry) => entry.id === item?.matchedInventoryItemId);
+      if (item && matchedItem) {
+        item.finalCategoryId = matchedItem.category_id || item.finalCategoryId || getFallbackCategory()?.id || "";
+        item.suggestedCategoryId = item.finalCategoryId;
+        item.sellPrice = Number(matchedItem.sell_price || item.sellPrice || 0);
+        item.visibleInShop = Boolean(matchedItem.visible_in_shop);
+        item.reviewStatus = "matched";
+        renderInvoiceReviewTable();
+      }
+    }
+  }
+
+  async function handleReviewAction(event) {
+    const button = event.target.closest("[data-review-action]");
+    if (!button || !client) return;
+
+    const row = button.closest("[data-review-item]");
+    const itemId = row?.dataset.reviewItem;
+    if (!itemId) return;
+
+    button.disabled = true;
+    const action = button.dataset.reviewAction;
+    let result;
+
+    if (action === "add") {
+      const category = getCategoryById(row.querySelector("[data-review-category-id]")?.value);
+      result = await client.rpc("publish_inventory_item_to_shop", {
+        p_inventory_item_id: itemId,
+        p_category_id: category?.id || null,
+        p_category: category?.name || "Other",
+        p_description: row.querySelector("[data-review-description]")?.value || null,
+        p_sell_price: Number(row.querySelector("[data-review-sell-price]")?.value || 0),
+        p_discount: 0,
+        p_image: null
+      });
+    }
+
+    if (action === "internal") {
+      result = await client.rpc("mark_inventory_item_internal", { p_inventory_item_id: itemId });
+    }
+
+    if (action === "merge") {
+      const targetId = row.querySelector("[data-merge-target]")?.value;
+      if (!targetId) {
+        alert("Choose an existing item to merge into.");
+        button.disabled = false;
+        return;
+      }
+      result = await client.rpc("merge_inventory_item", {
+        p_source_item_id: itemId,
+        p_target_item_id: targetId,
+        p_reason: "Merged from Sportco invoice review"
+      });
+    }
+
+    if (result?.error) alert(result.error.message);
+    await loadInventory();
+    button.disabled = false;
+  }
+
+  async function saveStockAdjustment(event) {
+    event.preventDefault();
+    if (!client) {
+      setMessage(adjustMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const formData = new FormData(adjustFormEl);
+    const quantityDelta = Number(formData.get("quantity_delta"));
+    if (!formData.get("inventory_item_id") || Number.isNaN(quantityDelta) || quantityDelta === 0) {
+      setMessage(adjustMessageEl, "Choose an item and enter a non-zero quantity change.", "error");
+      return;
+    }
+
+    const { error } = await client.rpc("admin_adjust_inventory", {
+      p_inventory_item_id: formData.get("inventory_item_id"),
+      p_quantity_delta: quantityDelta,
+      p_reason: formData.get("reason")
+    });
+
+    if (error) {
+      setMessage(adjustMessageEl, error.message, "error");
+      return;
+    }
+
+    adjustFormEl.reset();
+    setMessage(adjustMessageEl, "Stock adjustment saved.", "success");
+    await loadInventory();
+  }
+
+  async function saveInventorySettings(event) {
+    event.preventDefault();
+    if (!client) {
+      setMessage(settingsMessageEl, "Supabase is not configured yet.", "error");
+      return;
+    }
+
+    const { error } = await client
+      .from("shop_inventory_settings")
+      .upsert({ id: true, hide_out_of_stock: Boolean(hideOutOfStockEl?.checked) }, { onConflict: "id" });
+
+    if (error) {
+      setMessage(settingsMessageEl, error.message, "error");
+      return;
+    }
+
+    setMessage(settingsMessageEl, "Shop stock settings saved.", "success");
+  }
+
+  async function handleInventoryAction(event) {
+    const qrCloseButton = event.target.closest("[data-inventory-qr-close]");
+    if (qrCloseButton) {
+      hideInventoryQr(qrCloseButton.dataset.inventoryQrClose);
+      return;
+    }
+
+    const qrDownloadButton = event.target.closest("[data-inventory-qr-download]");
+    if (qrDownloadButton) {
+      await downloadInventoryQr(qrDownloadButton.dataset.inventoryQrDownload);
+      return;
+    }
+
+    const qrPrintButton = event.target.closest("[data-inventory-qr-print]");
+    if (qrPrintButton) {
+      await printInventoryQr(qrPrintButton.dataset.inventoryQrPrint);
+      return;
+    }
+
+    const menuToggle = event.target.closest("[data-inventory-menu-toggle]");
+    if (menuToggle) {
+      const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
+      const shouldOpen = Boolean(menu?.hidden);
+      closeInventoryActionMenus();
+      closeInventoryQrPanels();
+      if (menu) {
+        menu.hidden = !shouldOpen;
+        menuToggle.setAttribute("aria-expanded", String(shouldOpen));
+      }
+      return;
+    }
+
+    const button = event.target.closest("[data-inventory-action]");
+    if (!button || !client) return;
+
+    const row = button.closest("[data-inventory-item]");
+    const item = inventoryItems.find((entry) => entry.id === row?.dataset.inventoryItem);
+    if (!item) return;
+
+    const action = button.dataset.inventoryAction;
+    closeInventoryActionMenus();
+
+    if (action === "edit") {
+      showProductForm(item);
+      return;
+    }
+
+    if (action === "adjust") {
+      if (adjustItemEl) adjustItemEl.value = item.id;
+      setInventoryTab("stock-adjustments");
+      adjustFormEl?.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (action === "qr") {
+      await toggleInventoryQr(item.id);
+      return;
+    }
+
+    button.disabled = true;
+    if (action === "archive") {
+      if (item.archived_at) {
+        alert("This product is already archived.");
+      } else if (confirm(`Archive ${item.product_name}? It will be hidden from the public shop.`)) {
+        const { error } = await client.rpc("archive_inventory_item", { p_inventory_item_id: item.id });
+        if (error) alert(error.message);
+        await loadInventory();
+      }
+    }
+
+    if (action === "delete") {
+      if (confirm(`Permanently delete ${item.product_name}? This is only allowed when there are no stock movements or orders.`)) {
+        const { data, error } = await client.rpc("delete_inventory_item_if_safe", { p_inventory_item_id: item.id });
+        if (error) {
+          const message = /stock history|stock movements|orders|cannot be permanently deleted/i.test(error.message || "")
+            ? DELETE_BLOCKED_MESSAGE
+            : error.message;
+          alert(message);
+          if (message === DELETE_BLOCKED_MESSAGE) setMessage(inventoryListMessageEl, "");
+          else setMessage(inventoryListMessageEl, message, "error");
+          await loadInventory();
+          button.disabled = false;
+          return;
+        }
+        if (data === false) {
+          alert(DELETE_BLOCKED_MESSAGE);
+          setMessage(inventoryListMessageEl, "");
+          await loadInventory();
+          button.disabled = false;
+          return;
+        }
+        setMessage(inventoryListMessageEl, `${item.product_name} was permanently deleted.`, "success");
+        await loadInventory();
+      }
+    }
+    button.disabled = false;
+  }
+
+  searchEl?.addEventListener("input", () => {
+    renderInventoryList();
+  });
+  categoryFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
+  statusFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
+  supplierFilterEl?.addEventListener("change", () => {
+    renderInventoryList();
+  });
+  showArchivedEl?.addEventListener("change", () => {
+    renderInventoryList();
+    renderAdjustmentSelect();
+  });
+  addProductBtnEls.forEach((button) => {
+    button.addEventListener("click", () => showProductForm());
+  });
+  inventoryTabEls.forEach((button) => {
+    button.addEventListener("click", () => {
+      setInventoryTab(button.dataset.inventoryTab);
+    });
+  });
+  cancelEditBtnEl?.addEventListener("click", hideProductForm);
+  productFormEl?.addEventListener("submit", saveProduct);
+  productFormEl?.addEventListener("change", (event) => {
+    if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
+      syncInventoryOptionControls();
+    }
+  });
+  productImageInputEl?.addEventListener("change", () => {
+    const files = getProductImageFiles();
+    const availableKeys = getAvailableMainImageKeys(files);
+    if (!availableKeys.includes(selectedMainImageKey)) selectedMainImageKey = availableKeys[0] || "";
+    renderProductImagePicker();
+  });
+  productImageListEl?.addEventListener("change", (event) => {
+    const checkbox = event.target.closest("[data-product-main-image]");
+    if (!checkbox) return;
+    selectedMainImageKey = checkbox.value;
+    syncMainImageCheckboxes();
+  });
+  inventoryListEl?.addEventListener("click", handleInventoryAction);
+  document.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    if (!target.closest("[data-inventory-qr-panel], [data-inventory-action-list], [data-inventory-menu-toggle], [data-inventory-action]")) {
+      closeInventoryQrPanels();
+      closeInventoryActionMenus();
+    }
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    closeInventoryQrPanels();
+    closeInventoryActionMenus();
+  });
+  invoiceFormEl?.addEventListener("submit", uploadInvoice);
+  invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);
+  invoiceReviewTableEl?.addEventListener("input", syncInvoiceReviewFromDom);
+  invoiceReviewClearEl?.addEventListener("click", clearInvoiceReview);
+  invoiceImportConfirmEl?.addEventListener("click", confirmInvoiceImport);
+  reviewListEl?.addEventListener("click", handleReviewAction);
+  adjustFormEl?.addEventListener("submit", saveStockAdjustment);
+  settingsFormEl?.addEventListener("submit", saveInventorySettings);
+  categoryFormEl?.addEventListener("submit", saveInventoryCategory);
+
+  document.addEventListener("DOMContentLoaded", () => {
+    loadProductCategories().then(loadInventory);
+    loadInventorySettings();
+  });
+})();
