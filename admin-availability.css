@@ -204,6 +204,9 @@
 .inventory-image-card { display: grid; gap: 0.45rem; min-width: 0; padding: 0.6rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .inventory-image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #fbfdff; }
 .inventory-image-card small { min-width: 0; overflow: hidden; color: var(--muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-image-remove { width: 100%; min-height: 34px; padding: 0.38rem 0.5rem; border: 1px solid #fecdd3; border-radius: 7px; background: #fff1f2; color: #9f1239; font-size: 0.86rem; font-weight: 900; cursor: pointer; }
+.inventory-image-remove:hover,
+.inventory-image-remove:focus-visible { border-color: #fb7185; background: #ffe4e6; outline: none; }
 .inventory-image-main { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; font-weight: 900; }
 .inventory-image-main input { width: 18px; height: 18px; margin: 0; }
 .field-helper { color: var(--muted); font-size: 0.82rem; font-weight: 500; line-height: 1.35; }
@@ -512,3 +515,46 @@
   select,
   textarea,
   .availability-repeat,
+  .lesson-settings-panel,
+  .shop-orders-table,
+  .junior-players-table,
+  .inventory-table {
+    border-radius: 8px;
+  }
+
+  .availability-row,
+  .junior-calendar-session,
+  .junior-calendar-group,
+  .inventory-action-list {
+    border-radius: 7px;
+  }
+
+  .shop-orders-table,
+  .junior-players-table,
+  .inventory-table {
+    overflow-x: auto;
+    background: #ffffff;
+  }
+
+  .shop-orders-table-head,
+  .junior-players-table-head,
+  .inventory-table-head {
+    background: #edf5ff;
+  }
+
+  .junior-players-table-row {
+    min-width: 1480px;
+  }
+
+  .invoice-review-table-row {
+    min-width: 1380px;
+  }
+
+  .inventory-filters {
+    top: 84px;
+    padding: 0.75rem;
+    border: 1px solid #dbe3f1;
+    border-radius: 8px;
+    background: rgba(247, 249, 252, 0.96);
+  }
+}

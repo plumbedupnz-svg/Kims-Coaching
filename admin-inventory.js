@@ -57,6 +57,8 @@
   let productCategoriesPromise = null;
   let inventoryImageGalleryReady = null;
   let currentProductImages = [];
+  let pendingProductImageFiles = [];
+  let removedProductImages = [];
   let productImagePreviewUrls = [];
   let selectedMainImageKey = "";
   let pendingInvoice = null;
@@ -141,12 +143,29 @@
   }
 
   function getProductImageFiles() {
-    return Array.from(productImageInputEl?.files || []);
+    return pendingProductImageFiles;
   }
 
   function clearProductImagePreviews() {
     productImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
     productImagePreviewUrls = [];
+  }
+
+  function syncProductImageInputFiles(files = pendingProductImageFiles) {
+    pendingProductImageFiles = Array.from(files || []);
+    if (!productImageInputEl) return;
+    if (!pendingProductImageFiles.length) {
+      productImageInputEl.value = "";
+      return;
+    }
+
+    try {
+      const transfer = new DataTransfer();
+      pendingProductImageFiles.forEach((file) => transfer.items.add(file));
+      productImageInputEl.files = transfer.files;
+    } catch (error) {
+      console.warn("Could not sync product image input after photo removal.", error);
+    }
   }
 
   function getItemImageRecords(item = {}) {
@@ -188,6 +207,38 @@
     });
   }
 
+  function rememberRemovedProductImage(image = {}) {
+    if (!image?.id && !image?.image_url && !image?.storage_path) return;
+    const alreadyRemoved = removedProductImages.some((removed) => (
+      (image.id && removed.id === image.id)
+      || (image.image_url && removed.image_url === image.image_url)
+      || (image.storage_path && removed.storage_path === image.storage_path)
+    ));
+    if (!alreadyRemoved) removedProductImages.push(image);
+  }
+
+  function chooseAvailableMainImage() {
+    const availableKeys = getAvailableMainImageKeys();
+    if (!availableKeys.includes(selectedMainImageKey)) selectedMainImageKey = availableKeys[0] || "";
+  }
+
+  function removeExistingProductImage(key = "") {
+    const imageIndex = currentProductImages.findIndex((image, index) => getExistingImageKey(image, index) === key);
+    if (imageIndex < 0) return;
+    const [removedImage] = currentProductImages.splice(imageIndex, 1);
+    rememberRemovedProductImage(removedImage);
+    chooseAvailableMainImage();
+    renderProductImagePicker();
+  }
+
+  function removeNewProductImage(index = -1) {
+    if (index < 0 || index >= pendingProductImageFiles.length) return;
+    const nextFiles = pendingProductImageFiles.filter((_, fileIndex) => fileIndex !== index);
+    syncProductImageInputFiles(nextFiles);
+    chooseAvailableMainImage();
+    renderProductImagePicker();
+  }
+
   function renderProductImagePicker() {
     if (!productImageListEl) return;
     clearProductImagePreviews();
@@ -204,6 +255,7 @@
       return `
         <div class="inventory-image-card">
           <img src="${escapeHtml(image.image_url)}" alt="${escapeHtml(image.alt_text || "Saved product photo")}" />
+          <button class="inventory-image-remove" type="button" data-product-remove-existing-image="${escapeHtml(key)}">Remove photo</button>
           <label class="inventory-image-main">
             <input type="checkbox" value="${escapeHtml(key)}" data-product-main-image ${selectedMainImageKey === key ? "checked" : ""} />
             <span>Main photo</span>
@@ -219,6 +271,7 @@
       return `
         <div class="inventory-image-card">
           <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(file.name || "New product photo")}" />
+          <button class="inventory-image-remove" type="button" data-product-remove-new-image="${index}">Remove photo</button>
           <label class="inventory-image-main">
             <input type="checkbox" value="${escapeHtml(key)}" data-product-main-image ${selectedMainImageKey === key ? "checked" : ""} />
             <span>Main photo</span>
@@ -1237,37 +1290,67 @@
     return { imageUrl: data.publicUrl, storagePath };
   }
 
-  async function updateInventoryImageUrl(inventoryItemId, imageUrl) {
-    if (!inventoryItemId || !imageUrl) return;
+  async function updateInventoryImageUrl(inventoryItemId, imageUrl, { allowEmpty = false } = {}) {
+    if (!inventoryItemId || (!imageUrl && !allowEmpty)) return;
+    const storedImageUrl = imageUrl || null;
     let result = await client
       .from("inventory_items")
-      .update({ image_url: imageUrl, image: imageUrl })
+      .update({ image_url: storedImageUrl, image: storedImageUrl })
       .eq("id", inventoryItemId);
 
     if (result.error && /image_url/i.test(result.error.message || "")) {
       result = await client
         .from("inventory_items")
-        .update({ image: imageUrl })
+        .update({ image: storedImageUrl })
         .eq("id", inventoryItemId);
     }
 
     if (result.error) throw new Error(`Product image URL could not be saved: ${result.error.message}`);
   }
 
+  async function deleteRemovedProductImages() {
+    if (!removedProductImages.length) return;
+    const removedIds = [...new Set(removedProductImages.map((image) => image.id).filter(Boolean))];
+    const storagePaths = [...new Set(removedProductImages.map((image) => image.storage_path).filter(Boolean))];
+
+    if (removedIds.length) {
+      const { error } = await client
+        .from("inventory_item_images")
+        .delete()
+        .in("id", removedIds);
+      if (error) throw new Error(`Could not delete product photo: ${error.message}`);
+    }
+
+    if (storagePaths.length) {
+      const { error } = await client.storage
+        .from(PRODUCT_IMAGE_BUCKET)
+        .remove(storagePaths);
+      if (error) console.warn("Product photo was removed from the gallery, but storage cleanup failed.", error.message);
+    }
+  }
+
   async function saveProductImageSelection(inventoryItemId, imageFiles = []) {
     if (!inventoryItemId) return "";
     const hasExistingImages = currentProductImages.length > 0;
-    if (!hasExistingImages && !imageFiles.length) return "";
+    const hasRemovedImages = removedProductImages.length > 0;
+    if (!hasExistingImages && !imageFiles.length && !hasRemovedImages) return "";
 
     const galleryReady = await inventoryImageGalleryIsReady();
     if (!galleryReady) {
       if (imageFiles.length > 1) {
         throw new Error("Run the product gallery SQL migration before saving multiple photos.");
       }
-      if (!imageFiles.length) return "";
+      if (!imageFiles.length) {
+        if (hasRemovedImages) {
+          await updateInventoryImageUrl(inventoryItemId, "", { allowEmpty: true });
+          removedProductImages = [];
+        }
+        return "";
+      }
       setMessage(productMessageEl, "Optimising and uploading product photo...", "neutral");
       const uploaded = await uploadProductImage(imageFiles[0], inventoryItemId);
       await updateInventoryImageUrl(inventoryItemId, uploaded.imageUrl);
+      removedProductImages = [];
       return uploaded.imageUrl;
     }
 
@@ -1301,6 +1384,8 @@
           : null;
       }).filter(Boolean);
     }
+
+    await deleteRemovedProductImages();
 
     const selectedExisting = currentProductImages.find((image, index) => getExistingImageKey(image, index) === selectedMainImageKey);
     const selectedInserted = insertedImages.find((image) => image.key === selectedMainImageKey);
@@ -1341,8 +1426,16 @@
       }
 
       await updateInventoryImageUrl(inventoryItemId, mainImageUrl);
+    } else if (hasRemovedImages) {
+      const resetResult = await client
+        .from("inventory_item_images")
+        .update({ is_main: false })
+        .eq("inventory_item_id", inventoryItemId);
+      if (resetResult.error) throw new Error(`Could not clear product gallery main photo: ${resetResult.error.message}`);
+      await updateInventoryImageUrl(inventoryItemId, "", { allowEmpty: true });
     }
 
+    removedProductImages = [];
     return mainImageUrl;
   }
 
@@ -1433,6 +1526,8 @@
     const imageWarning = existingImage.startsWith("data:")
       ? "Replace this image to optimise loading."
       : "";
+    syncProductImageInputFiles([]);
+    removedProductImages = [];
     currentProductImages = getItemImageRecords(item || {});
     selectedMainImageKey = currentProductImages.find((image) => image.is_main)
       ? getExistingImageKey(currentProductImages.find((image) => image.is_main), currentProductImages.findIndex((image) => image.is_main))
@@ -1446,6 +1541,8 @@
     if (!productFormEl) return;
     productFormEl.reset();
     currentProductImages = [];
+    syncProductImageInputFiles([]);
+    removedProductImages = [];
     selectedMainImageKey = "";
     renderProductImagePicker();
     setMessage(productMessageEl, "");
@@ -2043,10 +2140,21 @@
     }
   });
   productImageInputEl?.addEventListener("change", () => {
-    const files = getProductImageFiles();
-    const availableKeys = getAvailableMainImageKeys(files);
-    if (!availableKeys.includes(selectedMainImageKey)) selectedMainImageKey = availableKeys[0] || "";
+    syncProductImageInputFiles(Array.from(productImageInputEl.files || []));
+    chooseAvailableMainImage();
     renderProductImagePicker();
+  });
+  productImageListEl?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const existingRemoveButton = target.closest("[data-product-remove-existing-image]");
+    if (existingRemoveButton) {
+      removeExistingProductImage(existingRemoveButton.dataset.productRemoveExistingImage || "");
+      return;
+    }
+
+    const newRemoveButton = target.closest("[data-product-remove-new-image]");
+    if (newRemoveButton) removeNewProductImage(Number(newRemoveButton.dataset.productRemoveNewImage));
   });
   productImageListEl?.addEventListener("change", (event) => {
     const checkbox = event.target.closest("[data-product-main-image]");
