@@ -19,6 +19,7 @@
   const productFormTitleEl = document.querySelector("[data-inventory-form-title]");
   const productCategoryEl = document.querySelector("[data-inventory-form-category]");
   const productMessageEl = document.querySelector("[data-inventory-product-message]");
+  const productGstMessageEl = document.querySelector("[data-inventory-gst-message]");
   const inventoryListMessageEl = document.querySelector("[data-inventory-list-message]");
   const cancelEditBtnEl = document.querySelector("[data-inventory-cancel-edit]");
   const invoiceFormEl = document.querySelector("[data-invoice-upload-form]");
@@ -97,6 +98,39 @@
 
   function money(value) {
     return `$${Number(value || 0).toFixed(2)}`;
+  }
+
+  function getInventoryGstRate() {
+    const globalRate = Number(window.KimsShopTaxSettings?.tax_rate_percent);
+    if (Number.isFinite(globalRate) && globalRate >= 0) return globalRate;
+    const settingsRate = Number(document.querySelector('[data-shop-checkout-settings-form] [name="tax_rate_percent"]')?.value);
+    if (Number.isFinite(settingsRate) && settingsRate >= 0) return settingsRate;
+    return 15;
+  }
+
+  function handleInventoryGstAction(action) {
+    const sellPriceEl = productFormEl?.elements?.sell_price;
+    if (!sellPriceEl) return;
+    const sellPrice = Number(sellPriceEl.value);
+    if (!Number.isFinite(sellPrice) || sellPrice <= 0) {
+      setMessage(productGstMessageEl, "Enter a sell price first.", "error");
+      return;
+    }
+
+    const gstRate = getInventoryGstRate();
+    const gstMultiplier = 1 + (gstRate / 100);
+    if (action === "add") {
+      const updatedPrice = sellPrice * gstMultiplier;
+      sellPriceEl.value = updatedPrice.toFixed(2);
+      setMessage(productGstMessageEl, `${money(sellPrice)} plus ${gstRate}% GST = ${money(updatedPrice)}.`, "success");
+      return;
+    }
+
+    if (action === "inclusive") {
+      const exGst = gstMultiplier ? sellPrice / gstMultiplier : sellPrice;
+      const gstPortion = sellPrice - exGst;
+      setMessage(productGstMessageEl, `${money(sellPrice)} GST inclusive: ${money(exGst)} ex GST + ${money(gstPortion)} GST.`, "success");
+    }
   }
 
   function formatDate(value) {
@@ -1534,6 +1568,7 @@
       : "";
     renderProductImagePicker();
     setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
+    setMessage(productGstMessageEl, "");
     syncInventoryOptionControls();
   }
 
@@ -1546,6 +1581,7 @@
     selectedMainImageKey = "";
     renderProductImagePicker();
     setMessage(productMessageEl, "");
+    setMessage(productGstMessageEl, "");
     setInventoryTab("stock-list");
   }
 
@@ -2134,6 +2170,13 @@
   });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
+  productFormEl?.addEventListener("click", (event) => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const button = target.closest("[data-inventory-gst-action]");
+    if (!button) return;
+    handleInventoryGstAction(button.dataset.inventoryGstAction);
+  });
   productFormEl?.addEventListener("change", (event) => {
     if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
       syncInventoryOptionControls();

@@ -200,6 +200,10 @@
 .inventory-form-section input,
 .inventory-form-section select,
 .inventory-form-section textarea { font-weight: 600; }
+.inventory-gst-helper { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; }
+.inventory-gst-helper .field-helper { flex-basis: 100%; }
+.inventory-gst-helper .btn { min-height: 38px; padding: 0.55rem 0.8rem; }
+.inventory-gst-helper .form-message { flex-basis: 100%; margin: 0; }
 .inventory-image-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.7rem; }
 .inventory-image-card { display: grid; gap: 0.45rem; min-width: 0; padding: 0.6rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .inventory-image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #fbfdff; }

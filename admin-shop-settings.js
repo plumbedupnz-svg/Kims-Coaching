@@ -60,6 +60,7 @@
 
   function applySettings(data = {}) {
     const settings = normalizeSettings(data);
+    window.KimsShopTaxSettings = settings;
     formEl.elements.pickup_label.value = settings.pickup_label;
     formEl.elements.pickup_instructions.value = settings.pickup_instructions || "";
     formEl.elements.local_delivery_enabled.checked = settings.local_delivery_enabled !== false;
