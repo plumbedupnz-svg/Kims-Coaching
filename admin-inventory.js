@@ -1365,7 +1365,7 @@
         storage_path: uploaded.storagePath,
         alt_text: file.name || "",
         sort_order: currentProductImages.length + index,
-        is_main: selectedMainImageKey === getNewImageKey(index)
+        is_main: false
       });
     }
 
