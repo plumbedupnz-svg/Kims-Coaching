@@ -109,32 +109,6 @@
     return 15;
   }
 
-  function handleInventoryGstAction(action) {
-    const sellPriceEl = productFormEl?.elements?.sell_price;
-    if (!sellPriceEl) return;
-    const sellPrice = Number(sellPriceEl.value);
-    if (!Number.isFinite(sellPrice) || sellPrice <= 0) {
-      setMessage(productGstMessageEl, "Enter a sell price first.", "error");
-      return;
-    }
-
-    const gstRate = getInventoryGstRate();
-    const gstMultiplier = 1 + (gstRate / 100);
-    if (action === "add") {
-      const updatedPrice = sellPrice * gstMultiplier;
-      sellPriceEl.value = updatedPrice.toFixed(2);
-      updateProductDiscountPreview();
-      setMessage(productGstMessageEl, `${money(sellPrice)} plus ${gstRate}% GST = ${money(updatedPrice)}.`, "success");
-      return;
-    }
-
-    if (action === "inclusive") {
-      const exGst = gstMultiplier ? sellPrice / gstMultiplier : sellPrice;
-      const gstPortion = sellPrice - exGst;
-      setMessage(productGstMessageEl, `${money(sellPrice)} GST inclusive: ${money(exGst)} ex GST + ${money(gstPortion)} GST.`, "success");
-    }
-  }
-
   function getDiscountedPrice(price = 0, discount = 0) {
     const base = Number(price || 0);
     const discountPercent = Number(discount || 0);
@@ -143,9 +117,72 @@
     return Math.max(0, base * (1 - discountPercent / 100));
   }
 
+  function getInventoryPriceLabel(fieldName = "") {
+    return fieldName === "cost_price" ? "Cost price" : "Sale price";
+  }
+
+  function getInventoryPriceInput(fieldName = "") {
+    return productFormEl?.elements?.[fieldName] || null;
+  }
+
+  function getInventoryGstMode(fieldName = "") {
+    return productFormEl?.elements?.[`${fieldName}_gst_mode`]?.value === "exclusive" ? "exclusive" : "inclusive";
+  }
+
+  function getInventoryGstPreviewEl(fieldName = "") {
+    return productFormEl?.querySelector(`[data-inventory-gst-preview="${fieldName}"]`);
+  }
+
+  function getInventoryGstPrice(fieldName = "") {
+    const input = getInventoryPriceInput(fieldName);
+    const amount = Number(input?.value || 0);
+    const gstRate = getInventoryGstRate();
+    const gstMultiplier = 1 + (gstRate / 100);
+    const mode = getInventoryGstMode(fieldName);
+    if (!Number.isFinite(amount) || amount < 0) {
+      return { amount, mode, gstRate, exGst: 0, gstAmount: 0, savePrice: 0, error: `${getInventoryPriceLabel(fieldName)} must be 0 or more.` };
+    }
+    if (mode === "exclusive") {
+      const savePrice = amount * gstMultiplier;
+      return { amount, mode, gstRate, exGst: amount, gstAmount: savePrice - amount, savePrice };
+    }
+    const exGst = gstMultiplier ? amount / gstMultiplier : amount;
+    return { amount, mode, gstRate, exGst, gstAmount: amount - exGst, savePrice: amount };
+  }
+
+  function updateInventoryGstPreview(fieldName = "") {
+    const previewEl = getInventoryGstPreviewEl(fieldName);
+    if (!previewEl) return;
+    const calculation = getInventoryGstPrice(fieldName);
+    const label = getInventoryPriceLabel(fieldName);
+    if (calculation.error) {
+      previewEl.textContent = calculation.error;
+      previewEl.dataset.tone = "error";
+      return;
+    }
+
+    previewEl.dataset.tone = "";
+    if (calculation.amount <= 0) {
+      previewEl.textContent = `${label} will save as entered.`;
+      return;
+    }
+
+    if (calculation.mode === "exclusive") {
+      previewEl.textContent = `${label} excludes GST: ${money(calculation.exGst)} + ${money(calculation.gstAmount)} GST = ${money(calculation.savePrice)} saved.`;
+      return;
+    }
+
+    previewEl.textContent = `${label} includes GST: ${money(calculation.exGst)} ex GST + ${money(calculation.gstAmount)} GST = ${money(calculation.savePrice)} saved.`;
+  }
+
+  function updateInventoryGstPreviews() {
+    updateInventoryGstPreview("cost_price");
+    updateInventoryGstPreview("sell_price");
+  }
+
   function updateProductDiscountPreview() {
     if (!productDiscountPreviewEl || !productFormEl) return;
-    const sellPrice = Number(productFormEl.elements?.sell_price?.value || 0);
+    const sellPrice = getInventoryGstPrice("sell_price").savePrice;
     const discount = Number(productFormEl.elements?.discount?.value || 0);
     if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
       productDiscountPreviewEl.textContent = "Enter a discount from 0 to 100%.";
@@ -1598,6 +1635,8 @@
     fields.description.value = item?.description || "";
     fields.cost_price.value = Number(item?.cost_price || 0).toFixed(2);
     fields.sell_price.value = Number(item?.sell_price || 0).toFixed(2);
+    if (fields.cost_price_gst_mode) fields.cost_price_gst_mode.value = "inclusive";
+    if (fields.sell_price_gst_mode) fields.sell_price_gst_mode.value = "inclusive";
     if (fields.discount) fields.discount.value = Number(item?.discount || 0).toFixed(2);
     fields.quantity_on_hand.value = Number(item?.quantity_on_hand || 0);
     fields.low_stock_threshold.value = Number(item?.low_stock_threshold ?? 2);
@@ -1620,6 +1659,7 @@
     renderProductImagePicker();
     setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
     setMessage(productGstMessageEl, "");
+    updateInventoryGstPreviews();
     updateProductDiscountPreview();
     syncInventoryOptionControls();
   }
@@ -1808,6 +1848,12 @@
     }
 
     const category = getCategoryById(formData.get("category"));
+    const costPriceCalculation = getInventoryGstPrice("cost_price");
+    const sellPriceCalculation = getInventoryGstPrice("sell_price");
+    if (costPriceCalculation.error || sellPriceCalculation.error) {
+      setMessage(productMessageEl, costPriceCalculation.error || sellPriceCalculation.error, "error");
+      return;
+    }
 
     const payload = {
       p_inventory_item_id: formData.get("inventory_item_id") || null,
@@ -1817,8 +1863,8 @@
       p_category_id: category?.id || null,
       p_category: category?.name || "Other",
       p_description: formData.get("description"),
-      p_cost_price: Number(formData.get("cost_price") || 0),
-      p_sell_price: Number(formData.get("sell_price") || 0),
+      p_cost_price: Number(costPriceCalculation.savePrice || 0),
+      p_sell_price: Number(sellPriceCalculation.savePrice || 0),
       p_discount: Number(formData.get("discount") || 0),
       p_quantity_on_hand: Number(formData.get("quantity_on_hand") || 0),
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
@@ -2240,19 +2286,17 @@
   });
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
-  productFormEl?.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const button = target.closest("[data-inventory-gst-action]");
-    if (!button) return;
-    handleInventoryGstAction(button.dataset.inventoryGstAction);
-  });
   productFormEl?.addEventListener("change", (event) => {
     if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
       syncInventoryOptionControls();
     }
+    if (event.target.matches("[data-inventory-gst-mode]")) {
+      updateInventoryGstPreviews();
+      updateProductDiscountPreview();
+    }
   });
   productFormEl?.addEventListener("input", (event) => {
+    if (event.target.matches('[name="cost_price"], [name="sell_price"]')) updateInventoryGstPreviews();
     if (event.target.matches('[name="sell_price"], [name="discount"]')) updateProductDiscountPreview();
   });
   productImageInputEl?.addEventListener("change", () => {

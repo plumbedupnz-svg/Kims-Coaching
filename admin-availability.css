@@ -200,6 +200,8 @@
 .inventory-form-section input,
 .inventory-form-section select,
 .inventory-form-section textarea { font-weight: 600; }
+.inventory-gst-field { display: grid; gap: 0.35rem; }
+.inventory-gst-field select { min-height: 38px; padding: 0.45rem 0.6rem; font-size: 0.9rem; }
 .inventory-gst-helper { display: flex; flex-wrap: wrap; gap: 0.55rem; align-items: center; }
 .inventory-gst-helper .field-helper { flex-basis: 100%; }
 .inventory-gst-helper .btn { min-height: 38px; padding: 0.55rem 0.8rem; }
@@ -214,6 +216,7 @@
 .inventory-image-main { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; font-weight: 900; }
 .inventory-image-main input { width: 18px; height: 18px; margin: 0; }
 .field-helper { color: var(--muted); font-size: 0.82rem; font-weight: 500; line-height: 1.35; }
+.field-helper[data-tone="error"] { color: #b42318; }
 .inventory-table { display: grid; gap: 0; overflow: visible; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .inventory-table-row { position: relative; display: grid; grid-template-columns: minmax(120px, 1.25fr) minmax(64px, 0.5fr) minmax(78px, 0.65fr) minmax(76px, 0.62fr) minmax(48px, 0.35fr) minmax(86px, 0.58fr) minmax(86px, 0.58fr) minmax(70px, 0.5fr) minmax(70px, 0.5fr) minmax(86px, 0.58fr) 42px; gap: 0.35rem; align-items: center; min-width: 1120px; padding: 0.38rem 0.45rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: #fff; font-size: 14px; line-height: 1.2; }
 .inventory-table-row:nth-child(odd):not(.inventory-table-head) { background: #f8fafc; }

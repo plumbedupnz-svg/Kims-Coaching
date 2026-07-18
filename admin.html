@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css?v=20260718-product-gallery" />
-    <link rel="stylesheet" href="admin-availability.css?v=20260718-inventory-menu-fix" />
+    <link rel="stylesheet" href="admin-availability.css?v=20260718-price-gst-basis" />
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -409,20 +409,29 @@
                       <legend>Pricing</legend>
                       <label>Cost price
                         <input name="cost_price" type="number" step="0.01" min="0" placeholder="0.00" />
+                        <span class="inventory-gst-field">
+                          <select name="cost_price_gst_mode" data-inventory-gst-mode="cost_price" aria-label="Cost price GST basis">
+                            <option value="inclusive">Cost includes GST</option>
+                            <option value="exclusive">Cost excludes GST</option>
+                          </select>
+                          <span class="field-helper" data-inventory-gst-preview="cost_price">Cost price will save as entered.</span>
+                        </span>
                       </label>
                       <label>Sell price
                         <input name="sell_price" type="number" step="0.01" min="0" placeholder="0.00" />
+                        <span class="inventory-gst-field">
+                          <select name="sell_price_gst_mode" data-inventory-gst-mode="sell_price" aria-label="Sell price GST basis">
+                            <option value="inclusive">Sale price includes GST</option>
+                            <option value="exclusive">Sale price excludes GST</option>
+                          </select>
+                          <span class="field-helper" data-inventory-gst-preview="sell_price">Sale price will save as entered.</span>
+                        </span>
                       </label>
                       <label>Discount %
                         <input name="discount" type="number" step="0.01" min="0" max="100" placeholder="0.00" value="0" />
                         <span class="field-helper" data-inventory-discount-preview>No product discount applied.</span>
                       </label>
-                      <div class="inventory-field-wide inventory-gst-helper" aria-label="GST price helper">
-                        <span class="field-helper">GST price helper</span>
-                        <button class="btn btn-secondary" type="button" data-inventory-gst-action="add">Add GST</button>
-                        <button class="btn btn-secondary" type="button" data-inventory-gst-action="inclusive">GST inclusive</button>
-                        <p class="form-message" data-inventory-gst-message></p>
-                      </div>
+                      <p class="form-message inventory-field-wide" data-inventory-gst-message></p>
                     </fieldset>
 
                     <fieldset class="inventory-form-section">
@@ -973,7 +982,7 @@
     <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260718-inventory-discount"></script>
+    <script src="admin-inventory.js?v=20260718-price-gst-basis"></script>
     <script src="admin-availability-state.js?v=20260702-junior-times"></script>
     <script src="admin-availability.js?v=20260626-slot-defaults"></script>
   </body>
