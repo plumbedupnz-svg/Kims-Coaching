@@ -20,6 +20,7 @@
   const productCategoryEl = document.querySelector("[data-inventory-form-category]");
   const productMessageEl = document.querySelector("[data-inventory-product-message]");
   const productGstMessageEl = document.querySelector("[data-inventory-gst-message]");
+  const productDiscountPreviewEl = document.querySelector("[data-inventory-discount-preview]");
   const inventoryListMessageEl = document.querySelector("[data-inventory-list-message]");
   const cancelEditBtnEl = document.querySelector("[data-inventory-cancel-edit]");
   const invoiceFormEl = document.querySelector("[data-invoice-upload-form]");
@@ -122,6 +123,7 @@
     if (action === "add") {
       const updatedPrice = sellPrice * gstMultiplier;
       sellPriceEl.value = updatedPrice.toFixed(2);
+      updateProductDiscountPreview();
       setMessage(productGstMessageEl, `${money(sellPrice)} plus ${gstRate}% GST = ${money(updatedPrice)}.`, "success");
       return;
     }
@@ -131,6 +133,33 @@
       const gstPortion = sellPrice - exGst;
       setMessage(productGstMessageEl, `${money(sellPrice)} GST inclusive: ${money(exGst)} ex GST + ${money(gstPortion)} GST.`, "success");
     }
+  }
+
+  function getDiscountedPrice(price = 0, discount = 0) {
+    const base = Number(price || 0);
+    const discountPercent = Number(discount || 0);
+    if (!Number.isFinite(base) || base <= 0) return 0;
+    if (!Number.isFinite(discountPercent) || discountPercent <= 0) return base;
+    return Math.max(0, base * (1 - discountPercent / 100));
+  }
+
+  function updateProductDiscountPreview() {
+    if (!productDiscountPreviewEl || !productFormEl) return;
+    const sellPrice = Number(productFormEl.elements?.sell_price?.value || 0);
+    const discount = Number(productFormEl.elements?.discount?.value || 0);
+    if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+      productDiscountPreviewEl.textContent = "Enter a discount from 0 to 100%.";
+      productDiscountPreviewEl.dataset.tone = "error";
+      return;
+    }
+
+    productDiscountPreviewEl.dataset.tone = "";
+    if (!Number.isFinite(sellPrice) || sellPrice <= 0 || discount <= 0) {
+      productDiscountPreviewEl.textContent = "No product discount applied.";
+      return;
+    }
+
+    productDiscountPreviewEl.textContent = `${discount.toFixed(2)}% off: shop price ${money(getDiscountedPrice(sellPrice, discount))}.`;
   }
 
   function formatDate(value) {
@@ -381,6 +410,7 @@
       cost_price: Number(item.cost_price || 0),
       purchase_price: Number(item.purchase_price ?? item.cost_price ?? 0),
       sell_price: Number(item.sell_price || item.price || 0),
+      discount: Number(item.discount || 0),
       low_stock_threshold: Number(item.low_stock_threshold ?? 2),
       need_order_threshold: Number(item.need_order_threshold ?? item.reorder_threshold ?? 0),
       status: item.status || "out_of_stock",
@@ -447,7 +477,7 @@
       name: item.product_name || item.name || "Inventory item",
       slug: item.slug || "",
       price: Number(item.sell_price || 0),
-      discount: 0,
+      discount: Number(item.discount || 0),
       category: getItemCategory(item),
       category_id: item.category_id || "",
       description: item.description || item.full_description || item.short_description || "",
@@ -1568,6 +1598,7 @@
     fields.description.value = item?.description || "";
     fields.cost_price.value = Number(item?.cost_price || 0).toFixed(2);
     fields.sell_price.value = Number(item?.sell_price || 0).toFixed(2);
+    if (fields.discount) fields.discount.value = Number(item?.discount || 0).toFixed(2);
     fields.quantity_on_hand.value = Number(item?.quantity_on_hand || 0);
     fields.low_stock_threshold.value = Number(item?.low_stock_threshold ?? 2);
     fields.need_order_threshold.value = Number(item?.need_order_threshold ?? 0);
@@ -1589,6 +1620,7 @@
     renderProductImagePicker();
     setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
     setMessage(productGstMessageEl, "");
+    updateProductDiscountPreview();
     syncInventoryOptionControls();
   }
 
@@ -1787,6 +1819,7 @@
       p_description: formData.get("description"),
       p_cost_price: Number(formData.get("cost_price") || 0),
       p_sell_price: Number(formData.get("sell_price") || 0),
+      p_discount: Number(formData.get("discount") || 0),
       p_quantity_on_hand: Number(formData.get("quantity_on_hand") || 0),
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
       p_need_order_threshold: Number(formData.get("need_order_threshold") || 0),
@@ -1800,7 +1833,23 @@
       p_slug: null
     };
 
-    const { data: savedItem, error } = await client.rpc("admin_save_inventory_item", payload);
+    if (!Number.isFinite(payload.p_discount) || payload.p_discount < 0 || payload.p_discount > 100) {
+      setMessage(productMessageEl, "Discount must be between 0 and 100%.", "error");
+      return;
+    }
+
+    let discountFallbackWarning = "";
+    let { data: savedItem, error } = await client.rpc("admin_save_inventory_item", payload);
+    if (error && /p_discount|function public\.admin_save_inventory_item|Could not find the function/i.test(error.message || "")) {
+      const fallbackPayload = { ...payload };
+      delete fallbackPayload.p_discount;
+      const fallbackResult = await client.rpc("admin_save_inventory_item", fallbackPayload);
+      savedItem = fallbackResult.data;
+      error = fallbackResult.error;
+      if (!error && payload.p_discount > 0) {
+        discountFallbackWarning = " Item saved, but discount was not saved. Run the inventory discount SQL migration, then edit this item and save again.";
+      }
+    }
     if (error) {
       setMessage(productMessageEl, error.message, "error");
       return;
@@ -1819,8 +1868,8 @@
       : `Inventory saved. Public product${publicProductId ? ` ${publicProductId}` : ""} hidden.`;
     hideProductForm();
     await loadInventory();
-    setMessage(productMessageEl, publishMessage, "success");
-    setMessage(inventoryListMessageEl, publishMessage, "success");
+    setMessage(productMessageEl, `${publishMessage}${discountFallbackWarning}`, discountFallbackWarning ? "warning" : "success");
+    setMessage(inventoryListMessageEl, `${publishMessage}${discountFallbackWarning}`, discountFallbackWarning ? "warning" : "success");
   }
 
   async function uploadInvoice(event) {
@@ -2202,6 +2251,9 @@
     if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
       syncInventoryOptionControls();
     }
+  });
+  productFormEl?.addEventListener("input", (event) => {
+    if (event.target.matches('[name="sell_price"], [name="discount"]')) updateProductDiscountPreview();
   });
   productImageInputEl?.addEventListener("change", () => {
     syncProductImageInputFiles(Array.from(productImageInputEl.files || []));

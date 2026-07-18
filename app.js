@@ -159,8 +159,10 @@ let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
-const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_BASE_SELECT},inventory_item_images(id,image_url,sort_order,is_main)`;
+const PUBLIC_SHOP_DISCOUNT_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,discount,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
+const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_DISCOUNT_BASE_SELECT},inventory_item_images(id,image_url,sort_order,is_main)`;
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
+const OPTIONAL_PUBLIC_SHOP_COLUMN_ERROR = /inventory_item_images|discount|relationship|schema cache|does not exist|column|PGRST|42P01|42703/i;
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
 const ADMIN_PRODUCTS_SELECT = "id,name,slug,short_description,category,category_id,description,price,purchase_price,cost_price,discount,image_url,is_active,visible_in_shop,fulfilment_type,inventory_item_id,quantity_on_hand,stock_status,archived_at,created_at,updated_at";
@@ -511,7 +513,10 @@ async function fetchPublicInventoryProductsRest() {
     order: "product_name.asc"
   };
   let inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, shopQueryParams);
-  if (inventoryResult.error && /inventory_item_images|relationship|schema cache|does not exist|PGRST|42P01/i.test(inventoryResult.error.message || "")) {
+  if (inventoryResult.error && OPTIONAL_PUBLIC_SHOP_COLUMN_ERROR.test(inventoryResult.error.message || "")) {
+    inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_DISCOUNT_BASE_SELECT, shopQueryParams);
+  }
+  if (inventoryResult.error && OPTIONAL_PUBLIC_SHOP_COLUMN_ERROR.test(inventoryResult.error.message || "")) {
     inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_BASE_SELECT, shopQueryParams);
   }
 
