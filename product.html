@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="styles.css?v=20260718-product-gallery" />
-    <link rel="stylesheet" href="layout-option-2.css" />
+    <link rel="stylesheet" href="layout-option-2.css?v=20260718-shop-card-size" />
   </head>
   <body>
     <header class="site-header">
@@ -55,7 +55,7 @@
           <aside class="cart-summary" id="checkout">
             <h3>Order Summary</h3>
             <div class="summary-row"><span>Subtotal</span><strong id="subtotal">$0.00</strong></div>
-            <div class="summary-row"><span>Estimated Tax (10%)</span><strong id="tax">$0.00</strong></div>
+            <div class="summary-row" data-tax-row hidden><span data-tax-label>Tax</span><strong id="tax">$0.00</strong></div>
             <div class="summary-row"><span>Promo Discount</span><strong id="promo-discount">-$0.00</strong></div>
             <div class="summary-row"><span>Shipping / pickup</span><strong id="shipping">$0.00</strong></div>
             <div class="summary-row total"><span>Total</span><strong id="total">$0.00</strong></div>
@@ -108,6 +108,8 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="email-service.js"></script>
-    <script src="app.js?v=20260718-product-gallery"></script>
+    <script src="app.js?v=20260718-product-detail-fix"></script>
     <script src="shop-order-emails.js"></script>
-    <scrip
+    <script src="product-detail.js?v=20260718-product-detail-fix"></script>
+  </body>
+</html>

@@ -220,6 +220,8 @@ textarea,
   display: flex;
   flex-direction: column;
   height: 100%;
+  max-width: 260px;
+  width: 100%;
 }
 
 .shop-categories .product-description-wrap,
@@ -397,6 +399,11 @@ textarea,
   .three-col,
   .route-card-grid {
     grid-template-columns: 1fr;
+  }
+
+  .shop-categories .product-card,
+  .category-section .product-card {
+    max-width: none;
   }
 
   .account-copy {
