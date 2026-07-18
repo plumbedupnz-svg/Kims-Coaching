@@ -10,6 +10,7 @@
     { "source": "/payment-cancelled", "destination": "/payment-cancelled.html" },
     { "source": "/email-verified", "destination": "/email-verified.html" },
     { "source": "/shop", "destination": "/shop.html" },
+    { "source": "/login", "destination": "/account.html" },
     { "source": "/account", "destination": "/account.html" },
     { "source": "/admin", "destination": "/admin.html" },
     { "source": "/owner", "destination": "/owner.html" }
