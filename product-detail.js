@@ -22,11 +22,34 @@
       </div>`;
   }
 
+  function getProductImages(product) {
+    const urls = [
+      ...(Array.isArray(product.product_images) ? product.product_images.map((image) => image.image_url || image.url || image.image) : []),
+      ...(Array.isArray(product.images) ? product.images : []),
+      product.image
+    ]
+      .map((url) => String(url || "").trim())
+      .filter(Boolean);
+    return [...new Set(urls)];
+  }
+
   function getImageMarkup(product) {
-    if (product.image) {
-      return `<img src="${escapeHtml(product.image)}" alt="${escapeHtml(product.name)}" class="product-detail-image" decoding="async" fetchpriority="high" />`;
-    }
-    return '<div class="product-detail-image product-image-placeholder">No image</div>';
+    const images = getProductImages(product);
+    if (!images.length) return '<div class="product-detail-image product-image-placeholder">No image</div>';
+    const thumbnails = images.length > 1
+      ? `<div class="product-detail-thumbs" aria-label="Product photos">
+          ${images.map((image, index) => `
+            <button class="product-detail-thumb ${index === 0 ? "active" : ""}" type="button" data-product-detail-thumb="${escapeHtml(image)}" aria-label="Show photo ${index + 1}">
+              <img src="${escapeHtml(image)}" alt="" />
+            </button>
+          `).join("")}
+        </div>`
+      : "";
+    return `
+      <div class="product-detail-gallery">
+        <img src="${escapeHtml(images[0])}" alt="${escapeHtml(product.name)}" class="product-detail-image" decoding="async" fetchpriority="high" data-product-detail-main-image />
+        ${thumbnails}
+      </div>`;
   }
 
   function renderProduct(product) {
@@ -63,34 +86,4 @@
       </article>`;
 
     detailEl.querySelector("[data-detail-add-to-cart]")?.addEventListener("click", () => {
-      const quantity = Math.max(1, Number(detailEl.querySelector("#product-detail-quantity")?.value || 1));
-      const added = shop.addToCart(product, quantity);
-      const message = detailEl.querySelector("[data-detail-message]");
-      if (message && added) message.textContent = `${quantity} added to your cart.`;
-    });
-  }
-
-  async function initProductDetail() {
-    if (!requestedSlug) {
-      renderNotFound();
-      return;
-    }
-    try {
-      const shop = window.KimsShop;
-      if (!shop) throw new Error("Shop scripts are not loaded.");
-      const requested = shop.getProductSlug({ slug: requestedSlug });
-      const products = await shop.loadPublicProducts();
-      const product = products.find((item) => shop.getProductSlug(item) === requested);
-      if (!product) {
-        renderNotFound();
-        return;
-      }
-      renderProduct(product);
-    } catch (error) {
-      console.error("Could not load product detail.", error);
-      detailEl.innerHTML = `<p class="empty-cart">Could not load this product: ${escapeHtml(error.message)}</p>`;
-    }
-  }
-
-  initProductDetail();
-})();
+      const quantity = Math.max(1, Number(detailEl.querySelector("#product-detail-quantity")?.value

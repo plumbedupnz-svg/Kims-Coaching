@@ -410,7 +410,13 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .product-detail-description,
 .product-not-found { border: 1px solid var(--border); border-radius: var(--radius); background: #fff; box-shadow: 0 10px 28px rgba(19, 33, 61, 0.06); }
 .product-detail-media { padding: clamp(0.75rem, 2vw, 1.2rem); }
+.product-detail-gallery { display: grid; gap: 0.75rem; }
 .product-detail-image { width: 100%; aspect-ratio: 1 / 1; height: auto; object-fit: contain; border-radius: 12px; background: #fff; }
+.product-detail-thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 0.55rem; }
+.product-detail-thumb { display: grid; place-items: center; aspect-ratio: 1 / 1; min-width: 0; padding: 0.25rem; border: 2px solid var(--border); border-radius: 9px; background: #fff; cursor: pointer; }
+.product-detail-thumb.active,
+.product-detail-thumb:focus-visible { border-color: var(--primary); outline: none; }
+.product-detail-thumb img { width: 100%; height: 100%; object-fit: contain; }
 .product-detail-summary { display: grid; gap: 0.85rem; padding: clamp(1rem, 3vw, 1.5rem); }
 .product-detail-summary h1 { margin: 0; }
 .product-detail-status { margin: 0; color: var(--muted); font-weight: 800; }
@@ -745,20 +751,4 @@ textarea { resize: vertical; min-height: 120px; }
   }
   .nav-links.open { display: flex; }
   .nav-links a, .nav-button { padding: 0.85rem 0; text-align: left; border-bottom: 1px solid rgba(219, 227, 241, 0.7); }
-  .hero, .section { padding: 3.1rem 0; }
-  .about-hero { padding-top: 2.4rem; }
-  .trust-strip, .programme-grid, .three-col, .impact-metrics { grid-template-columns: 1fr; }
-  .hero-actions .btn, .contact-actions .btn { width: 100%; }
-  .email-verified-actions .btn, .email-verified-actions .link-button { width: 100%; }
-  .about-hero::after { display: none; }
-  .kim-photo-placeholder { min-height: 310px; }
-  .rich-copy { padding-left: 1rem; }
-  .shop-toolbar { display: grid; align-items: stretch; }
-  .achievement-item { grid-template-columns: 1fr; }
-  .category-add-row { grid-template-columns: 1fr; }
-  .product-card-actions,
-  .product-detail-actions { grid-template-columns: 1fr; display: grid; }
-  .profile-grid, .player-grid { grid-template-columns: 1fr; }
-  .player-tab-add { margin-left: 0; }
-  .footer-inner { flex-direction: column; justify-content: center; padding: 0.9rem 0; text-align: center; }
-}
+  .hero, .section { pad

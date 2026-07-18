@@ -158,7 +158,8 @@ let adminInventoryLinkItems = [];
 let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
-const PUBLIC_SHOP_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
+const PUBLIC_SHOP_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
+const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_BASE_SELECT},inventory_item_images(id,image_url,sort_order,is_main)`;
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
 const PUBLIC_PRODUCTS_MINIMAL_SELECT = "id,name,description,price,discount,image_url,is_active";
@@ -252,11 +253,54 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function normalizeProductGalleryImages(row = {}) {
+  const inventory = row.inventory_items || {};
+  const nestedImages = Array.isArray(row.inventory_item_images)
+    ? row.inventory_item_images
+    : Array.isArray(row.product_images)
+      ? row.product_images
+      : Array.isArray(inventory.inventory_item_images)
+        ? inventory.inventory_item_images
+        : [];
+  const byUrl = new Map();
+
+  nestedImages.forEach((image, index) => {
+    const imageUrl = getStorableImage(image.image_url || image.image || image.url);
+    if (!imageUrl || byUrl.has(imageUrl)) return;
+    byUrl.set(imageUrl, {
+      id: image.id || "",
+      image_url: imageUrl,
+      sort_order: Number(image.sort_order ?? index),
+      is_main: isTruthy(image.is_main)
+    });
+  });
+
+  const fallbackImage = getStorableImage(row.image_url || inventory.image_url || row.image || inventory.image);
+  if (fallbackImage && !byUrl.has(fallbackImage)) {
+    byUrl.set(fallbackImage, {
+      id: "",
+      image_url: fallbackImage,
+      sort_order: -1,
+      is_main: true
+    });
+  }
+
+  const images = [...byUrl.values()].sort((a, b) => {
+    if (a.is_main !== b.is_main) return a.is_main ? -1 : 1;
+    return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+  });
+  if (images.length && !images.some((image) => image.is_main)) images[0].is_main = true;
+  return images;
+}
+
 function normalizeShopProduct(row) {
   const inventory = row.inventory_items || {};
   const category = row.product_categories?.name || inventory.product_categories?.name || row.category || inventory.category || "Uncategorized";
   const hasInventoryRow = Boolean(inventory.id);
-  const imageUrl = getStorableImage(row.image_url || inventory.image_url || row.image || inventory.image);
+  const galleryImages = normalizeProductGalleryImages(row);
+  const imageUrl = galleryImages.find((image) => image.is_main)?.image_url
+    || galleryImages[0]?.image_url
+    || getStorableImage(row.image_url || inventory.image_url || row.image || inventory.image);
   const fulfilmentType = row.fulfilment_type || (row.inventory_item_id || hasInventoryRow ? "stock" : "order_to_sale");
   return {
     id: row.id,
@@ -273,6 +317,8 @@ function normalizeShopProduct(row) {
     description: row.description || inventory.description || "",
     image: imageUrl,
     image_url: imageUrl,
+    images: galleryImages.map((image) => image.image_url),
+    product_images: galleryImages,
     is_active: row.is_active !== false && inventory.is_active !== false,
     quantity_on_hand: Number(inventory.quantity_on_hand ?? row.quantity_on_hand ?? 0),
     stock_status: inventory.status || row.stock_status || row.status || "out_of_stock",
@@ -303,7 +349,10 @@ function normalizeInventoryShopProduct(row) {
     return normalizeShopProduct(row);
   }
   const inventoryId = row.inventory_item_id || row.id || "";
-  const imageUrl = getStorableImage(row.image_url || row.image);
+  const galleryImages = normalizeProductGalleryImages(row);
+  const imageUrl = galleryImages.find((image) => image.is_main)?.image_url
+    || galleryImages[0]?.image_url
+    || getStorableImage(row.image_url || row.image);
   const trackStock = row.track_stock !== false && !isTruthy(row.is_order_to_sale);
   const isOrderToSale = isTruthy(row.is_order_to_sale) || !trackStock;
   return {
@@ -323,6 +372,8 @@ function normalizeInventoryShopProduct(row) {
     description: row.full_description || row.description || row.short_description || "",
     image: imageUrl,
     image_url: imageUrl,
+    images: galleryImages.map((image) => image.image_url),
+    product_images: galleryImages,
     is_active: !isFalsy(row.is_active),
     quantity_on_hand: Number(row.quantity_on_hand ?? 0),
     stock_status: row.status || row.stock_status || "out_of_stock",
@@ -453,12 +504,16 @@ async function fetchPublicInventoryProductsRest() {
     }
   };
 
-  const inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, {
+  const shopQueryParams = {
     visible_in_shop: "eq.true",
     is_active: "eq.true",
     archived_at: "is.null",
     order: "product_name.asc"
-  });
+  };
+  let inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_SELECT, shopQueryParams);
+  if (inventoryResult.error && /inventory_item_images|relationship|schema cache|does not exist|PGRST|42P01/i.test(inventoryResult.error.message || "")) {
+    inventoryResult = await fetchRestRows("inventory_items", PUBLIC_SHOP_BASE_SELECT, shopQueryParams);
+  }
 
   return {
     data: (inventoryResult.data || []).map((row) => ({ ...row, source_row: "inventory_items" })),

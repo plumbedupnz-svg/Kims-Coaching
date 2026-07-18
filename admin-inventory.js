@@ -39,6 +39,8 @@
   const categoryNameEl = document.querySelector("[data-inventory-category-name]");
   const categoryListEl = document.querySelector("[data-inventory-category-list]");
   const categoryMessageEl = document.querySelector("[data-inventory-category-message]");
+  const productImageInputEl = document.querySelector("[data-inventory-image-input]");
+  const productImageListEl = document.querySelector("[data-inventory-image-list]");
   const PRODUCT_IMAGE_BUCKET = "product-images";
   const PRODUCT_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
   const PRODUCT_IMAGE_MAX_DIMENSION = 1000;
@@ -53,6 +55,10 @@
   let productCategoriesLoading = false;
   let productCategoriesError = "";
   let productCategoriesPromise = null;
+  let inventoryImageGalleryReady = null;
+  let currentProductImages = [];
+  let productImagePreviewUrls = [];
+  let selectedMainImageKey = "";
   let pendingInvoice = null;
   let invoiceReviewItems = [];
   let lastInventoryDebug = {
@@ -104,6 +110,125 @@
 
   function normalizeText(value) {
     return String(value || "").trim().replace(/\s+/g, " ").toLowerCase();
+  }
+
+  function getStorableImageUrl(value = "") {
+    const imageUrl = String(value || "").trim();
+    if (!imageUrl || imageUrl.startsWith("data:")) return "";
+    return /^https?:\/\//i.test(imageUrl) && imageUrl.length <= 2000 ? imageUrl : "";
+  }
+
+  function normalizeInventoryItemImage(image = {}, index = 0) {
+    const imageUrl = getStorableImageUrl(image.image_url || image.image || image.url);
+    if (!imageUrl) return null;
+    return {
+      id: image.id || "",
+      inventory_item_id: image.inventory_item_id || "",
+      image_url: imageUrl,
+      storage_path: image.storage_path || "",
+      alt_text: image.alt_text || "",
+      sort_order: Number(image.sort_order ?? index),
+      is_main: Boolean(image.is_main)
+    };
+  }
+
+  function getExistingImageKey(image = {}, index = 0) {
+    return `existing:${image.id || image.image_url || index}`;
+  }
+
+  function getNewImageKey(index = 0) {
+    return `new:${index}`;
+  }
+
+  function getProductImageFiles() {
+    return Array.from(productImageInputEl?.files || []);
+  }
+
+  function clearProductImagePreviews() {
+    productImagePreviewUrls.forEach((url) => URL.revokeObjectURL(url));
+    productImagePreviewUrls = [];
+  }
+
+  function getItemImageRecords(item = {}) {
+    const galleryImages = Array.isArray(item.product_images)
+      ? item.product_images
+      : Array.isArray(item.inventory_item_images)
+        ? item.inventory_item_images
+        : [];
+    const records = galleryImages
+      .map(normalizeInventoryItemImage)
+      .filter(Boolean)
+      .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0));
+    const mainImageUrl = getStorableImageUrl(item.image_url || item.image);
+    if (mainImageUrl && !records.some((image) => image.image_url === mainImageUrl)) {
+      records.unshift({
+        id: "",
+        inventory_item_id: item.id || "",
+        image_url: mainImageUrl,
+        storage_path: "",
+        alt_text: "",
+        sort_order: -1,
+        is_main: true
+      });
+    }
+    if (!records.some((image) => image.is_main) && records[0]) records[0].is_main = true;
+    return records;
+  }
+
+  function getAvailableMainImageKeys(files = getProductImageFiles()) {
+    return [
+      ...currentProductImages.map(getExistingImageKey),
+      ...files.map((_, index) => getNewImageKey(index))
+    ];
+  }
+
+  function syncMainImageCheckboxes() {
+    productImageListEl?.querySelectorAll("[data-product-main-image]").forEach((checkbox) => {
+      checkbox.checked = checkbox.value === selectedMainImageKey;
+    });
+  }
+
+  function renderProductImagePicker() {
+    if (!productImageListEl) return;
+    clearProductImagePreviews();
+    const files = getProductImageFiles();
+    const availableKeys = getAvailableMainImageKeys(files);
+    if (!availableKeys.includes(selectedMainImageKey)) {
+      selectedMainImageKey = currentProductImages.find((image) => image.is_main)
+        ? getExistingImageKey(currentProductImages.find((image) => image.is_main), currentProductImages.findIndex((image) => image.is_main))
+        : availableKeys[0] || "";
+    }
+
+    const existingCards = currentProductImages.map((image, index) => {
+      const key = getExistingImageKey(image, index);
+      return `
+        <div class="inventory-image-card">
+          <img src="${escapeHtml(image.image_url)}" alt="${escapeHtml(image.alt_text || "Saved product photo")}" />
+          <label class="inventory-image-main">
+            <input type="checkbox" value="${escapeHtml(key)}" data-product-main-image ${selectedMainImageKey === key ? "checked" : ""} />
+            <span>Main photo</span>
+          </label>
+          <small>Saved photo</small>
+        </div>`;
+    });
+
+    const newCards = files.map((file, index) => {
+      const previewUrl = URL.createObjectURL(file);
+      productImagePreviewUrls.push(previewUrl);
+      const key = getNewImageKey(index);
+      return `
+        <div class="inventory-image-card">
+          <img src="${escapeHtml(previewUrl)}" alt="${escapeHtml(file.name || "New product photo")}" />
+          <label class="inventory-image-main">
+            <input type="checkbox" value="${escapeHtml(key)}" data-product-main-image ${selectedMainImageKey === key ? "checked" : ""} />
+            <span>Main photo</span>
+          </label>
+          <small>${escapeHtml(file.name || "New photo")}</small>
+        </div>`;
+    });
+
+    const cards = [...existingCards, ...newCards].join("");
+    productImageListEl.innerHTML = cards || '<p class="helper-text">No product photos selected.</p>';
   }
 
   function getSortedProductCategories(rows = productCategories) {
@@ -178,7 +303,8 @@
       short_description: item.short_description || "",
       is_active: item.is_active !== false,
       image_url: imageUrl,
-      image: imageUrl
+      image: imageUrl,
+      product_images: getItemImageRecords(item)
     };
   }
 
@@ -537,6 +663,58 @@
     }
   }
 
+  function galleryTableMissing(error = {}) {
+    return /inventory_item_images|schema cache|relationship|does not exist|42P01|PGRST/i.test(error.message || "");
+  }
+
+  async function inventoryImageGalleryIsReady() {
+    if (!client) return false;
+    if (inventoryImageGalleryReady !== null) return inventoryImageGalleryReady;
+    const { error } = await client
+      .from("inventory_item_images")
+      .select("id")
+      .limit(1);
+    inventoryImageGalleryReady = !error;
+    if (error && !galleryTableMissing(error)) console.warn("Could not check inventory image gallery table.", error.message);
+    return inventoryImageGalleryReady;
+  }
+
+  async function loadInventoryImages() {
+    if (!client || !inventoryItems.length) return;
+    const itemIds = inventoryItems.map((item) => item.id).filter(Boolean);
+    if (!itemIds.length) return;
+
+    const { data, error } = await client
+      .from("inventory_item_images")
+      .select("id,inventory_item_id,image_url,storage_path,alt_text,sort_order,is_main")
+      .in("inventory_item_id", itemIds)
+      .order("sort_order", { ascending: true });
+
+    if (error) {
+      inventoryImageGalleryReady = false;
+      if (!galleryTableMissing(error)) console.warn("Could not load inventory item images.", error.message);
+      return;
+    }
+
+    inventoryImageGalleryReady = true;
+    const imagesByItem = new Map();
+    (data || []).forEach((row, index) => {
+      const image = normalizeInventoryItemImage(row, index);
+      if (!image) return;
+      const images = imagesByItem.get(row.inventory_item_id) || [];
+      images.push(image);
+      imagesByItem.set(row.inventory_item_id, images);
+    });
+
+    inventoryItems = inventoryItems.map((item) => ({
+      ...item,
+      product_images: getItemImageRecords({
+        ...item,
+        product_images: imagesByItem.get(item.id) || []
+      })
+    }));
+  }
+
   async function saveInventoryCategory(event) {
     event.preventDefault();
     if (!client) {
@@ -667,6 +845,7 @@
       if (item?.id) byId.set(item.id, normalizeInventoryItem(item));
     });
     inventoryItems = Array.from(byId.values());
+    await loadInventoryImages();
     updateInventoryDebug({
       source,
       returnedRows: inventoryItems.length,
@@ -1055,7 +1234,7 @@
 
     const { data } = client.storage.from(PRODUCT_IMAGE_BUCKET).getPublicUrl(storagePath);
     if (!data?.publicUrl) throw new Error("Product image uploaded, but no public URL was returned.");
-    return data.publicUrl;
+    return { imageUrl: data.publicUrl, storagePath };
   }
 
   async function updateInventoryImageUrl(inventoryItemId, imageUrl) {
@@ -1073,6 +1252,98 @@
     }
 
     if (result.error) throw new Error(`Product image URL could not be saved: ${result.error.message}`);
+  }
+
+  async function saveProductImageSelection(inventoryItemId, imageFiles = []) {
+    if (!inventoryItemId) return "";
+    const hasExistingImages = currentProductImages.length > 0;
+    if (!hasExistingImages && !imageFiles.length) return "";
+
+    const galleryReady = await inventoryImageGalleryIsReady();
+    if (!galleryReady) {
+      if (imageFiles.length > 1) {
+        throw new Error("Run the product gallery SQL migration before saving multiple photos.");
+      }
+      if (!imageFiles.length) return "";
+      setMessage(productMessageEl, "Optimising and uploading product photo...", "neutral");
+      const uploaded = await uploadProductImage(imageFiles[0], inventoryItemId);
+      await updateInventoryImageUrl(inventoryItemId, uploaded.imageUrl);
+      return uploaded.imageUrl;
+    }
+
+    const uploadedImages = [];
+    for (const [index, file] of imageFiles.entries()) {
+      setMessage(productMessageEl, `Optimising and uploading product photo ${index + 1} of ${imageFiles.length}...`, "neutral");
+      const uploaded = await uploadProductImage(file, inventoryItemId);
+      uploadedImages.push({
+        key: getNewImageKey(index),
+        inventory_item_id: inventoryItemId,
+        image_url: uploaded.imageUrl,
+        storage_path: uploaded.storagePath,
+        alt_text: file.name || "",
+        sort_order: currentProductImages.length + index,
+        is_main: selectedMainImageKey === getNewImageKey(index)
+      });
+    }
+
+    let insertedImages = [];
+    if (uploadedImages.length) {
+      const { data, error } = await client
+        .from("inventory_item_images")
+        .insert(uploadedImages.map(({ key, ...image }) => image))
+        .select("id,inventory_item_id,image_url,storage_path,alt_text,sort_order,is_main");
+
+      if (error) throw new Error(`Product gallery could not be saved: ${error.message}`);
+      insertedImages = (data || []).map((image, index) => {
+        const normalizedImage = normalizeInventoryItemImage(image, currentProductImages.length + index);
+        return normalizedImage
+          ? { ...normalizedImage, key: uploadedImages[index]?.key || getNewImageKey(index) }
+          : null;
+      }).filter(Boolean);
+    }
+
+    const selectedExisting = currentProductImages.find((image, index) => getExistingImageKey(image, index) === selectedMainImageKey);
+    const selectedInserted = insertedImages.find((image) => image.key === selectedMainImageKey);
+    const fallbackImage = selectedExisting
+      || selectedInserted
+      || currentProductImages.find((image) => image.is_main)
+      || insertedImages.find((image) => image.is_main)
+      || currentProductImages[0]
+      || insertedImages[0]
+      || null;
+    const mainImageUrl = fallbackImage?.image_url || "";
+
+    if (mainImageUrl) {
+      const resetResult = await client
+        .from("inventory_item_images")
+        .update({ is_main: false })
+        .eq("inventory_item_id", inventoryItemId);
+      if (resetResult.error) throw new Error(`Could not update product gallery main photo: ${resetResult.error.message}`);
+
+      if (fallbackImage.id) {
+        const mainResult = await client
+          .from("inventory_item_images")
+          .update({ is_main: true })
+          .eq("id", fallbackImage.id);
+        if (mainResult.error) throw new Error(`Could not set main product photo: ${mainResult.error.message}`);
+      } else {
+        const upsertResult = await client
+          .from("inventory_item_images")
+          .upsert({
+            inventory_item_id: inventoryItemId,
+            image_url: mainImageUrl,
+            storage_path: fallbackImage.storage_path || null,
+            alt_text: fallbackImage.alt_text || null,
+            sort_order: fallbackImage.sort_order ?? 0,
+            is_main: true
+          }, { onConflict: "inventory_item_id,image_url" });
+        if (upsertResult.error) throw new Error(`Could not save main product photo: ${upsertResult.error.message}`);
+      }
+
+      await updateInventoryImageUrl(inventoryItemId, mainImageUrl);
+    }
+
+    return mainImageUrl;
   }
 
   async function extractPdfText(file) {
@@ -1162,6 +1433,11 @@
     const imageWarning = existingImage.startsWith("data:")
       ? "Replace this image to optimise loading."
       : "";
+    currentProductImages = getItemImageRecords(item || {});
+    selectedMainImageKey = currentProductImages.find((image) => image.is_main)
+      ? getExistingImageKey(currentProductImages.find((image) => image.is_main), currentProductImages.findIndex((image) => image.is_main))
+      : "";
+    renderProductImagePicker();
     setMessage(productMessageEl, imageWarning, imageWarning ? "warning" : "");
     syncInventoryOptionControls();
   }
@@ -1169,6 +1445,9 @@
   function hideProductForm() {
     if (!productFormEl) return;
     productFormEl.reset();
+    currentProductImages = [];
+    selectedMainImageKey = "";
+    renderProductImagePicker();
     setMessage(productMessageEl, "");
     setInventoryTab("stock-list");
   }
@@ -1329,20 +1608,18 @@
     const hiddenAdminOnly = Boolean(fields.hidden_admin_only?.checked);
     const trackStock = !isOrderToSale && Boolean(fields.track_stock?.checked);
     const visibleInShop = !hiddenAdminOnly && Boolean(fields.visible_in_shop?.checked);
-    const imageFile = productFormEl.elements.image.files[0];
-    let imageUrl = null;
-    if (imageFile) {
+    const imageFiles = getProductImageFiles();
+    for (const imageFile of imageFiles) {
       const validationError = validateProductImage(imageFile);
       if (validationError) {
         setMessage(productMessageEl, validationError, "error");
         return;
       }
-      try {
-        imageUrl = await uploadProductImage(imageFile, formData.get("inventory_item_id"));
-      } catch (error) {
-        setMessage(productMessageEl, error.message, "error");
-        return;
-      }
+    }
+
+    if (imageFiles.length > 1 && !(await inventoryImageGalleryIsReady())) {
+      setMessage(productMessageEl, "Run the product gallery SQL migration before saving multiple photos.", "error");
+      return;
     }
 
     const category = getCategoryById(formData.get("category"));
@@ -1360,7 +1637,7 @@
       p_quantity_on_hand: Number(formData.get("quantity_on_hand") || 0),
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
       p_need_order_threshold: Number(formData.get("need_order_threshold") || 0),
-      p_image: imageUrl,
+      p_image: null,
       p_visible_in_shop: visibleInShop,
       p_is_active: Boolean(fields.is_active?.checked),
       p_brand: formData.get("brand"),
@@ -1376,13 +1653,11 @@
       return;
     }
 
-    if (imageUrl) {
-      try {
-        await updateInventoryImageUrl(savedItem?.id, imageUrl);
-      } catch (imageError) {
-        setMessage(productMessageEl, imageError.message, "error");
-        return;
-      }
+    try {
+      await saveProductImageSelection(savedItem?.id, imageFiles);
+    } catch (imageError) {
+      setMessage(productMessageEl, imageError.message, "error");
+      return;
     }
 
     const publicProductId = savedItem?.shop_product_id || "";
@@ -1390,409 +1665,3 @@
       ? `Inventory saved. Public product created/updated${publicProductId ? `: ${publicProductId}` : "."}`
       : `Inventory saved. Public product${publicProductId ? ` ${publicProductId}` : ""} hidden.`;
     hideProductForm();
-    await loadInventory();
-    setMessage(productMessageEl, publishMessage, "success");
-    setMessage(inventoryListMessageEl, publishMessage, "success");
-  }
-
-  async function uploadInvoice(event) {
-    event.preventDefault();
-    if (!client) {
-      setMessage(invoiceMessageEl, "Supabase is not configured yet.", "error");
-      return;
-    }
-
-    const file = invoiceFileEl?.files?.[0];
-    if (!file) {
-      setMessage(invoiceMessageEl, "Choose a Sportco PDF invoice first.", "error");
-      return;
-    }
-
-    if (file.type !== "application/pdf") {
-      setMessage(invoiceMessageEl, "Please upload a PDF invoice.", "error");
-      return;
-    }
-
-    const user = await getSessionUser();
-    const storagePath = `sportco/${Date.now()}-${file.name.replace(/[^a-z0-9._-]/gi, "-")}`;
-    setMessage(invoiceMessageEl, "Uploading invoice and preparing review...");
-    clearInvoiceReview();
-
-    const { error: uploadError } = await client.storage
-      .from("supplier-invoices")
-      .upload(storagePath, file, { upsert: false });
-
-    if (uploadError) {
-      setMessage(invoiceMessageEl, `Could not upload invoice: ${uploadError.message}`, "error");
-      return;
-    }
-
-    let parsed;
-    try {
-      parsed = parseSportcoInvoice(await extractPdfText(file));
-    } catch (error) {
-      setMessage(invoiceMessageEl, `Invoice uploaded, but PDF extraction failed: ${error.message}`, "error");
-      return;
-    }
-
-    if (!parsed.items.length) {
-      setMessage(invoiceMessageEl, "Invoice uploaded, but no line items could be detected. Check the PDF format and enter stock manually for now.", "error");
-      return;
-    }
-
-    const { data: invoice, error: invoiceError } = await client
-      .from("supplier_invoices")
-      .insert({
-        supplier: "Sportco",
-        invoice_number: parsed.invoiceNumber || null,
-        invoice_date: parsed.invoiceDate,
-        storage_path: storagePath,
-        file_name: file.name,
-        uploaded_by: user?.id || null
-      })
-      .select()
-      .single();
-
-    if (invoiceError) {
-      setMessage(invoiceMessageEl, `Could not save invoice record: ${invoiceError.message}`, "error");
-      return;
-    }
-
-    pendingInvoice = {
-      id: invoice.id,
-      invoiceNumber: parsed.invoiceNumber || "",
-      invoiceDate: parsed.invoiceDate,
-      fileName: file.name
-    };
-    invoiceReviewItems = buildInvoiceReviewItems(parsed.items);
-    renderInvoiceReviewTable();
-    invoiceFormEl.reset();
-    setMessage(invoiceMessageEl, `Found ${parsed.items.length} item${parsed.items.length === 1 ? "" : "s"}. Review and confirm before stock is updated.`, "success");
-    setMessage(invoiceReviewMessageEl, "");
-  }
-
-  async function confirmInvoiceImport() {
-    if (!client) {
-      setMessage(invoiceReviewMessageEl, "Supabase is not configured yet.", "error");
-      return;
-    }
-
-    const validationError = validateInvoiceReview();
-    if (validationError) {
-      setMessage(invoiceReviewMessageEl, validationError, "error");
-      return;
-    }
-
-    invoiceImportConfirmEl.disabled = true;
-    setMessage(invoiceReviewMessageEl, "Importing reviewed invoice items...");
-
-    for (const item of invoiceReviewItems) {
-      const category = getCategoryById(item.finalCategoryId);
-      const { error } = await client.rpc("import_reviewed_supplier_invoice_item", {
-        p_invoice_id: pendingInvoice.id,
-        p_inventory_item_id: item.matchedInventoryItemId || null,
-        p_product_name: item.productName,
-        p_sku: item.sku || null,
-        p_quantity: item.quantity,
-        p_unit_cost: item.unitCost,
-        p_total_cost: item.totalCost,
-        p_category_id: category?.id || null,
-        p_category: category?.name || "Other",
-        p_sell_price: item.sellPrice,
-        p_visible_in_shop: Boolean(item.visibleInShop),
-        p_review_status: item.reviewStatus,
-        p_invoice_number: pendingInvoice.invoiceNumber || null,
-        p_invoice_date: pendingInvoice.invoiceDate || null
-      });
-
-      if (error) {
-        setMessage(invoiceReviewMessageEl, `Import stopped on ${item.productName}: ${error.message}`, "error");
-        invoiceImportConfirmEl.disabled = false;
-        await loadInventory();
-        return;
-      }
-    }
-
-    const importedCount = invoiceReviewItems.length;
-    clearInvoiceReview();
-    setMessage(invoiceMessageEl, `Imported ${importedCount} reviewed Sportco invoice item${importedCount === 1 ? "" : "s"}.`, "success");
-    await loadInventory();
-    if (invoiceImportConfirmEl) invoiceImportConfirmEl.disabled = false;
-  }
-
-  function handleInvoiceReviewChange(event) {
-    const field = event.target.closest("[data-invoice-field]");
-    if (!field) return;
-
-    syncInvoiceReviewFromDom();
-    if (field.dataset.invoiceField === "matchedInventoryItemId") {
-      const row = field.closest("[data-invoice-review-index]");
-      const index = Number(row?.dataset.invoiceReviewIndex);
-      const item = invoiceReviewItems[index];
-      const matchedItem = inventoryItems.find((entry) => entry.id === item?.matchedInventoryItemId);
-      if (item && matchedItem) {
-        item.finalCategoryId = matchedItem.category_id || item.finalCategoryId || getFallbackCategory()?.id || "";
-        item.suggestedCategoryId = item.finalCategoryId;
-        item.sellPrice = Number(matchedItem.sell_price || item.sellPrice || 0);
-        item.visibleInShop = Boolean(matchedItem.visible_in_shop);
-        item.reviewStatus = "matched";
-        renderInvoiceReviewTable();
-      }
-    }
-  }
-
-  async function handleReviewAction(event) {
-    const button = event.target.closest("[data-review-action]");
-    if (!button || !client) return;
-
-    const row = button.closest("[data-review-item]");
-    const itemId = row?.dataset.reviewItem;
-    if (!itemId) return;
-
-    button.disabled = true;
-    const action = button.dataset.reviewAction;
-    let result;
-
-    if (action === "add") {
-      const category = getCategoryById(row.querySelector("[data-review-category-id]")?.value);
-      result = await client.rpc("publish_inventory_item_to_shop", {
-        p_inventory_item_id: itemId,
-        p_category_id: category?.id || null,
-        p_category: category?.name || "Other",
-        p_description: row.querySelector("[data-review-description]")?.value || null,
-        p_sell_price: Number(row.querySelector("[data-review-sell-price]")?.value || 0),
-        p_discount: 0,
-        p_image: null
-      });
-    }
-
-    if (action === "internal") {
-      result = await client.rpc("mark_inventory_item_internal", { p_inventory_item_id: itemId });
-    }
-
-    if (action === "merge") {
-      const targetId = row.querySelector("[data-merge-target]")?.value;
-      if (!targetId) {
-        alert("Choose an existing item to merge into.");
-        button.disabled = false;
-        return;
-      }
-      result = await client.rpc("merge_inventory_item", {
-        p_source_item_id: itemId,
-        p_target_item_id: targetId,
-        p_reason: "Merged from Sportco invoice review"
-      });
-    }
-
-    if (result?.error) alert(result.error.message);
-    await loadInventory();
-    button.disabled = false;
-  }
-
-  async function saveStockAdjustment(event) {
-    event.preventDefault();
-    if (!client) {
-      setMessage(adjustMessageEl, "Supabase is not configured yet.", "error");
-      return;
-    }
-
-    const formData = new FormData(adjustFormEl);
-    const quantityDelta = Number(formData.get("quantity_delta"));
-    if (!formData.get("inventory_item_id") || Number.isNaN(quantityDelta) || quantityDelta === 0) {
-      setMessage(adjustMessageEl, "Choose an item and enter a non-zero quantity change.", "error");
-      return;
-    }
-
-    const { error } = await client.rpc("admin_adjust_inventory", {
-      p_inventory_item_id: formData.get("inventory_item_id"),
-      p_quantity_delta: quantityDelta,
-      p_reason: formData.get("reason")
-    });
-
-    if (error) {
-      setMessage(adjustMessageEl, error.message, "error");
-      return;
-    }
-
-    adjustFormEl.reset();
-    setMessage(adjustMessageEl, "Stock adjustment saved.", "success");
-    await loadInventory();
-  }
-
-  async function saveInventorySettings(event) {
-    event.preventDefault();
-    if (!client) {
-      setMessage(settingsMessageEl, "Supabase is not configured yet.", "error");
-      return;
-    }
-
-    const { error } = await client
-      .from("shop_inventory_settings")
-      .upsert({ id: true, hide_out_of_stock: Boolean(hideOutOfStockEl?.checked) }, { onConflict: "id" });
-
-    if (error) {
-      setMessage(settingsMessageEl, error.message, "error");
-      return;
-    }
-
-    setMessage(settingsMessageEl, "Shop stock settings saved.", "success");
-  }
-
-  async function handleInventoryAction(event) {
-    const qrCloseButton = event.target.closest("[data-inventory-qr-close]");
-    if (qrCloseButton) {
-      hideInventoryQr(qrCloseButton.dataset.inventoryQrClose);
-      return;
-    }
-
-    const qrDownloadButton = event.target.closest("[data-inventory-qr-download]");
-    if (qrDownloadButton) {
-      await downloadInventoryQr(qrDownloadButton.dataset.inventoryQrDownload);
-      return;
-    }
-
-    const qrPrintButton = event.target.closest("[data-inventory-qr-print]");
-    if (qrPrintButton) {
-      await printInventoryQr(qrPrintButton.dataset.inventoryQrPrint);
-      return;
-    }
-
-    const menuToggle = event.target.closest("[data-inventory-menu-toggle]");
-    if (menuToggle) {
-      const menu = menuToggle.parentElement?.querySelector("[data-inventory-action-list]");
-      const shouldOpen = Boolean(menu?.hidden);
-      closeInventoryActionMenus();
-      closeInventoryQrPanels();
-      if (menu) {
-        menu.hidden = !shouldOpen;
-        menuToggle.setAttribute("aria-expanded", String(shouldOpen));
-      }
-      return;
-    }
-
-    const button = event.target.closest("[data-inventory-action]");
-    if (!button || !client) return;
-
-    const row = button.closest("[data-inventory-item]");
-    const item = inventoryItems.find((entry) => entry.id === row?.dataset.inventoryItem);
-    if (!item) return;
-
-    const action = button.dataset.inventoryAction;
-    closeInventoryActionMenus();
-
-    if (action === "edit") {
-      showProductForm(item);
-      return;
-    }
-
-    if (action === "adjust") {
-      if (adjustItemEl) adjustItemEl.value = item.id;
-      setInventoryTab("stock-adjustments");
-      adjustFormEl?.scrollIntoView({ behavior: "smooth", block: "center" });
-      return;
-    }
-
-    if (action === "qr") {
-      await toggleInventoryQr(item.id);
-      return;
-    }
-
-    button.disabled = true;
-    if (action === "archive") {
-      if (item.archived_at) {
-        alert("This product is already archived.");
-      } else if (confirm(`Archive ${item.product_name}? It will be hidden from the public shop.`)) {
-        const { error } = await client.rpc("archive_inventory_item", { p_inventory_item_id: item.id });
-        if (error) alert(error.message);
-        await loadInventory();
-      }
-    }
-
-    if (action === "delete") {
-      if (confirm(`Permanently delete ${item.product_name}? This is only allowed when there are no stock movements or orders.`)) {
-        const { data, error } = await client.rpc("delete_inventory_item_if_safe", { p_inventory_item_id: item.id });
-        if (error) {
-          const message = /stock history|stock movements|orders|cannot be permanently deleted/i.test(error.message || "")
-            ? DELETE_BLOCKED_MESSAGE
-            : error.message;
-          alert(message);
-          if (message === DELETE_BLOCKED_MESSAGE) setMessage(inventoryListMessageEl, "");
-          else setMessage(inventoryListMessageEl, message, "error");
-          await loadInventory();
-          button.disabled = false;
-          return;
-        }
-        if (data === false) {
-          alert(DELETE_BLOCKED_MESSAGE);
-          setMessage(inventoryListMessageEl, "");
-          await loadInventory();
-          button.disabled = false;
-          return;
-        }
-        setMessage(inventoryListMessageEl, `${item.product_name} was permanently deleted.`, "success");
-        await loadInventory();
-      }
-    }
-    button.disabled = false;
-  }
-
-  searchEl?.addEventListener("input", () => {
-    renderInventoryList();
-  });
-  categoryFilterEl?.addEventListener("change", () => {
-    renderInventoryList();
-  });
-  statusFilterEl?.addEventListener("change", () => {
-    renderInventoryList();
-  });
-  supplierFilterEl?.addEventListener("change", () => {
-    renderInventoryList();
-  });
-  showArchivedEl?.addEventListener("change", () => {
-    renderInventoryList();
-    renderAdjustmentSelect();
-  });
-  addProductBtnEls.forEach((button) => {
-    button.addEventListener("click", () => showProductForm());
-  });
-  inventoryTabEls.forEach((button) => {
-    button.addEventListener("click", () => {
-      setInventoryTab(button.dataset.inventoryTab);
-    });
-  });
-  cancelEditBtnEl?.addEventListener("click", hideProductForm);
-  productFormEl?.addEventListener("submit", saveProduct);
-  productFormEl?.addEventListener("change", (event) => {
-    if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
-      syncInventoryOptionControls();
-    }
-  });
-  inventoryListEl?.addEventListener("click", handleInventoryAction);
-  document.addEventListener("click", (event) => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    if (!target.closest("[data-inventory-qr-panel], [data-inventory-action-list], [data-inventory-menu-toggle], [data-inventory-action]")) {
-      closeInventoryQrPanels();
-      closeInventoryActionMenus();
-    }
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key !== "Escape") return;
-    closeInventoryQrPanels();
-    closeInventoryActionMenus();
-  });
-  invoiceFormEl?.addEventListener("submit", uploadInvoice);
-  invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);
-  invoiceReviewTableEl?.addEventListener("input", syncInvoiceReviewFromDom);
-  invoiceReviewClearEl?.addEventListener("click", clearInvoiceReview);
-  invoiceImportConfirmEl?.addEventListener("click", confirmInvoiceImport);
-  reviewListEl?.addEventListener("click", handleReviewAction);
-  adjustFormEl?.addEventListener("submit", saveStockAdjustment);
-  settingsFormEl?.addEventListener("submit", saveInventorySettings);
-  categoryFormEl?.addEventListener("submit", saveInventoryCategory);
-
-  document.addEventListener("DOMContentLoaded", () => {
-    loadProductCategories().then(loadInventory);
-    loadInventorySettings();
-  });
-})();

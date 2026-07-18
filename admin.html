@@ -7,8 +7,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260718-inventory-categories" />
-    <link rel="stylesheet" href="admin-availability.css?v=20260716-qr-close" />
+    <link rel="stylesheet" href="styles.css?v=20260718-product-gallery" />
+    <link rel="stylesheet" href="admin-availability.css?v=20260718-product-gallery" />
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -396,9 +396,13 @@
                       <label class="inventory-field-wide">Description
                         <textarea name="description" placeholder="Description"></textarea>
                       </label>
-                      <label class="inventory-field-wide">Product image
-                        <input name="image" type="file" accept="image/*" />
+                      <label class="inventory-field-wide">Product photos
+                        <input name="image" type="file" accept="image/*" multiple data-inventory-image-input />
+                        <span class="field-helper">Add more than one photo, then choose which one is the main shop photo.</span>
                       </label>
+                      <div class="inventory-field-wide inventory-image-picker" data-inventory-image-list>
+                        <p class="helper-text">No product photos selected.</p>
+                      </div>
                     </fieldset>
 
                     <fieldset class="inventory-form-section">
@@ -944,23 +948,4 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" referrerpolicy="no-referrer"></script>
     <script src="vendor/qrcode.min.js?v=20260715-local" referrerpolicy="no-referrer"></script>
     <script src="supabase-config.js?v=20260626-slot-defaults"></script>
-    <script src="admin-runtime.js?v=20260626-slot-defaults"></script>
-    <script src="product-categories.js?v=20260718-inventory-categories"></script>
-    <script src="app.js?v=20260716-qr-close"></script>
-    <script src="email-settings.js?v=20260626-slot-defaults"></script>
-    <script src="email-service.js?v=20260702-adult-junior-split"></script>
-    <script src="admin-reports.js?v=20260714-reports"></script>
-    <script src="admin-dashboard.js?v=20260716-admin-overflow"></script>
-    <script src="admin-lessons.js?v=20260626-slot-defaults"></script>
-    <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>
-    <script src="admin-junior-groups.js?v=20260703-junior-calendar-groups"></script>
-    <script src="admin-settings-tabs.js?v=20260716-admin-overflow"></script>
-    <script src="admin-shop-settings.js?v=20260629-shop-checkout"></script>
-    <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
-    <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
-    <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260718-inventory-categories"></script>
-    <script src="admin-availability-state.js?v=20260702-junior-times"></script>
-    <script src="admin-availability.js?v=20260626-slot-defaults"></script>
-  </body>
-</html>
+    <script src="admin-runtim

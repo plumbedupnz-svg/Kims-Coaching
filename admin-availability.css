@@ -200,6 +200,12 @@
 .inventory-form-section input,
 .inventory-form-section select,
 .inventory-form-section textarea { font-weight: 600; }
+.inventory-image-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.7rem; }
+.inventory-image-card { display: grid; gap: 0.45rem; min-width: 0; padding: 0.6rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
+.inventory-image-card img { width: 100%; aspect-ratio: 1 / 1; object-fit: contain; border: 1px solid var(--border); border-radius: 8px; background: #fbfdff; }
+.inventory-image-card small { min-width: 0; overflow: hidden; color: var(--muted); font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+.inventory-image-main { display: flex; align-items: center; gap: 0.45rem; font-size: 0.9rem; font-weight: 900; }
+.inventory-image-main input { width: 18px; height: 18px; margin: 0; }
 .field-helper { color: var(--muted); font-size: 0.82rem; font-weight: 500; line-height: 1.35; }
 .inventory-table { display: grid; gap: 0; overflow: visible; border: 1px solid var(--border); border-radius: 10px; background: #fff; }
 .inventory-table-row { position: relative; display: grid; grid-template-columns: minmax(120px, 1.25fr) minmax(64px, 0.5fr) minmax(78px, 0.65fr) minmax(76px, 0.62fr) minmax(48px, 0.35fr) minmax(86px, 0.58fr) minmax(86px, 0.58fr) minmax(70px, 0.5fr) minmax(70px, 0.5fr) minmax(86px, 0.58fr) 42px; gap: 0.35rem; align-items: center; min-width: 1120px; padding: 0.38rem 0.45rem; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; background: #fff; font-size: 14px; line-height: 1.2; }
@@ -506,46 +512,3 @@
   select,
   textarea,
   .availability-repeat,
-  .lesson-settings-panel,
-  .shop-orders-table,
-  .junior-players-table,
-  .inventory-table {
-    border-radius: 8px;
-  }
-
-  .availability-row,
-  .junior-calendar-session,
-  .junior-calendar-group,
-  .inventory-action-list {
-    border-radius: 7px;
-  }
-
-  .shop-orders-table,
-  .junior-players-table,
-  .inventory-table {
-    overflow-x: auto;
-    background: #ffffff;
-  }
-
-  .shop-orders-table-head,
-  .junior-players-table-head,
-  .inventory-table-head {
-    background: #edf5ff;
-  }
-
-  .junior-players-table-row {
-    min-width: 1480px;
-  }
-
-  .invoice-review-table-row {
-    min-width: 1380px;
-  }
-
-  .inventory-filters {
-    top: 84px;
-    padding: 0.75rem;
-    border: 1px solid #dbe3f1;
-    border-radius: 8px;
-    background: rgba(247, 249, 252, 0.96);
-  }
-}
