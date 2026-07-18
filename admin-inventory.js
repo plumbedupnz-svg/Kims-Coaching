@@ -478,10 +478,30 @@
   function closeInventoryActionMenus() {
     document.querySelectorAll("[data-inventory-action-list]").forEach((list) => {
       list.hidden = true;
+      list.classList.remove("is-fixed-popover");
+      list.removeAttribute("style");
     });
     document.querySelectorAll("[data-inventory-menu-toggle]").forEach((toggle) => {
       toggle.setAttribute("aria-expanded", "false");
     });
+  }
+
+  function positionInventoryActionMenu(menu, toggle) {
+    if (!menu || !toggle) return;
+    menu.hidden = false;
+    menu.classList.add("is-fixed-popover");
+    menu.style.position = "fixed";
+    menu.style.right = "auto";
+    menu.style.zIndex = "1000";
+
+    const toggleRect = toggle.getBoundingClientRect();
+    const menuRect = menu.getBoundingClientRect();
+    const margin = 8;
+    const top = Math.min(toggleRect.bottom + 6, window.innerHeight - menuRect.height - margin);
+    const left = Math.min(toggleRect.right - menuRect.width, window.innerWidth - menuRect.width - margin);
+
+    menu.style.top = `${Math.max(margin, top)}px`;
+    menu.style.left = `${Math.max(margin, left)}px`;
   }
 
   function hideInventoryQr(itemId) {
@@ -2072,7 +2092,8 @@
       closeInventoryActionMenus();
       closeInventoryQrPanels();
       if (menu) {
-        menu.hidden = !shouldOpen;
+        if (shouldOpen) positionInventoryActionMenu(menu, menuToggle);
+        else menu.hidden = true;
         menuToggle.setAttribute("aria-expanded", String(shouldOpen));
       }
       return;
@@ -2219,6 +2240,8 @@
     closeInventoryQrPanels();
     closeInventoryActionMenus();
   });
+  window.addEventListener("resize", closeInventoryActionMenus);
+  window.addEventListener("scroll", closeInventoryActionMenus, true);
   invoiceFormEl?.addEventListener("submit", uploadInvoice);
   invoiceReviewTableEl?.addEventListener("change", handleInvoiceReviewChange);
   invoiceReviewTableEl?.addEventListener("input", syncInvoiceReviewFromDom);

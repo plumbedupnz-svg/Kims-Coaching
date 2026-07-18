@@ -246,6 +246,7 @@
 .inventory-qr-panel[hidden] { display: none; }
 .inventory-action-toggle { width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font-size: 1.1rem; font-weight: 900; line-height: 1; cursor: pointer; }
 .inventory-action-list { position: absolute; top: calc(100% + 0.25rem); right: 0; z-index: 20; display: grid; min-width: 140px; padding: 0.35rem; border: 1px solid var(--border); border-radius: 10px; background: #fff; box-shadow: 0 14px 30px rgba(15, 23, 42, 0.14); }
+.inventory-action-list.is-fixed-popover { max-height: min(260px, calc(100vh - 16px)); overflow: auto; }
 .inventory-action-list[hidden] { display: none; }
 .inventory-action-list button { width: 100%; padding: 0.45rem 0.55rem; border: 0; border-radius: 7px; background: transparent; color: var(--text); font: inherit; font-size: 14px; font-weight: 700; text-align: left; cursor: pointer; }
 .inventory-action-list button:hover { background: var(--surface-strong); }
