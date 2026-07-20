@@ -158,8 +158,8 @@ let adminInventoryLinkItems = [];
 let editingProductId = "";
 const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
-const PUBLIC_SHOP_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
-const PUBLIC_SHOP_DISCOUNT_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,cost_price,purchase_price,discount,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
+const PUBLIC_SHOP_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
+const PUBLIC_SHOP_DISCOUNT_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,discount,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
 const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_DISCOUNT_BASE_SELECT},inventory_item_images(id,image_url,sort_order,is_main)`;
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const OPTIONAL_PUBLIC_SHOP_COLUMN_ERROR = /inventory_item_images|discount|relationship|schema cache|does not exist|column|PGRST|42P01|42703/i;
@@ -752,6 +752,7 @@ async function saveAdminProductToSupabase(product) {
   const productRowId = product.editing_product_id || product.id;
 
   const fallbackPayload = {
+    ...(!isEditingProduct ? { id: productRowId } : {}),
     name: product.name,
     description: product.description || null,
     price: product.price,
@@ -785,7 +786,7 @@ async function saveAdminProductToSupabase(product) {
     const query = isEditingProduct
       ? supabaseClient.from("products").update(payload).eq("id", productRowId)
       : supabaseClient.from("products").insert(payload);
-    let { data: savedProduct, error } = await query.select("*").single();
+    let { error } = await query;
     if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
       console.warn("Products table is missing fulfilment/category columns; saving product with minimal fields.", error);
       const categoryFallbackPayload = {
@@ -799,37 +800,40 @@ async function saveAdminProductToSupabase(product) {
       const fallbackQuery = isEditingProduct
         ? supabaseClient.from("products").update(categoryFallbackPayload).eq("id", productRowId)
         : supabaseClient.from("products").insert(categoryFallbackPayload);
-      const fallbackResult = await fallbackQuery.select("*").single();
-      savedProduct = fallbackResult.data;
+      const fallbackResult = await fallbackQuery;
       error = fallbackResult.error;
       if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
         console.warn("Products table is missing category columns; saving product with minimal fields.", error);
         const minimalQuery = isEditingProduct
           ? supabaseClient.from("products").update(fallbackPayload).eq("id", productRowId)
           : supabaseClient.from("products").insert(fallbackPayload);
-        const minimalResult = await minimalQuery.select("*").single();
-        savedProduct = minimalResult.data;
+        const minimalResult = await minimalQuery;
         error = minimalResult.error;
       }
     }
     if (error) throw error;
+    const productResult = await supabaseClient.rpc("admin_list_products");
+    if (productResult.error) throw productResult.error;
+    const savedProduct = (productResult.data || []).find((row) => String(row.id) === String(productRowId));
+    if (!savedProduct) throw new Error("Saved product could not be reloaded.");
     return normalizeShopProduct({ ...savedProduct, product_categories: category, inventory_items: inventoryItem || undefined, source_row: "products" });
   }
 
   if (product.fulfilment_type === "stock") {
     if (product.inventory_item_id) {
-      const { data, error } = await supabaseClient
+      const { error } = await supabaseClient
         .from("inventory_items")
         .update({
           visible_in_shop: true,
           is_active: true,
           ...(product.image_url ? { image_url: product.image_url } : {})
         })
-        .eq("id", product.inventory_item_id)
-        .select("*")
-        .single();
+        .eq("id", product.inventory_item_id);
       if (error) throw error;
-      inventoryItem = data;
+      const inventoryResult = await supabaseClient.rpc("admin_list_inventory_items");
+      if (inventoryResult.error) throw inventoryResult.error;
+      inventoryItem = (inventoryResult.data || []).find((item) => item.id === product.inventory_item_id);
+      if (!inventoryItem) throw new Error("Linked inventory item could not be reloaded.");
       productPayload.quantity_on_hand = Number(inventoryItem.quantity_on_hand || 0);
       productPayload.stock_status = inventoryItem.status || productPayload.stock_status;
     } else if (product.create_inventory) {
@@ -1037,11 +1041,16 @@ async function loadAdminInventoryLinkItems() {
 async function refreshOwnerProductsFromSupabase() {
   if (!supabaseClient || !isAdminProfile() || !ownerProductsListEl) return [];
   if (ownerProductsListEl) ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
-  let { data, error } = await supabaseClient
-    .from("products")
-    .select(ADMIN_PRODUCTS_SELECT)
-    .order("updated_at", { ascending: false })
-    .order("created_at", { ascending: false });
+  let { data, error } = await supabaseClient.rpc("admin_list_products");
+  if (error && /function|schema cache|PGRST202|42883/i.test(error.message || "")) {
+    const directResult = await supabaseClient
+      .from("products")
+      .select(ADMIN_PRODUCTS_SELECT)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false });
+    data = directResult.data;
+    error = directResult.error;
+  }
   if (error && /column|schema cache|PGRST|42703/i.test(error.message || "")) {
     console.warn("Products table is missing newer admin product columns; loading minimal product fields.", error);
     const fallbackResult = await supabaseClient

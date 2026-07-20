@@ -46,17 +46,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="app.js"></script>
-    <script>
-      try {
-        const isShopOrder = sessionStorage.getItem("kims_pending_checkout_type") === "shop_order";
-        if (isShopOrder) {
-          document.querySelector("[data-shop-stock-success-note]")?.removeAttribute("hidden");
-          localStorage.removeItem("kims_cart");
-        }
-        sessionStorage.removeItem("kims_pending_checkout_type");
-      } catch (error) {
-        console.warn("Could not update checkout state after payment.", error);
-      }
-    </script>
+    <script src="payment-success.js"></script>
   </body>
 </html>

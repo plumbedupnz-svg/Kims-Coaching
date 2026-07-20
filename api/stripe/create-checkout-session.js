@@ -10,6 +10,7 @@ const {
   uuidList,
   verifyUser
 } = require("./_helpers");
+const { enforceRateLimit } = require("../_rate-limit");
 
 const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
 const SHOP_SETTINGS_DEFAULTS = {
@@ -403,6 +404,7 @@ async function createAdminJuniorPaymentRequest({ user, body }) {
 }
 
 async function getShopLineItems(cart) {
+  if (cart.length > 50) throw new Error("Your cart contains too many line items.");
   const ids = [...new Set(cart.map((item) => String(item.id || "")).filter(Boolean))];
   const inventoryIds = [...new Set(cart.map((item) => String(item.inventory_item_id || item.id || "")).filter(Boolean))];
   async function selectProductsForShop() {
@@ -435,7 +437,10 @@ async function getShopLineItems(cart) {
   const inventoryById = new Map(inventoryRows.map((row) => [String(row.id), row]));
 
   return cart.map((item) => {
-    const quantity = Math.max(1, Number(item.quantity || 1));
+    const quantity = Number(item.quantity || 1);
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
+      throw new Error("Choose a quantity between 1 and 99 for each product.");
+    }
     const product = productsById.get(String(item.id));
     const inventory = inventoryById.get(String(item.inventory_item_id || item.id));
     if (product) {
@@ -635,7 +640,6 @@ async function createShopCheckout({ user, body }) {
   });
   console.info("[Stripe checkout] pending shop order created", {
     orderId: order.id,
-    customerEmail: order.customer_email || "",
     fulfilmentMethod,
     shipping,
     itemCount: items.length,
@@ -690,6 +694,12 @@ module.exports = async function handler(req, res) {
     return;
   }
 
+  if (!enforceRateLimit(req, res, {
+    scope: "stripe-checkout",
+    limit: 60,
+    windowMs: 5 * 60 * 1000
+  })) return;
+
   try {
     const body = await readJsonBody(req);
     const bookingType = body.booking_type || body.type;
@@ -709,6 +719,8 @@ module.exports = async function handler(req, res) {
     res.status(200).json({ id: session.id, url: session.url });
   } catch (error) {
     console.error("[Stripe checkout] failed", { message: error.message });
-    res.status(400).json({ error: error.message || "Could not start Stripe Checkout." });
+    const internalError = /(?:select|insert|update) failed:|not configured|Stripe returned|schema cache|PGRST|SUPABASE_/i.test(error.message || "");
+    const message = internalError ? "Could not start Stripe Checkout. Please try again." : (error.message || "Could not start Stripe Checkout.");
+    res.status(error.statusCode || 400).json({ error: message });
   }
 };

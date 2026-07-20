@@ -1,3 +1,6 @@
+const crypto = require("crypto");
+const { enforceRateLimit } = require("./_rate-limit");
+
 const defaultEmailSettings = {
   provider: "disabled",
   from_name: "Kim Jones Coaching",
@@ -22,6 +25,21 @@ const adminTypes = new Set([
 ]);
 
 const publicSupabaseAnonKey = "sb_publishable_34HW1F0Asg7kEk8vEYCiLQ_9jO1jl4m";
+const EMAIL_BODY_LIMIT = 256 * 1024;
+const WAITLIST_TYPES = new Set(["waitlist_notification", "waitlist_customer_confirmation"]);
+const BOOKING_OWNER_TYPES = new Set(["booking_admin_notification", "booking_customer_confirmation"]);
+const KNOWN_EMAIL_TYPES = new Set([
+  ...adminTypes,
+  ...WAITLIST_TYPES,
+  ...BOOKING_OWNER_TYPES,
+  "booking_changed",
+  "booking_cancelled",
+  "shop_order_customer_confirmation",
+  "product_customer_confirmation",
+  "junior_group_payment_request",
+  "junior_group_customer_confirmation",
+  "junior_group_assignment_notification"
+]);
 
 function safeError(error) {
   return error?.message || String(error || "Unknown error");
@@ -97,11 +115,113 @@ function getCustomerEmail(payload = {}) {
 }
 
 function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
-  const adminEmail = type === "waitlist_notification"
-    ? process.env.EMAIL_ADMIN_TO || payload.adminEmail || "kim@kimjonescoaching.co.nz"
-    : process.env.EMAIL_ADMIN_TO || payload.adminEmail || settings.reply_to_email || settings.from_email;
+  if (type === "report_email" && getCustomerEmail(payload)) return [getCustomerEmail(payload)];
+  const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email || "kim@kimjonescoaching.co.nz";
   if (adminTypes.has(type)) return [adminEmail].filter(Boolean);
   return [getCustomerEmail(payload)].filter(Boolean);
+}
+
+function timingSafeMatches(left = "", right = "") {
+  const first = Buffer.from(String(left));
+  const second = Buffer.from(String(right));
+  return first.length === second.length && first.length > 0 && crypto.timingSafeEqual(first, second);
+}
+
+function isInternalEmailRequest(req) {
+  const configured = process.env.EMAIL_INTERNAL_SECRET || process.env.STRIPE_WEBHOOK_SECRET || "";
+  const supplied = req.headers?.["x-kims-email-internal"] || req.headers?.["X-Kims-Email-Internal"] || "";
+  return Boolean(configured) && timingSafeMatches(supplied, configured);
+}
+
+function isUuid(value = "") {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value));
+}
+
+function isEmail(value = "") {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim()) && String(value).length <= 254;
+}
+
+function sanitizeSubject(value = "") {
+  return String(value).replace(/[\r\n]+/g, " ").trim().slice(0, 200);
+}
+
+async function fetchServiceRows(table, select, params = {}) {
+  const { restUrl, serviceRoleKey } = getSupabaseConfig();
+  if (!restUrl || !serviceRoleKey) throw new Error("Server-side Supabase authorization is not configured.");
+  const url = new URL(`${restUrl}/${table}`);
+  url.searchParams.set("select", select);
+  Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  const response = await fetch(url, {
+    headers: { apikey: serviceRoleKey, Authorization: `Bearer ${serviceRoleKey}` }
+  });
+  if (!response.ok) throw new Error(`Could not authorize ${table} email request.`);
+  const rows = await response.json();
+  return Array.isArray(rows) ? rows : [];
+}
+
+async function getVerifiedRequester(req) {
+  const authHeader = req.headers?.authorization || req.headers?.Authorization || "";
+  const token = String(authHeader).replace(/^Bearer\s+/i, "");
+  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
+  const apiKey = serviceRoleKey || anonKey;
+  if (!token || !restUrl || !apiKey) return null;
+  const projectUrl = restUrl.replace(/\/rest\/v1$/, "");
+  const userResponse = await fetch(`${projectUrl}/auth/v1/user`, {
+    headers: { apikey: apiKey, Authorization: `Bearer ${token}` }
+  });
+  if (!userResponse.ok) return null;
+  const user = await userResponse.json();
+  const profiles = await fetchServiceRows("profiles", "id,role,email", {
+    id: `eq.${user.id}`,
+    limit: "1"
+  });
+  return { token, user, profile: profiles[0] || null };
+}
+
+async function authorizeEmailRequest(req, type, payload) {
+  if (!KNOWN_EMAIL_TYPES.has(type)) {
+    return { ok: false, status: 400, error: "Unsupported email type." };
+  }
+  if (isInternalEmailRequest(req)) return { ok: true, payload };
+
+  const relatedId = payload.relatedId || payload.related_id || "";
+  if (WAITLIST_TYPES.has(type)) {
+    if (!isUuid(relatedId)) return { ok: false, status: 403, error: "Email request could not be verified." };
+    const rows = await fetchServiceRows("waitlist", "id,user_id,email,customer_name,player_name", {
+      id: `eq.${relatedId}`,
+      limit: "1"
+    });
+    const row = rows[0];
+    if (!row || !isEmail(row.email) || row.email.toLowerCase() !== String(getCustomerEmail(payload)).trim().toLowerCase()) {
+      return { ok: false, status: 403, error: "Email request could not be verified." };
+    }
+    return {
+      ok: true,
+      payload: {
+        ...payload,
+        email: row.email,
+        customerName: row.customer_name || payload.customerName,
+        playerName: row.player_name || payload.playerName
+      }
+    };
+  }
+
+  const requester = await getVerifiedRequester(req);
+  if (!requester) return { ok: false, status: 401, error: "Please log in before sending this email." };
+  if (requester.profile?.role === "admin") return { ok: true, payload };
+
+  if (BOOKING_OWNER_TYPES.has(type) && isUuid(relatedId)) {
+    const rows = await fetchServiceRows("bookings", "id,user_id,customer_email", {
+      id: `eq.${relatedId}`,
+      limit: "1"
+    });
+    const booking = rows[0];
+    if (booking?.user_id === requester.user.id) {
+      return { ok: true, payload: { ...payload, email: booking.customer_email || requester.user.email } };
+    }
+  }
+
+  return { ok: false, status: 403, error: "This email action is not allowed for this account." };
 }
 
 function getFallbackSettings() {
@@ -561,7 +681,6 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
       hasServiceRoleKey: Boolean(serviceRoleKey),
       hasAnonKey: Boolean(anonKey),
       type,
-      recipient,
       status,
       provider
     });
@@ -573,7 +692,6 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
   try {
     console.info("Creating notification log", {
       type,
-      recipient,
       status,
       provider,
       relatedType,
@@ -600,13 +718,12 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
     console.info("Notification log insert result", { id: id || "none", status, method: "direct" });
     return id;
   } catch (error) {
-    console.error("Notification log direct insert failed safely", { message: safeError(error), type, recipient, status, provider });
+    console.error("Notification log direct insert failed safely", { message: safeError(error), type, status, provider });
   }
 
   try {
     console.info("Creating notification log", {
       type,
-      recipient,
       status,
       provider,
       relatedType,
@@ -639,7 +756,7 @@ async function createNotificationLog({ type, recipient, relatedType, relatedId, 
     console.info("Notification log insert result", { id: id || "none", status, method: "rpc" });
     return id;
   } catch (error) {
-    console.error("Notification log RPC insert failed safely", { message: safeError(error), type, recipient, status, provider });
+    console.error("Notification log RPC insert failed safely", { message: safeError(error), type, status, provider });
     return null;
   }
 }
@@ -752,8 +869,7 @@ function attachLogContext(logs, type, payload, provider) {
 async function sendWithResend(message, settings) {
   console.info("[Kim's Coaching email] Resend send attempted", {
     traceId: message.traceId,
-    recipients: message.to,
-    subject: message.subject,
+    recipientCount: message.to.length,
     hasIcs: Boolean(message.ics)
   });
   const response = await fetch("https://api.resend.com/emails", {
@@ -812,40 +928,15 @@ async function getLastNotificationLog(authToken = "") {
 }
 
 async function requireAdminForDiagnostics(req) {
-  const authHeader = req.headers.authorization || req.headers.Authorization || "";
-  const token = String(authHeader).replace(/^Bearer\s+/i, "");
-  const { restUrl, serviceRoleKey, anonKey } = getSupabaseConfig();
-  const apiKey = serviceRoleKey || anonKey;
-  if (!token || !restUrl || !apiKey) {
-    return { ok: false, status: 401, error: "Admin diagnostics require an authenticated admin session." };
-  }
-
   try {
-    const projectUrl = restUrl.replace(/\/rest\/v1$/, "");
-    const userResponse = await fetch(`${projectUrl}/auth/v1/user`, {
-      headers: {
-        apikey: apiKey,
-        Authorization: `Bearer ${token}`
-      }
-    });
-    if (!userResponse.ok) {
+    const requester = await getVerifiedRequester(req);
+    if (!requester) {
       return { ok: false, status: 401, error: "Could not verify admin session." };
     }
-    const user = await userResponse.json();
-    const profileResponse = await fetch(`${restUrl}/profiles?select=role&id=eq.${encodeURIComponent(user.id)}&limit=1`, {
-      headers: {
-        apikey: apiKey,
-        Authorization: `Bearer ${serviceRoleKey || token}`
-      }
-    });
-    if (!profileResponse.ok) {
-      return { ok: false, status: 403, error: "Could not verify admin profile." };
-    }
-    const profiles = await profileResponse.json();
-    if (profiles?.[0]?.role !== "admin") {
+    if (requester.profile?.role !== "admin") {
       return { ok: false, status: 403, error: "Email diagnostics are available to admin users only." };
     }
-    return { ok: true, token };
+    return { ok: true, token: requester.token };
   } catch (error) {
     console.error("Admin diagnostics auth failed", { message: safeError(error) });
     return { ok: false, status: 500, error: "Could not verify admin diagnostics access." };
@@ -923,7 +1014,24 @@ async function buildDiagnostics({ includeConnectionTest = false, authToken = "" 
   return diagnostics;
 }
 
+function parseEmailBody(req) {
+  const declaredLength = Number(req.headers?.["content-length"] || 0);
+  if (declaredLength > EMAIL_BODY_LIMIT) {
+    const error = new Error("Request body is too large.");
+    error.statusCode = 413;
+    throw error;
+  }
+  const raw = typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
+  if (Buffer.byteLength(raw, "utf8") > EMAIL_BODY_LIMIT) {
+    const error = new Error("Request body is too large.");
+    error.statusCode = 413;
+    throw error;
+  }
+  return typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+}
+
 module.exports = async function handler(req, res) {
+  res.setHeader?.("Cache-Control", "no-store");
   if (req.method === "GET") {
     const adminCheck = await requireAdminForDiagnostics(req);
     if (!adminCheck.ok) {
@@ -940,7 +1048,19 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  if (!isInternalEmailRequest(req) && !enforceRateLimit(req, res, {
+    scope: "send-email",
+    limit: 20,
+    windowMs: 5 * 60 * 1000
+  })) return;
+
+  let body;
+  try {
+    body = parseEmailBody(req);
+  } catch (error) {
+    res.status(error.statusCode || 400).json({ error: error.statusCode === 413 ? error.message : "Invalid JSON request body." });
+    return;
+  }
   if (body.action === "test_resend" || body.action === "test_smtp") {
     const adminCheck = await requireAdminForDiagnostics(req);
     if (!adminCheck.ok) {
@@ -952,11 +1072,24 @@ module.exports = async function handler(req, res) {
     return;
   }
 
-  const { type = "admin_notification", payload = {} } = body;
+  const type = String(body.type || "admin_notification");
+  let payload = body.payload && typeof body.payload === "object" && !Array.isArray(body.payload) ? body.payload : {};
+  try {
+    const authorization = await authorizeEmailRequest(req, type, payload);
+    if (!authorization.ok) {
+      res.status(authorization.status).json({ error: authorization.error });
+      return;
+    }
+    payload = authorization.payload;
+  } catch (error) {
+    console.error("Email request authorization failed", { type, message: safeError(error) });
+    res.status(500).json({ error: "Could not authorize email request." });
+    return;
+  }
   const traceId = payload.traceId || `email-api-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   let settings = getFallbackSettings();
   let provider = normalizeProvider(settings.provider);
-  const to = getRecipients(type, payload, settings);
+  const to = getRecipients(type, payload, settings).map((value) => String(value).trim()).filter(isEmail);
   let logs = [];
 
   try {
@@ -964,7 +1097,6 @@ module.exports = async function handler(req, res) {
       traceId,
       type,
       provider,
-      recipients: to,
       hasResendApiKey: Boolean(process.env.RESEND_API_KEY),
       hasSupabaseUrl: Boolean(getSupabaseConfig().restUrl),
       hasServiceRoleKey: Boolean(getSupabaseConfig().serviceRoleKey),
@@ -975,8 +1107,7 @@ module.exports = async function handler(req, res) {
       traceId,
       type,
       provider,
-      logIds: getLogIds(logs),
-      recipients: to
+      logIds: getLogIds(logs)
     });
 
     settings = await loadEmailSettings();
@@ -985,16 +1116,15 @@ module.exports = async function handler(req, res) {
       traceId,
       provider,
       enabled: Boolean(settings.enabled),
-      fromEmail: settings.from_email || "",
-      replyToEmail: settings.reply_to_email || ""
+      hasFromEmail: Boolean(settings.from_email),
+      hasReplyToEmail: Boolean(settings.reply_to_email)
     });
-    const settingsRecipients = getRecipients(type, payload, settings);
+    const settingsRecipients = getRecipients(type, payload, settings).map((value) => String(value).trim()).filter(isEmail);
     if (settingsRecipients.length && settingsRecipients.join(",") !== to.join(",")) {
       console.info("[Kim's Coaching email] recipients updated from Admin email settings", {
         traceId,
         type,
-        previousRecipients: to,
-        settingsRecipients
+        recipientCount: settingsRecipients.length
       });
       to.splice(0, to.length, ...settingsRecipients);
     }
@@ -1003,7 +1133,7 @@ module.exports = async function handler(req, res) {
       type,
       provider,
       enabled: Boolean(settings.enabled),
-      recipients: to,
+      recipientCount: to.length,
       relatedType: payload.relatedType || null,
       relatedId: payload.relatedId || null,
       hasResendApiKey: Boolean(process.env.RESEND_API_KEY)
@@ -1017,7 +1147,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (!settings.enabled || provider === "disabled") {
-      console.info("[Kim's Coaching email] email disabled/test mode", { traceId, type, to });
+      console.info("[Kim's Coaching email] email disabled/test mode", { traceId, type, recipientCount: to.length });
       await finalizeLogs(logs, "test_mode");
       res.status(200).json({ sent: false, status: "test_mode", provider, traceId, logIds: getLogIds(logs) });
       return;
@@ -1028,7 +1158,7 @@ module.exports = async function handler(req, res) {
       const message = `Missing Vercel email environment variables: ${missingEnv.join(", ")}`;
       console.error("[Kim's Coaching email] email environment validation failed", { traceId, type, provider, missingEnv });
       await finalizeLogs(logs, "failed", message);
-      res.status(200).json({ sent: false, status: "failed", provider, error: message, traceId, logIds: getLogIds(logs) });
+      res.status(200).json({ sent: false, status: "failed", provider, error: "Email service is not configured.", traceId, logIds: getLogIds(logs) });
       return;
     }
 
@@ -1036,32 +1166,38 @@ module.exports = async function handler(req, res) {
       traceId,
       to,
       settings,
-      subject: getSubject(type, payload),
+      subject: sanitizeSubject(getSubject(type, payload)),
       text: renderText(type, payload),
       html: renderHtml(type, payload),
       ics: payload.ics || ""
     };
 
-    console.info("[Kim's Coaching email] sending email through Resend", { traceId, type, recipients: to });
+    console.info("[Kim's Coaching email] sending email through Resend", { traceId, type, recipientCount: to.length });
     await sendWithResend(message, settings);
 
     await finalizeLogs(logs, "sent");
-    console.info("[Kim's Coaching email] email send succeeded", { traceId, type, provider, recipients: to, logIds: getLogIds(logs) });
+    console.info("[Kim's Coaching email] email send succeeded", { traceId, type, provider, recipientCount: to.length, logIds: getLogIds(logs) });
     res.status(200).json({ sent: true, status: "sent", provider, traceId, logIds: getLogIds(logs) });
   } catch (error) {
     const safeMessage = safeError(error) || "Email failed safely";
-    console.error("[Kim's Coaching email] email failed safely", { traceId, type, provider, recipients: to, message: safeMessage });
+    console.error("[Kim's Coaching email] email failed safely", { traceId, type, provider, recipientCount: to.length, message: safeMessage });
     if (!logs.length) {
       logs = attachLogContext(await createPendingLogs(type, to, payload, provider), type, payload, provider);
       console.info("[Kim's Coaching email] notification log created in catch", {
         traceId,
         type,
         provider,
-        logIds: getLogIds(logs),
-        recipients: to
+        logIds: getLogIds(logs)
       });
     }
     await finalizeLogs(logs, "failed", safeMessage);
-    res.status(200).json({ sent: false, status: "failed", provider, error: safeMessage, traceId, logIds: getLogIds(logs) });
+    res.status(200).json({ sent: false, status: "failed", provider, error: "Email could not be sent.", traceId, logIds: getLogIds(logs) });
   }
+};
+
+module.exports._test = {
+  authorizeEmailRequest,
+  isInternalEmailRequest,
+  parseEmailBody,
+  sanitizeSubject
 };
