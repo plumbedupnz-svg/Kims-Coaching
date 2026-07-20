@@ -1,6 +1,15 @@
 const crypto = require("crypto");
 
 const publicSupabaseAnonKey = "sb_publishable_34HW1F0Asg7kEk8vEYCiLQ_9jO1jl4m";
+const DEFAULT_JSON_BODY_LIMIT = 256 * 1024;
+const DEFAULT_WEBHOOK_BODY_LIMIT = 1024 * 1024;
+const STRIPE_SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
+
+function requestError(message, statusCode = 400) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
 
 function getSiteUrl() {
   return (process.env.NEXT_PUBLIC_SITE_URL || "https://www.kimjonescoaching.co.nz").replace(/\/+$/, "");
@@ -47,20 +56,55 @@ function getServiceHeaders(prefer = "") {
   };
 }
 
-async function readJsonBody(req) {
-  if (req.body && typeof req.body === "object") return req.body;
-  if (typeof req.body === "string") return JSON.parse(req.body || "{}");
+function assertBodySize(value, maxBytes) {
+  const size = Buffer.isBuffer(value)
+    ? value.length
+    : Buffer.byteLength(typeof value === "string" ? value : JSON.stringify(value || {}), "utf8");
+  if (size > maxBytes) throw requestError("Request body is too large.", 413);
+}
+
+async function readJsonBody(req, maxBytes = DEFAULT_JSON_BODY_LIMIT) {
+  const declaredLength = Number(req.headers?.["content-length"] || 0);
+  if (declaredLength > maxBytes) throw requestError("Request body is too large.", 413);
+  if (req.body && typeof req.body === "object") {
+    assertBodySize(req.body, maxBytes);
+    return req.body;
+  }
+  if (typeof req.body === "string") {
+    assertBodySize(req.body, maxBytes);
+    return JSON.parse(req.body || "{}");
+  }
   const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) throw requestError("Request body is too large.", 413);
+    chunks.push(buffer);
+  }
   const raw = Buffer.concat(chunks).toString("utf8");
   return raw ? JSON.parse(raw) : {};
 }
 
-async function getRawBody(req) {
-  if (Buffer.isBuffer(req.body)) return req.body;
-  if (typeof req.body === "string") return Buffer.from(req.body);
+async function getRawBody(req, maxBytes = DEFAULT_WEBHOOK_BODY_LIMIT) {
+  const declaredLength = Number(req.headers?.["content-length"] || 0);
+  if (declaredLength > maxBytes) throw requestError("Request body is too large.", 413);
+  if (Buffer.isBuffer(req.body)) {
+    assertBodySize(req.body, maxBytes);
+    return req.body;
+  }
+  if (typeof req.body === "string") {
+    assertBodySize(req.body, maxBytes);
+    return Buffer.from(req.body);
+  }
   const chunks = [];
-  for await (const chunk of req) chunks.push(Buffer.from(chunk));
+  let total = 0;
+  for await (const chunk of req) {
+    const buffer = Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) throw requestError("Request body is too large.", 413);
+    chunks.push(buffer);
+  }
   return Buffer.concat(chunks);
 }
 
@@ -171,7 +215,7 @@ async function createStripeCheckoutSession({ lineItems, metadata, customerEmail,
   return json;
 }
 
-function verifyStripeSignature(rawBody, signatureHeader = "") {
+function verifyStripeSignature(rawBody, signatureHeader = "", options = {}) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!secret) throw new Error("STRIPE_WEBHOOK_SECRET is not configured.");
   const parts = String(signatureHeader || "").split(",").reduce((acc, item) => {
@@ -185,6 +229,12 @@ function verifyStripeSignature(rawBody, signatureHeader = "") {
   const timestamp = parts.t?.[0];
   const signatures = parts.v1 || [];
   if (!timestamp || !signatures.length) throw new Error("Missing Stripe signature.");
+  const timestampNumber = Number(timestamp);
+  const nowSeconds = Number(options.nowSeconds || Math.floor(Date.now() / 1000));
+  const toleranceSeconds = Number(options.toleranceSeconds || STRIPE_SIGNATURE_TOLERANCE_SECONDS);
+  if (!Number.isInteger(timestampNumber) || Math.abs(nowSeconds - timestampNumber) > toleranceSeconds) {
+    throw new Error("Stripe signature timestamp is outside the allowed tolerance.");
+  }
   const expected = crypto
     .createHmac("sha256", secret)
     .update(`${timestamp}.${rawBody.toString("utf8")}`)
@@ -209,10 +259,14 @@ function textList(values = []) {
 
 async function callEmail(type, payload) {
   const siteUrl = getSiteUrl();
+  const internalToken = process.env.EMAIL_INTERNAL_SECRET || process.env.STRIPE_WEBHOOK_SECRET || "";
   try {
     const response = await fetch(`${siteUrl}/api/send-email`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(internalToken ? { "X-Kims-Email-Internal": internalToken } : {})
+      },
       body: JSON.stringify({ type, payload })
     });
     const json = await response.json().catch(() => ({}));
@@ -244,5 +298,11 @@ module.exports = {
   textList,
   uuidList,
   verifyStripeSignature,
-  verifyUser
+  verifyUser,
+  _test: {
+    DEFAULT_JSON_BODY_LIMIT,
+    DEFAULT_WEBHOOK_BODY_LIMIT,
+    STRIPE_SIGNATURE_TOLERANCE_SECONDS,
+    assertBodySize
+  }
 };

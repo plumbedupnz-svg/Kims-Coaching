@@ -442,7 +442,10 @@
       traceId: `junior-group-${Date.now()}`
     };
 
-    console.info("[Kim Junior Group] pending member created before Stripe checkout", emailPayload);
+    console.info("[Kim Junior Group] pending booking created before Stripe checkout", {
+      relatedId: emailPayload.relatedId,
+      groupId: state.selectedGroup.group_id
+    });
     setStatus("Your place is held temporarily. Redirecting to secure Stripe Checkout...", "success");
     try {
       await startStripeCheckout(result?.member_id);

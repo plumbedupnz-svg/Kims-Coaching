@@ -1936,6 +1936,11 @@
       return;
     }
 
+    if (file.size > 10 * 1024 * 1024) {
+      setMessage(invoiceMessageEl, "Supplier invoice PDFs must be 10MB or smaller.", "error");
+      return;
+    }
+
     const user = await getSessionUser();
     const storagePath = `sportco/${Date.now()}-${file.name.replace(/[^a-z0-9._-]/gi, "-")}`;
     setMessage(invoiceMessageEl, "Uploading invoice and preparing review...");
