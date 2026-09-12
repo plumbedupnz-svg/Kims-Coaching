@@ -1,0 +1,37 @@
+.customer-card { border: 1px solid var(--border); border-radius: 10px; background: #fff; overflow: hidden; min-width: 0; }
+.customer-card > .admin-data-row { border: 0; border-radius: 0; }
+.racket-workspace { border-top: 1px solid var(--border); }
+.racket-workspace > summary { padding: 14px 16px; color: #244f7c; font-weight: 700; cursor: pointer; background: #f8faff; }
+.racket-workspace > summary:hover { background: #eef4fc; }
+[data-racket-content] { padding: 16px; display: grid; gap: 16px; }
+[data-racket-editor]:empty, [data-racket-message]:empty { display: none; }
+.racket-toolbar, .racket-card-head { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between; }
+.racket-card { border: 1px solid var(--border); border-radius: 8px; padding: 16px; min-width: 0; }
+.racket-card h3, .racket-form h3 { margin: 0 0 4px; font-size: 1.05rem; }
+.racket-card p { margin: 4px 0; overflow-wrap: anywhere; }
+.racket-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
+.racket-facts dt { color: var(--muted); font-size: .8rem; margin-bottom: 4px; }
+.racket-facts dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.racket-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.racket-actions .btn, .racket-toolbar .btn { padding: 9px 14px; min-height: 40px; }
+.racket-history { margin-top: 16px; }
+.racket-history > summary { cursor: pointer; color: #244f7c; font-weight: 600; }
+.racket-history-entry { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 12px; }
+.racket-history-entry button { margin-top: 6px; }
+.racket-form { padding: 18px; border: 1px solid #abc9e8; background: #f7faff; border-radius: 8px; }
+.racket-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+.racket-form label { display: grid; gap: 6px; font-size: .88rem; font-weight: 600; min-width: 0; }
+.racket-form input, .racket-form select, .racket-form textarea { width: 100%; min-width: 0; padding: 10px; border: 1px solid var(--border); border-radius: 6px; background: white; color: var(--text); font: inherit; }
+.racket-form .racket-consent { display: flex; align-items: flex-start; gap: 10px; margin: 16px 0 8px; }
+.racket-consent input { width: 18px; height: 18px; flex-shrink: 0; margin-top: 2px; }
+.racket-form fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.racket-form legend { padding: 8px 0 0; font-weight: 700; }
+.racket-wide { grid-column: 1 / -1; }
+.racket-status { border-radius: 20px; padding: 5px 10px; background: #eef2f7; color: #526784; font-size: .8rem; font-weight: 700; }
+.racket-status.due { color: #934b05; background: #fff1d9; }
+.racket-status.sent { color: #15733b; background: #e6f6ed; }
+.racket-status.review { color: #a32d22; background: #fff0ed; }
+@media (max-width: 640px) {
+  .racket-form-grid, .racket-facts { grid-template-columns: 1fr; }
+  .racket-form, [data-racket-content] { padding: 12px; }
+}

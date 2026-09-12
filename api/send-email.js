@@ -1065,3 +1065,6 @@ module.exports = async function handler(req, res) {
     res.status(200).json({ sent: false, status: "failed", provider, error: safeMessage, traceId, logIds: getLogIds(logs) });
   }
 };
+
+// Shared by the scheduled stringing reminder worker; preserves the saved admin settings.
+module.exports.loadEmailSettings = loadEmailSettings;

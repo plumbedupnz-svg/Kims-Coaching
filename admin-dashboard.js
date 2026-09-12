@@ -381,16 +381,23 @@
         ? profile.players.map((player) => player.name).filter(Boolean).join(", ")
         : profile.player_name || "No player saved";
       return `
-        <article class="admin-data-row">
+        <article class="customer-card">
+          <div class="admin-data-row">
           <div>
             <strong>${escapeHtml(name)}</strong>
             <p>${escapeHtml(profile.email || "No email")} ${profile.mobile || profile.phone ? `- ${escapeHtml(profile.mobile || profile.phone)}` : ""}</p>
             <p>${escapeHtml(players)}</p>
           </div>
           <span class="status-pill ${profile.role === "admin" ? "blocked" : "available"}">${escapeHtml(profile.role || "customer")}</span>
+          </div>
+          <details class="racket-workspace" data-racket-customer="${escapeHtml(profile.id)}">
+            <summary>Rackets &amp; stringing</summary>
+            <div data-racket-content><p class="helper-text">Loading rackets…</p></div>
+          </details>
         </article>
       `;
     }).join("");
+    window.KimsRackets?.mount(customers);
   }
 
   function renderWaitlist(entries = []) {
