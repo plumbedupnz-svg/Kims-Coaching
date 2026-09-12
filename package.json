@@ -1,6 +1,10 @@
 {
   "private": true,
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "preview:rackets": "node scripts/preview-rackets.cjs"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.8"
   }
 }
