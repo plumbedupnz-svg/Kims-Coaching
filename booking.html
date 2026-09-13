@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="layout-option-2.css" />
     <link rel="stylesheet" href="booking-calendar.css?v=20260702-adult-junior-split" />
     <link rel="stylesheet" href="booking-compact.css" />
+    <link rel="stylesheet" href="privacy.css?v=20260913" />
   </head>
   <body>
     <header class="site-header">
@@ -85,6 +86,7 @@
                 <a class="btn btn-primary full" href="account.html?mode=signup">Login or Create Account</a>
               </div>
               <form class="booking-form" data-junior-group-form hidden>
+                <p class="privacy-notice">Kim Jones Coaching uses these details to assess programme suitability, organise coaching, process payment and contact you. Required details are needed to action your request; notes are optional. If booking for someone else, make sure you have authority and share our <a href="privacy.html#players" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> with them. It explains who holds and receives information, your access and correction rights, and our privacy contact.</p>
                 <label>
                   Booking for
                   <select name="booking_person" data-junior-booking-person required>
@@ -165,6 +167,7 @@
               <a class="btn btn-primary full" href="account.html?mode=signup">Login or Create Account</a>
             </div>
             <form class="booking-form" data-booking-form hidden>
+              <p class="privacy-notice">Kim Jones Coaching uses these details to arrange your lesson, process any payment and contact you. Required details are needed to action your request; notes are optional. If supplying someone else’s details, make sure you have authority and share our <a href="privacy.html#players" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> with them. It explains who holds and receives information, your access and correction rights, and our privacy contact.</p>
               <label>
                 Lesson duration
                 <select name="duration_minutes" data-duration-select required>
@@ -243,6 +246,7 @@
             <p>Tell Kim what you are looking for and she will be in touch when a suitable coaching option is available.</p>
             <button class="btn btn-primary waitlist-open-button" type="button" data-waitlist-open aria-expanded="false" aria-controls="waitlist-request-form">Request a Time</button>
             <form class="booking-form waitlist-form" id="waitlist-request-form" data-waitlist-form hidden>
+              <p class="privacy-notice">Kim Jones Coaching uses these details to manage your waitlist request and contact you about suitable coaching. Required details are needed to action your request; notes are optional. If supplying someone else’s details, make sure you have authority and share our <a href="privacy.html#players" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> with them. It explains who holds and receives information, your access and correction rights, and our privacy contact.</p>
               <label data-waitlist-player-row hidden>
                 Select saved player
                 <select name="saved_player" data-waitlist-player-select>
@@ -323,6 +327,9 @@
         </div>
       </section>
     </main>
+    <footer class="site-footer">
+      <div class="container footer-inner"><p>Kim Jones Coaching</p><a href="privacy.html">Privacy policy</a></div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js?v=20260626-lesson-rules"></script>
