@@ -11,7 +11,6 @@
 .privacy-notice a,
 .privacy-content a,
 .privacy-jump-links a,
-.privacy-draft a,
 .site-footer a {
   color: #173d68;
   text-decoration: underline;
@@ -68,15 +67,6 @@
 
 .privacy-intro > p { max-width: 720px; }
 .privacy-updated { color: #526584; font-size: 0.9rem; }
-
-.privacy-draft {
-  padding: 1rem 1.25rem;
-  margin: 1.5rem 0;
-  border: 1px solid #dec790;
-  border-radius: 10px;
-  background: #fff8e8;
-  color: #614c20;
-}
 
 .privacy-jump-links {
   display: flex;

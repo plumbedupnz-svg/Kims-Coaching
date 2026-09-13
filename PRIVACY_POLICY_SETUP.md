@@ -1,12 +1,18 @@
 # Privacy policy publication and operation
 
-Prepared 13 September 2026 for the website as it currently works. The public text is in `privacy.html`; `privacy.css` styles the page, collection notices and public footers. No database migration is needed.
+Prepared 13 September 2026 and updated 14 September 2026 with the business's confirmed contact details. The public text is in `privacy.html`; `privacy.css` styles the page, collection notices and public footers. No database migration is needed.
 
-## Before publication
+## Confirmed contact details
 
-The policy is drafted but not ready to publish until the business confirms its legal owner/name, privacy officer and a monitored business contact address. A business email can be used for contact; do not substitute a customer's private email, a sample address from setup documentation or an unmonitored invented mailbox. The user has been asked for these details.
+The business confirmed the following on 14 September 2026:
 
-Replace the three marked contact fields, make the email a `mailto:` link if provided, and remove the draft notice/comment and `noindex, nofollow` meta tag only once the details are confirmed. Check the date at publication. Confirm the description matches any practices outside the website (for example paper enrolments, other service providers or promotional photography); the code review cannot establish those practices. A policy alone does not establish legal compliance, and legal review is appropriate for circumstances not covered here.
+- Business name: Kim Jones Coaching Limited, trading as Kim Jones Coaching.
+- Privacy officer: Kim Jones.
+- Privacy contact email: kimjonescoaching@outlook.com.
+
+The page includes a `mailto:` link, and the draft notice, placeholders and draft-only `noindex, nofollow` meta tag have been removed.
+
+Keep the contact details current and the privacy inbox monitored. Review the description against any practices outside the website (for example paper enrolments, other service providers or promotional photography); the code review cannot establish those practices. A policy alone does not establish legal compliance, and legal review is appropriate for circumstances not covered here.
 
 ## Put the policy into practice
 
@@ -18,7 +24,7 @@ Replace the three marked contact fields, make the email a `mailto:` link if prov
 - Record a customer's request before enabling restring reminders, and action replies asking to change or stop them. Ensure the configured reply-to inbox is monitored. This policy does not turn reminders on or subscribe anyone to marketing.
 - Assess privacy incidents promptly and notify the Privacy Commissioner and affected people as soon as practicable if serious harm has occurred or is likely, subject to statutory exceptions. The Act does not impose a universal 72-hour deadline.
 
-## Basis for the draft
+## Sources
 
 Primary guidance checked on 13 September 2026:
 
@@ -30,4 +36,4 @@ Primary guidance checked on 13 September 2026:
 - [Overseas disclosure](https://www.privacy.org.nz/privacy-principles/12/) and [working with third-party providers](https://www.privacy.org.nz/resources-and-learning/working-with-third-party-providers/).
 - [Serious privacy breaches](https://www.privacy.org.nz/responsibilities/privacy-breaches/notify-us/), [complaints](https://www.privacy.org.nz/resources-and-learning/knowledge-base/view/51/) and [privacy officer obligations](https://www.privacy.org.nz/responsibilities/your-obligations/).
 
-Provider privacy links in the page were checked against each provider's official site. The draft is based on the current account/player, booking/waitlist, checkout/payment/email and racket service code, not on accessing customers' private records.
+Provider privacy links in the page were checked against each provider's official site. The policy is based on the current account/player, booking/waitlist, checkout/payment/email and racket service code, not on accessing customers' private records.
