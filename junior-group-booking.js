@@ -177,6 +177,7 @@
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
+    window.KimsAnalytics?.track("begin_checkout", "junior_group", data.id);
     try { sessionStorage.setItem("kims_pending_checkout_type", "junior_group"); } catch (error) {}
     window.location.href = data.url;
   }
