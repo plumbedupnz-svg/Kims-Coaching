@@ -2241,6 +2241,7 @@ function addToCart(product, quantity = 1) {
   if (existing) existing.quantity += requestedQuantity;
   else cart.push(getMinimalCartItem({ ...product, quantity: requestedQuantity }));
   saveCart(cart);
+  window.KimsAnalytics?.commerce?.("add_to_cart", [{ id: product.id, name: product.name, price: getDiscountedPrice(product), quantity: requestedQuantity }]);
   renderCart();
   return true;
 }
@@ -2258,6 +2259,7 @@ function updateQuantity(productId, action) {
   }
   item.quantity += action === "increase" ? 1 : -1;
   saveCart(cart.filter((entry) => entry.quantity > 0));
+  window.KimsAnalytics?.commerce?.(action === "increase" ? "add_to_cart" : "remove_from_cart", [{ id: item.id, name: item.name, price: Number(item.price), quantity: 1 }]);
   renderCart();
 }
 
@@ -2610,6 +2612,7 @@ if (cartItemsEl) cartItemsEl.addEventListener("click", (event) => {
 });
 
 if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
+  window.KimsAnalytics?.commerce?.("remove_from_cart", loadCart());
   saveCart([]);
   renderCart();
 });

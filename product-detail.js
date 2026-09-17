@@ -196,6 +196,8 @@
     const outOfStock = isProductOutOfStock(product);
     const stockText = getProductStockText(product);
     document.title = `${name} | Kim Jones Coaching`;
+    window.KimsAnalyticsProduct = { id: product.id, name, price: discounted, quantity: 1 };
+    window.KimsAnalytics?.viewProduct?.(window.KimsAnalyticsProduct);
     detailEl.innerHTML = `
       <article class="product-detail">
         <div class="product-detail-media">${getImageMarkup(product)}</div>
