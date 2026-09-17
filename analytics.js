@@ -2,7 +2,7 @@
   "use strict";
 
   // Kim's own GA4 web stream. Never use the Plumbed Up measurement ID here.
-  const measurementId = "";
+  const measurementId = "G-QG6T2RRY6J";
   const consentKey = "kims_analytics_consent_v1";
   const consentLifetime = 180 * 24 * 60 * 60 * 1000;
   const pageTitles = {
