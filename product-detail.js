@@ -91,8 +91,9 @@
     const imageUrl = galleryImages.find((image) => image.is_main)?.image_url
       || galleryImages[0]?.image_url
       || "";
-    const trackStock = product.track_stock !== false && !isTruthy(product.is_order_to_sale);
-    const isOrderToSale = isTruthy(product.is_order_to_sale) || product.fulfilment_type === "order_to_sale" || !trackStock;
+    const isService = product.item_kind === "service" || product.fulfilment_type === "service";
+    const trackStock = !isService && product.track_stock !== false && !isTruthy(product.is_order_to_sale);
+    const isOrderToSale = !isService && (isTruthy(product.is_order_to_sale) || product.fulfilment_type === "order_to_sale" || !trackStock);
 
     return {
       ...product,
@@ -113,7 +114,8 @@
       product_images: galleryImages,
       quantity_on_hand: Number(product.quantity_on_hand ?? 0),
       stock_status: product.stock_status || product.status || "out_of_stock",
-      fulfilment_type: isOrderToSale ? "order_to_sale" : "stock",
+      item_kind: isService ? "service" : "product",
+      fulfilment_type: isService ? "service" : isOrderToSale ? "order_to_sale" : "stock",
       visible_in_shop: !isFalsy(product.visible_in_shop),
       is_active: !isFalsy(product.is_active),
       archived_at: product.archived_at || null
@@ -134,12 +136,13 @@
 
   function isProductOutOfStock(product = {}) {
     if (window.KimsShop?.isProductOutOfStock) return window.KimsShop.isProductOutOfStock(product);
-    if (product.fulfilment_type === "order_to_sale") return false;
+    if (["service", "order_to_sale"].includes(product.fulfilment_type)) return false;
     return Number(product.quantity_on_hand || 0) <= 0 || product.stock_status === "out_of_stock";
   }
 
   function getProductStockText(product = {}) {
     if (window.KimsShop?.getProductStockText) return window.KimsShop.getProductStockText(product);
+    if (product.fulfilment_type === "service") return "Service · labour only";
     if (product.fulfilment_type === "order_to_sale") return "Available to order";
     const quantity = Number(product.quantity_on_hand || 0);
     if (quantity <= 0 || product.stock_status === "out_of_stock") return "Out of stock";
