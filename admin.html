@@ -438,6 +438,7 @@
 
                     <fieldset class="inventory-form-section">
                       <legend>Shop and stock options</legend>
+                      <label>Item type<select name="item_kind"><option value="product">Physical product</option><option value="service">Service (no stock quantity)</option></select></label>
                       <label>Quantity on hand
                         <input name="quantity_on_hand" type="number" step="1" min="0" placeholder="0" />
                       </label>
@@ -817,7 +818,8 @@
                     <button type="button" data-settings-tab="shop">Shop Checkout</button>
                     <button type="button" data-settings-tab="promo">Promo Codes</button>
                     <button type="button" data-settings-tab="photo">Front Page Photo</button>
-                    <button type="button" data-settings-tab="email">Email</button>
+                    <button type="button" data-settings-tab="xero">Xero &amp; Invoices</button>
+                  <button type="button" data-settings-tab="email">Email</button>
                   </div>
                 </div>
                 <form class="owner-add-form settings-editor" data-settings-panel="clubs" data-club-form>
@@ -920,10 +922,31 @@
                   </div>
                   <p class="form-message" data-homepage-photo-message></p>
                 </form>
+                <section class="owner-add-form settings-panel-wide" data-settings-panel="xero" data-xero-panel hidden>
+                  <h3>Xero &amp; customer invoices</h3>
+                  <p>Create one Xero invoice per shop order. Offer card payment or online banking, and update the shop when Xero records payment.</p>
+                  <p class="form-message" data-xero-message role="status"></p>
+                  <div class="admin-action-row"><button type="button" class="btn btn-primary" data-xero-connect>Connect Xero</button><button type="button" class="btn btn-secondary" data-xero-refresh>Refresh connection</button></div>
+                  <label>Xero organisation<select data-xero-organisation><option value="">Connect Xero first</option></select></label>
+                  <button type="button" class="btn btn-secondary" data-xero-select>Use this organisation</button>
+                  <form data-xero-settings-form>
+                    <label>Sales account<select name="sales_account_code" required></select></label>
+                    <label>Invoice template<select name="branding_theme_id" required></select></label>
+                    <label>Bank account name<input name="bank_name" value="KIM JONES COACHING LTD" required maxlength="150" /></label>
+                    <label>Bank account number<input name="bank_number" value="01-0286-0978708-00" required /></label>
+                    <label>Days until payment is due (0 = due on receipt)<input name="due_days" type="number" min="0" max="90" value="0" required /></label>
+                    <p class="helper-text">Kim Jones Coaching Limited is not GST registered. Invoice checkout uses No GST. Add the same bank details to the selected invoice template in Xero.</p>
+                    <label class="availability-repeat"><span>I have connected Stripe and added the bank details to this Xero invoice template</span><input name="stripe_ready" type="checkbox" /></label>
+                    <label class="availability-repeat"><span>Enable Xero invoices and both payment options for shop purchases</span><input name="enabled" type="checkbox" /></label>
+                    <button class="btn btn-primary" type="submit">Save invoice settings</button>
+                  </form>
+                  <p class="helper-text">Unpaid invoices reserve physical stock. Void an unpaid invoice in Xero to release it. Stringing labour has no stock quantity. Payment and fulfilment are tracked separately in Shop Orders.</p>
+                  <details><summary>One-time connection setup</summary><p>Register a Xero Web app and configure the server credentials before connecting. Callback: <code>https://www.kimjonescoaching.co.nz/api/xero?action=callback</code>. Invoice webhook: <code>https://www.kimjonescoaching.co.nz/api/xero-webhook</code>. Follow SHOP_XERO_SETUP.md in the project. Never paste client secrets into this form.</p></details>
+                </section>
                 <form id="email-settings-form" class="owner-add-form settings-panel-wide" data-settings-panel="email" data-email-settings-form hidden>
                   <h3>Email Settings</h3>
                   <div class="settings-help-box">
-                    All booking, shop, waitlist, and admin emails use Resend. You can update the public sender name, from email, and reply-to email here. The Resend API key is managed securely in Vercel Environment Variables.
+                    Booking, waitlist, admin and existing shop confirmation emails use Resend. When invoice checkout is enabled, Xero sends its invoice emails. You can update the public sender name, from email, and reply-to email here. The Resend API key is managed securely in Vercel Environment Variables.
                   </div>
                   <label for="email-provider">Provider</label>
                   <select id="email-provider" name="provider">
@@ -971,7 +994,7 @@
     <script src="supabase-config.js?v=20260626-slot-defaults"></script>
     <script src="admin-runtime.js?v=20260626-slot-defaults"></script>
     <script src="product-categories.js?v=20260718-inventory-categories"></script>
-    <script src="app.js?v=20260718-product-gallery"></script>
+    <script src="app.js?v=20260917-invoices"></script>
     <script src="email-settings.js?v=20260626-slot-defaults"></script>
     <script src="email-service.js?v=20260702-adult-junior-split"></script>
     <script src="admin-reports.js?v=20260714-reports"></script>
@@ -983,10 +1006,11 @@
     <script src="admin-junior-groups.js?v=20260703-junior-calendar-groups"></script>
     <script src="admin-settings-tabs.js?v=20260716-admin-overflow"></script>
     <script src="admin-shop-settings.js?v=20260718-gst-helper"></script>
-    <script src="admin-shop-orders.js?v=20260629-shop-checkout"></script>
+    <script src="admin-xero.js?v=20260917"></script>
+    <script src="admin-shop-orders.js?v=20260917-invoices"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260718-price-gst-basis"></script>
+    <script src="admin-inventory.js?v=20260917-invoices"></script>
     <script src="admin-availability-state.js?v=20260702-junior-times"></script>
     <script src="admin-availability.js?v=20260626-slot-defaults"></script>
   </body>

@@ -1,0 +1,5 @@
+create table public.product_categories(id uuid primary key default gen_random_uuid(),name text,normalized_name text generated always as(lower(trim(name))) stored unique,is_default boolean default false);
+create table public.inventory_items(id uuid primary key default gen_random_uuid(),product_name text,sku text,supplier text,category text,category_id uuid references product_categories(id),description text,short_description text,full_description text,sell_price numeric(10,2),cost_price numeric(10,2),purchase_price numeric(10,2),track_stock boolean default true,is_order_to_sale boolean default false,visible_in_shop boolean default false,is_active boolean default true,quantity_on_hand integer default 0 check(quantity_on_hand>=0));
+create unique index inventory_sku_unique on public.inventory_items(lower(sku));
+create table public.stock_movements(id uuid default gen_random_uuid(),inventory_item_id uuid,movement_type text,quantity_delta integer,quantity_before integer,quantity_after integer,reason text,related_type text,related_id uuid);
+grant all on public.inventory_items,public.stock_movements to service_role;

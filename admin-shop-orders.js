@@ -89,7 +89,7 @@
         <div class="shop-orders-table-row" role="row">
           <span>
             <strong>${escapeHtml(formatDate(order.created_at) || "No date")}</strong>
-            <small>${escapeHtml(formatOrderId(order.id))}</small>
+            <small>${escapeHtml(order.order_reference || formatOrderId(order.id))}</small>
           </span>
           <span>
             <strong>${escapeHtml(customerName)}</strong>
@@ -101,6 +101,7 @@
           </span>
           <span>
             <strong>${escapeHtml(formatItems(items))}</strong>
+            ${(order.service_details || order.notes) ? `<small>${escapeHtml(order.service_details || order.notes)}</small>` : ""}
           </span>
           <span>
             <strong>${money(total)}</strong>
@@ -108,9 +109,12 @@
           </span>
           <span>
             <span class="status-pill ${statusClass(paymentStatus)}">${escapeHtml(formatStatus(paymentStatus))}</span>
+            <small>${escapeHtml(order.payment_method === "bank_transfer" ? "Online banking" : "Card")}</small>
+            ${order.payment_provider === "xero" ? `<small>Balance ${money(order.xero_amount_due ?? total)}</small><small>Invoice email: ${escapeHtml(formatStatus(order.invoice_email_status))}</small><small>${order.xero_synced_at ? "Synced " + escapeHtml(formatDate(order.xero_synced_at)) : "Awaiting invoice"}</small>${order.xero_error ? `<small class="form-message" data-tone="error">${escapeHtml(order.xero_error)}</small>` : ""}<button class="btn btn-secondary" type="button" data-sync-xero="${escapeHtml(order.id)}">Refresh from Xero</button>${order.xero_invoice_id ? `<a href="https://go.xero.com/AccountsReceivable/View.aspx?InvoiceID=${encodeURIComponent(order.xero_invoice_id)}" target="_blank" rel="noopener">Open invoice in Xero</a>` : ""}` : ""}
           </span>
           <span>
             <span class="status-pill ${statusClass(orderStatus)}">${escapeHtml(formatStatus(orderStatus))}</span>
+            <label>Fulfilment<select data-order-fulfilment="${escapeHtml(order.id)}">${["unfulfilled","in_progress","ready","completed","cancelled"].map(status => `<option value="${status}"${(order.fulfilment_status || "unfulfilled") === status ? " selected" : ""}>${escapeHtml(formatStatus(status))}</option>`).join("")}</select></label>
           </span>
         </div>
       `;
@@ -137,7 +141,7 @@
     }
     const { data, error } = await client
       .from("shop_orders")
-      .select("id,customer_name,customer_email,customer_phone,mobile,delivery_address,fulfilment_method,shipping_amount,total_amount,total,payment_status,order_status,items,created_at")
+      .select("*")
       .order("created_at", { ascending: false })
       .limit(25);
     if (error) {
@@ -147,5 +151,19 @@
     renderOrders(data || []);
   }
 
+  async function changeOrder(body, element) {
+    element.disabled = true;
+    try {
+      const { data } = await client.auth.getSession();
+      const response = await fetch("/api/xero", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.session.access_token}` }, body: JSON.stringify(body) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Could not update order.");
+      if (body.action === "sync_order") { element.textContent = "Refresh queued"; setTimeout(loadOrders, 5000); }
+      else await loadOrders();
+    } catch (error) { alert(error.message); element.disabled = false; }
+  }
+  listEl.addEventListener("click", event => { const button = event.target.closest("[data-sync-xero]"); if (button) changeOrder({ action: "sync_order", order_id: button.dataset.syncXero }, button); });
+  listEl.addEventListener("change", event => { if (event.target.matches("[data-order-fulfilment]")) changeOrder({ action: "fulfilment", order_id: event.target.dataset.orderFulfilment, status: event.target.value }, event.target); });
+  document.querySelector('[data-products-tab="orders"]')?.addEventListener("click", loadOrders);
   loadOrders();
 })();
