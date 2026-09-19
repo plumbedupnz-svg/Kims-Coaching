@@ -3,6 +3,7 @@ try {
   if (isShopOrder) {
     document.querySelector("[data-shop-stock-success-note]")?.removeAttribute("hidden");
     localStorage.removeItem("kims_cart");
+    window.dispatchEvent(new CustomEvent("kims:cart-updated"));
   }
   sessionStorage.removeItem("kims_pending_checkout_type");
 } catch (error) {

@@ -94,8 +94,10 @@
           if (
             pending?.key === key &&
             JSON.stringify(pending.cart) === JSON.stringify(current)
-          )
+          ) {
             localStorage.removeItem("kims_cart");
+            window.dispatchEvent(new CustomEvent("kims:cart-updated"));
+          }
           if (pending?.key === key)
             sessionStorage.removeItem("kims_invoice_checkout");
         } catch {}
