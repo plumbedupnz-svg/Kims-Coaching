@@ -86,7 +86,7 @@
             
             <div class="checkout-details" data-checkout-details>
               <h4>Checkout details</h4>
-              <p class="privacy-notice">Kim Jones Coaching uses these details to fulfil your order, arrange delivery or pickup and contact you. We share relevant details with Stripe and any delivery provider. Required checkout details are needed to complete your order. Our <a href="privacy.html" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> explains who holds your information, your access and correction rights, and how to contact us.</p>
+              <p class="privacy-notice">Kim Jones Coaching uses these details to fulfil your order, arrange delivery or pickup and contact you. We share relevant details with Stripe, Xero when invoicing is enabled, and any delivery provider. Required checkout details are needed to complete your order. Our <a href="privacy.html" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> explains who holds your information, your access and correction rights, and how to contact us.</p>
               <label for="checkout-full-name">Full name</label>
               <input id="checkout-full-name" type="text" autocomplete="name" placeholder="Full name" />
               <label for="checkout-email">Email</label>
@@ -123,6 +123,8 @@
 
             <p class="helper-text" id="checkout-account-message"></p>
             <p class="shop-stock-note" data-order-stock-note hidden>Some items are available to order. We'll confirm arrival once stock levels have been checked.</p>
+            <div data-service-checkout hidden><label for="service-details">Racket / player details (optional)</label><textarea id="service-details" rows="3" maxlength="1000" placeholder="Player name, racket and preferred string/tension if known"></textarea><p class="helper-text">Stringing labour is per racket. Strings are charged separately. Bring your racket to Kim; the string choice and tension will be confirmed before stringing.</p></div>
+            <div data-payment-choice hidden><label for="checkout-payment-method">Payment method</label><select id="checkout-payment-method"><option value="card">Credit / debit card</option><option value="bank_transfer">Online banking</option></select><p class="helper-text">We will email your invoice. Card payments are made securely from the invoice. For online banking, use its invoice number as your payment reference.</p></div>
             <button class="btn btn-primary full" id="checkout-btn">Proceed to Payment</button>
             <button class="btn btn-secondary full" id="clear-cart-btn">Clear Cart</button>
           </aside>
@@ -136,7 +138,7 @@
     <script src="supabase-config.js"></script>
     <script src="email-service.js"></script>
     <script src="product-categories.js?v=20260718-shop-categories"></script>
-    <script src="app.js?v=20260917-tracking"></script>
-    <script src="shop-order-emails.js?v=20260917-tracking"></script>
+    <script src="app.js?v=20260917-invoices"></script>
+    <script src="shop-order-emails.js?v=20260917-invoices"></script>
   </body>
 </html>

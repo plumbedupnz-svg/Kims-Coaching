@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en-NZ">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Your order and invoice | Kim Jones Coaching</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="layout-option-2.css" />
+    <link rel="stylesheet" href="privacy.css" />
+    <link rel="stylesheet" href="order-payment.css?v=20260917" />
+  </head>
+  <body class="privacy-page">
+    <header class="site-header">
+      <nav class="container nav" aria-label="Primary navigation">
+        <a href="index.html" class="brand"
+          ><span class="brand-main">KIM JONES</span
+          ><span class="brand-sub">COACHING</span></a
+        >
+        <div class="privacy-header-links">
+          <a href="shop.html">Shop</a><a href="account.html">My Account</a>
+        </div>
+      </nav>
+    </header>
+    <main class="privacy-shell">
+      <p class="eyebrow">Shop order</p>
+      <h1>Your order and invoice</h1>
+      <p data-order-message role="status" aria-live="polite">
+        Loading your order…
+      </p>
+      <section class="privacy-content" data-order-summary hidden>
+        <h2 data-order-reference></h2>
+        <p><strong data-order-status></strong></p>
+        <p>
+          Total: <strong data-order-total></strong> · Still to pay:
+          <strong data-order-due></strong>
+        </p>
+        <p data-order-due-date></p>
+        <p data-invoice-email></p>
+        <a
+          class="btn btn-primary"
+          data-invoice-link
+          hidden
+          target="_blank"
+          rel="noopener noreferrer"
+          >View invoice and pay by card</a
+        >
+        <div class="privacy-contact-details" data-bank-details hidden>
+          <h3>Pay by online banking</h3>
+          <p>Account name: <strong data-bank-name></strong></p>
+          <p>Account number: <strong data-bank-number></strong></p>
+          <p>Payment reference: <strong data-bank-reference></strong></p>
+          <p>
+            Use your invoice number as the reference. Your order will show as
+            paid after the payment is recorded against the invoice in Xero.
+          </p>
+        </div>
+        <p>
+          Keep this page to check your payment status. Payment does not mean
+          your order is ready to collect; Kim will confirm that separately.
+        </p>
+        <button class="btn btn-secondary" type="button" data-refresh-order>
+          Refresh payment status
+        </button>
+      </section>
+      <p>
+        Need help? Email
+        <a href="mailto:kimjonescoaching@outlook.com"
+          >kimjonescoaching@outlook.com</a
+        >.
+      </p>
+    </main>
+    <footer class="site-footer">
+      <div class="container footer-inner">
+        <p>Kim Jones Coaching</p>
+        <a href="privacy.html">Privacy policy</a>
+      </div>
+    </footer>
+    <script src="order-payment.js?v=20260917"></script>
+  </body>
+</html>

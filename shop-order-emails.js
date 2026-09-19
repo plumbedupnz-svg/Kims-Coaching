@@ -45,6 +45,8 @@
   };
 
   let checkoutSettings = { ...defaults };
+  let paymentOptions = { provider: "stripe", bank_transfer: false };
+  let paymentOptionsReady = false;
   let lastSummary = { subtotal: 0, tax: 0, promoDiscount: 0 };
 
   function money(value) {
@@ -151,6 +153,8 @@
   }
 
   function selectedFulfilment() {
+    const cart = loadCart();
+    if (cart.length && cart.every(item => item.fulfilment_type === "service")) return "pickup";
     return fields.fulfilment?.value || "pickup";
   }
 
@@ -293,7 +297,7 @@
       postcode: fields.postcode?.value.trim() || "",
       country: fields.country?.value.trim() || "New Zealand"
     };
-    return { customer, fulfilment_method: method, delivery_address };
+    return { customer, fulfilment_method: method, delivery_address, payment_method: document.getElementById("checkout-payment-method")?.value || "card", service_details: document.getElementById("service-details")?.value.trim() || "" };
   }
 
   function validateCheckout(payload) {
@@ -307,14 +311,51 @@
     }
   }
 
+  async function loadPaymentOptions() {
+    fields.checkoutButton.disabled = true;
+    try {
+      const response = await fetch("/api/shop-checkout");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Payment options are unavailable. Please refresh.");
+      paymentOptions = data;
+      const choice = document.querySelector("[data-payment-choice]");
+      if (choice) choice.hidden = data.provider !== "xero";
+      paymentOptionsReady = true;
+      fields.checkoutButton.disabled = false;
+      fields.checkoutButton.textContent = data.provider === "xero" ? "Create invoice" : "Proceed to Payment";
+    } catch (error) { if (fields.message) fields.message.textContent = error.message; }
+  }
+
+  function updateServiceDetails() {
+    const cart = loadCart();
+    const serviceWrap = document.querySelector("[data-service-checkout]");
+    if (serviceWrap) serviceWrap.hidden = !cart.some(item => item.fulfilment_type === "service");
+    const onlyServices = cart.length > 0 && cart.every(item => item.fulfilment_type === "service");
+    if (fields.fulfilment) { fields.fulfilment.disabled = onlyServices; if (onlyServices) fields.fulfilment.value = "pickup"; }
+    updateFulfilmentHelp();
+  }
+
+  async function checkoutKey(cart, checkout) {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify({ cart, checkout })));
+    const fingerprint = Array.from(new Uint8Array(bytes)).map(n => n.toString(16).padStart(2, "0")).join("");
+    let previous;
+    try { previous = JSON.parse(sessionStorage.getItem("kims_invoice_checkout") || "null"); } catch (_) {}
+    if (previous?.fingerprint === fingerprint) return previous.key;
+    const key = crypto.randomUUID();
+    sessionStorage.setItem("kims_invoice_checkout", JSON.stringify({ key, fingerprint, cart }));
+    return key;
+  }
+
   async function startShopCheckout(cart, token, checkout) {
     const headers = { "Content-Type": "application/json" };
     if (token) headers.Authorization = `Bearer ${token}`;
-    const response = await fetch("/api/stripe/create-checkout-session", {
+    const key = await checkoutKey(cart, checkout);
+    const response = await fetch("/api/shop-checkout", {
       method: "POST",
       headers,
       body: JSON.stringify({
         booking_type: "shop_order",
+        checkout_key: key,
         analytics_consent: window.KimsAnalytics?.isAllowed?.() === true,
         cart,
         checkout
@@ -322,28 +363,30 @@
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
-    window.KimsAnalytics?.checkout?.(data, "shop_order");
+    if (data.provider !== "xero") window.KimsAnalytics?.checkout?.(data, "shop_order");
     try { sessionStorage.setItem("kims_pending_checkout_type", "shop_order"); } catch (error) {}
     window.location.href = data.url;
   }
 
   async function handleCheckout(event) {
-    if (event.currentTarget?.dataset.stripeCheckoutHandled === "true") return;
+    const button = event.currentTarget;
+    if (button?.dataset.stripeCheckoutHandled === "true") return;
     const cart = loadCart();
     if (!cart.length) return;
 
     event.preventDefault();
     event.stopImmediatePropagation();
-    event.currentTarget.dataset.stripeCheckoutHandled = "true";
+    button.dataset.stripeCheckoutHandled = "true";
 
     try {
+      if (!paymentOptionsReady) throw new Error("Payment options are still loading. Please try again shortly.");
       const checkout = getCheckoutPayload();
       validateCheckout(checkout);
       const session = await getSession();
-      if (fields.message) fields.message.textContent = "Redirecting to secure Stripe Checkout...";
+      if (fields.message) fields.message.textContent = paymentOptions.provider === "xero" ? "Creating your order and invoice…" : "Redirecting to secure Stripe Checkout...";
       await startShopCheckout(cart, session?.access_token || "", checkout);
     } catch (error) {
-      event.currentTarget.dataset.stripeCheckoutHandled = "false";
+      button.dataset.stripeCheckoutHandled = "false";
       if (fields.message) fields.message.textContent = error.message || "Could not start Stripe Checkout.";
       alert(error.message || "Could not start Stripe Checkout. Please try again.");
     }
@@ -363,11 +406,14 @@
       lastSummary = { ...lastSummary, ...(event.detail || {}) };
       lastSummary.promoDiscount = 0;
       updateOrderStockNotice(Boolean(event.detail?.hasOrderToSaleItems));
+      updateServiceDetails();
       updateTotals();
     });
+    await loadPaymentOptions();
     await loadCheckoutSettings();
     await prefillCheckoutDetails();
     updateOrderStockNotice();
+    updateServiceDetails();
     updateFulfilmentHelp();
   });
 })();

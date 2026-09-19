@@ -1,0 +1,11 @@
+.privacy-content a.btn-primary {
+  color: #fff;
+  text-decoration: none;
+  margin: 0 0 1.25rem;
+}
+.privacy-content [data-bank-details] {
+  margin-bottom: 1.25rem;
+}
+.privacy-content [data-bank-details] h3 {
+  margin-top: 0;
+}
