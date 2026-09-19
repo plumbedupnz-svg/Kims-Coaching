@@ -91,6 +91,37 @@ test("Stripe JSON parser enforces the request size cap", async () => {
   );
 });
 
+test("Stripe Checkout only enables synchronous card payments", async (context) => {
+  const originalFetch = global.fetch;
+  const originalEnv = { ...process.env };
+  context.after(() => {
+    global.fetch = originalFetch;
+    process.env = originalEnv;
+  });
+  Object.assign(process.env, {
+    STRIPE_SECRET_KEY: "sk_test_checkout",
+    NEXT_PUBLIC_SITE_URL: "https://www.kimjonescoaching.co.nz"
+  });
+
+  let checkoutParams;
+  global.fetch = async (_url, options = {}) => {
+    checkoutParams = new URLSearchParams(options.body);
+    return new Response(JSON.stringify({ id: "cs_test_card_only", url: "https://checkout.stripe.com/test" }), {
+      status: 200,
+      headers: { "content-type": "application/json" }
+    });
+  };
+
+  await stripeHelpers.createStripeCheckoutSession({
+    lineItems: [{ name: "Test product", unitAmount: 199, quantity: 1 }],
+    metadata: { payment_type: "shop_order" },
+    customerEmail: "customer@example.com"
+  });
+
+  assert.equal(checkoutParams.get("payment_method_types[0]"), "card");
+  assert.equal(checkoutParams.get("automatic_tax[enabled]"), null);
+});
+
 test("Stripe webhook event claims do not reprocess an active duplicate", async (context) => {
   const originalFetch = global.fetch;
   const originalEnv = { ...process.env };
@@ -141,7 +172,19 @@ test("security migration uses trusted totals and removes unsafe direct writes", 
   assert.match(migration, /revoke insert on public\.shop_orders from authenticated/);
   assert.match(migration, /revoke all on function public\.apply_stock_movement[\s\S]*from public, anon, authenticated/);
   assert.match(migration, /revoke all on function public\.create_shop_order_with_stock[\s\S]*from public, anon, authenticated/);
+  assert.match(migration, /to_regprocedure\('public\.create_shop_order_with_stock\(uuid,text,text,text,jsonb,numeric,numeric\)'\)/);
   assert.match(migration, /create trigger protect_player_workflow_fields/);
+  assert.match(migration, /notify pgrst, 'reload schema'/);
+});
+
+test("security compatibility migration guards optional legacy functions", () => {
+  const migration = fs.readFileSync(
+    path.join(root, "supabase/migrations/20260920000000_security_hardening_function_compatibility.sql"),
+    "utf8"
+  );
+
+  assert.match(migration, /to_regprocedure\('public\.admin_list_inventory_items\(\)'\)/);
+  assert.match(migration, /to_regprocedure\('public\.create_shop_order_with_stock\(uuid,text,text,text,jsonb,numeric,numeric\)'\)/);
   assert.match(migration, /notify pgrst, 'reload schema'/);
 });
 
