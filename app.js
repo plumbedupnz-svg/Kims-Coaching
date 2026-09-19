@@ -65,6 +65,8 @@ const categoryFilterEl = document.getElementById("category-filter");
 const shopSearchEl = document.getElementById("shop-search");
 const shopSearchClearEl = document.getElementById("shop-search-clear");
 const shopResultsSummaryEl = document.getElementById("shop-results-summary");
+const shopPageSizeEl = document.getElementById("shop-page-size");
+const shopPaginationEls = document.querySelectorAll("[data-shop-pagination]");
 const ownerProductCategorySelectEl = document.getElementById("owner-product-category");
 const ownerNewCategoryEl = document.getElementById("owner-new-category");
 const addCategoryBtnEl = document.getElementById("add-category-btn");
@@ -133,6 +135,10 @@ const isProductDetailPage = Boolean(document.querySelector("[data-product-detail
 const SHOP_ALL_CATEGORY = "all";
 const PUBLIC_PRODUCT_BASE_URL = "https://kimjonescoaching.co.nz";
 let selectedCategory = SHOP_ALL_CATEGORY;
+let shopPage = 1;
+let shopPageCount = 1;
+let shopPageSize = 20;
+let shopFilterKey = "";
 const urlParams = new URLSearchParams(window.location.search);
 const showShopDebug = urlParams.get("debug") === "shop";
 const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
@@ -2021,6 +2027,7 @@ function renderProducts() {
   if (shopSearchClearEl) shopSearchClearEl.hidden = !searchValue;
   if (isShopPage && supabaseClient && publicShopProducts === null) {
     if (shopResultsSummaryEl) shopResultsSummaryEl.textContent = "Loading products…";
+    shopPaginationEls.forEach((navigation) => { navigation.hidden = true; });
     if (productListEl) {
       productListEl.innerHTML = `<p class="empty-cart">Loading shop products...</p>${getShopDebugMarkup(0, 0)}`;
     }
@@ -2061,11 +2068,30 @@ function renderProducts() {
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
   shopLoadDebug.rowsAfterCategoryFilter = categoryProducts.length;
   const filteredProducts = categoryProducts.filter((product) => productMatchesShopSearch(product, searchTerms));
+  const filterKey = JSON.stringify([selectedCategory, searchTerms]);
+  if (filterKey !== shopFilterKey) {
+    shopPage = 1;
+    shopFilterKey = filterKey;
+  }
+  filteredProducts.sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name) || String(a.id).localeCompare(String(b.id)));
+  const pageSize = shopPageSizeEl && shopPageSize !== "all" ? shopPageSize : Math.max(1, filteredProducts.length);
+  shopPageCount = Math.max(1, Math.ceil(filteredProducts.length / pageSize));
+  shopPage = Math.max(1, Math.min(shopPage, shopPageCount));
+  const pageStart = (shopPage - 1) * pageSize;
+  const pageProducts = filteredProducts.slice(pageStart, pageStart + pageSize);
+  shopPaginationEls.forEach((navigation) => {
+    navigation.hidden = shopPageCount <= 1;
+    navigation.querySelector('[data-shop-page-step="-1"]').disabled = shopPage === 1;
+    navigation.querySelector('[data-shop-page-step="1"]').disabled = shopPage === shopPageCount;
+    const pageSelect = navigation.querySelector("[data-shop-page]");
+    pageSelect.innerHTML = Array.from({ length: shopPageCount }, (_, index) => `<option value="${index + 1}">${index + 1}</option>`).join("");
+    pageSelect.value = String(shopPage);
+    navigation.querySelector("[data-shop-page-total]").textContent = `of ${shopPageCount}`;
+  });
   if (shopResultsSummaryEl) {
-    const hasFilters = searchTerms.length || selectedCategory !== SHOP_ALL_CATEGORY;
-    shopResultsSummaryEl.textContent = hasFilters
-      ? `${filteredProducts.length} of ${publicProducts.length} products found`
-      : `${publicProducts.length} ${publicProducts.length === 1 ? "product" : "products"}`;
+    shopResultsSummaryEl.textContent = filteredProducts.length
+      ? `Showing ${pageStart + 1}–${pageStart + pageProducts.length} of ${filteredProducts.length} ${filteredProducts.length === 1 ? "product" : "products"}`
+      : "0 products found";
   }
   if (showShopDebug) console.log("AFTER CATEGORY FILTER", categoryProducts);
   logShopFilterState("products after category filter", {
@@ -2076,7 +2102,7 @@ function renderProducts() {
       categoriesLoaded: window.KimsProductCategories?.getAll?.().length || 0,
       publicProductsCount: publicProducts.length,
       selectedCategory,
-      renderedProductsCount: filteredProducts.length
+      renderedProductsCount: pageProducts.length
     });
     initialShopRenderComplete = true;
   }
@@ -2086,14 +2112,15 @@ function renderProducts() {
       rowsAfterVisibilityFilter: publicProducts.length,
       rowsAfterCategoryFilter: categoryProducts.length,
       rowsAfterSearchFilter: filteredProducts.length,
+      renderedProductsCount: pageProducts.length,
+      page: shopPage,
       selectedCategory,
       filters: shopLoadDebug.filters,
       source: shopLoadDebug.source
     });
   }
 
-  const cards = filteredProducts
-    .sort((a, b) => (a.category || "").localeCompare(b.category || "") || a.name.localeCompare(b.name))
+  const cards = pageProducts
     .map((p, index) => {
       const discounted = getDiscountedPrice(p);
       const hasDiscount = Number(p.discount || 0) > 0;
@@ -2645,6 +2672,24 @@ if (shopSearchClearEl) shopSearchClearEl.addEventListener("click", () => {
   shopSearchEl.value = "";
   renderProducts();
   shopSearchEl.focus();
+});
+if (shopPageSizeEl) shopPageSizeEl.addEventListener("change", () => {
+  const value = shopPageSizeEl.value;
+  shopPageSize = value === "all" ? "all" : [20, 40, 60].includes(Number(value)) ? Number(value) : 20;
+  shopPage = 1;
+  renderProducts();
+});
+function changeShopPage(page) {
+  shopPage = Math.max(1, Math.min(page, shopPageCount));
+  renderProducts();
+  shopResultsSummaryEl?.focus({ preventScroll: true });
+  shopResultsSummaryEl?.scrollIntoView({ block: "start" });
+}
+shopPaginationEls.forEach((navigation) => {
+  navigation.querySelectorAll("[data-shop-page-step]").forEach((button) => {
+    button.addEventListener("click", () => changeShopPage(shopPage + Number(button.dataset.shopPageStep)));
+  });
+  navigation.querySelector("[data-shop-page]").addEventListener("change", (event) => changeShopPage(Number(event.target.value)));
 });
 window.addEventListener("kims:categories-ready", () => {
   if (!isShopPage) return;

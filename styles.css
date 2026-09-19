@@ -363,12 +363,21 @@ h3 { font-size: 1.2rem; margin: 0.3rem 0 0.75rem; }
 .shop-toolbar { display: flex; flex-wrap: wrap; align-items: end; gap: 1rem; margin: 0.5rem 0 0.7rem; }
 .shop-search-field { flex: 2 1 320px; min-width: 0; display: grid; gap: 0.45rem; }
 .shop-category-field { flex: 1 1 220px; min-width: 0; display: grid; gap: 0.45rem; }
+.shop-page-size-field { display: grid; gap: 0.45rem; }
+.shop-page-size-field .shop-filter-select { min-width: 115px; }
 .shop-search-row { display: flex; align-items: center; gap: 0.5rem; }
 .shop-search-row .btn { flex-shrink: 0; min-height: 44px; }
 .shop-search-row .btn[hidden] { display: none; }
 .shop-search-row .shop-search-input { flex: 1; min-width: 0; }
 .shop-toolbar .shop-search-input, .shop-toolbar .shop-filter-select { margin: 0; min-height: 44px; }
-.shop-results-summary { margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; }
+.shop-results-summary { margin: 0 0 1rem; color: var(--muted); font-size: 0.9rem; scroll-margin-top: 6rem; }
+.shop-pagination { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 0.65rem; margin: 0 0 1.25rem; }
+.shop-pagination-bottom { margin: 1.5rem 0 0; }
+.shop-pagination .btn { min-height: 44px; padding: 0.55rem 0.75rem; }
+.shop-pagination .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.shop-page-picker { display: flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; white-space: nowrap; }
+.shop-page-picker select { width: auto; min-width: 3.25rem; min-height: 44px; margin: 0; padding: 0.45rem; border: 1px solid var(--border); border-radius: 8px; background: #fff; color: var(--text); font: inherit; }
+.shop-pagination :focus-visible, .shop-page-size-field select:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 2px; }
 .shop-filter-label { font-weight: 600; color: var(--text); }
 .shop-filter-select { min-width: 220px; border: 1px solid var(--border); border-radius: 10px; background: #fff; color: var(--text); padding: 0.55rem 0.7rem; }
 .category-section { display: grid; gap: 1rem; }
