@@ -31,7 +31,8 @@ test("legacy live provider settings are sent through Resend", async (context) =>
     SUPABASE_URL: "https://example.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "service-key",
     RESEND_API_KEY: "re_test",
-    EMAIL_PROVIDER: "resend"
+    EMAIL_PROVIDER: "resend",
+    EMAIL_INTERNAL_SECRET: "test-internal-secret"
   });
 
   global.fetch = async (url, options = {}) => {
@@ -65,7 +66,7 @@ test("legacy live provider settings are sent through Resend", async (context) =>
 
   const request = {
     method: "POST",
-    headers: {},
+    headers: { "x-kims-email-internal": "test-internal-secret" },
     body: {
       type: "booking_customer_confirmation",
       payload: { email: "customer@example.com", playerName: "Player" }
@@ -99,7 +100,8 @@ test("shop customer confirmation includes a professional HTML receipt", async (c
     SUPABASE_URL: "https://example.supabase.co",
     SUPABASE_SERVICE_ROLE_KEY: "service-key",
     RESEND_API_KEY: "re_test",
-    EMAIL_PROVIDER: "resend"
+    EMAIL_PROVIDER: "resend",
+    EMAIL_INTERNAL_SECRET: "test-internal-secret"
   });
 
   global.fetch = async (url, options = {}) => {
@@ -133,12 +135,12 @@ test("shop customer confirmation includes a professional HTML receipt", async (c
 
   const request = {
     method: "POST",
-    headers: {},
+    headers: { "x-kims-email-internal": "test-internal-secret" },
     body: {
       type: "shop_order_customer_confirmation",
       payload: {
         relatedId: "12345678-90ab-cdef-1234-567890abcdef",
-        customerName: "Alex Customer",
+        customerName: "Alex <script>alert(1)</script> Customer",
         email: "alex@example.com",
         fulfilmentLabel: "Pick up from coaching / club",
         pickupInstructions: "Kim will confirm collection details shortly.",
@@ -165,7 +167,9 @@ test("shop customer confirmation includes a professional HTML receipt", async (c
   const resendCall = calls.find((call) => call.url === "https://api.resend.com/emails");
   assert.ok(resendCall);
   assert.equal(resendCall.body.subject, "Your Kim Jones Coaching order confirmation");
-  assert.match(resendCall.body.html, /Thanks for your order, Alex Customer/);
+  assert.match(resendCall.body.html, /Thanks for your order, Alex/);
+  assert.doesNotMatch(resendCall.body.html, /<script>alert\(1\)<\/script>/);
+  assert.match(resendCall.body.html, /&lt;script&gt;alert\(1\)&lt;\/script&gt;/);
   assert.match(resendCall.body.html, /Order summary/);
   assert.match(resendCall.body.html, /Tourna Grip Blue/);
   assert.match(resendCall.body.html, /Some items are ordered in as needed/);

@@ -40,7 +40,7 @@
     const adminStatus = storedStatus?.admin?.status || "";
     const customerError = storedStatus?.customer?.error || "";
     const adminError = storedStatus?.admin?.error || "";
-    const traceId = storedStatus?.customer?.traceId || storedStatus?.admin?.traceId || storedStatus?.payload?.traceId || "";
+    const traceId = storedStatus?.customer?.traceId || storedStatus?.admin?.traceId || storedStatus?.traceId || "";
     const logIds = [
       ...(storedStatus?.customer?.logIds || []),
       ...(storedStatus?.admin?.logIds || [])

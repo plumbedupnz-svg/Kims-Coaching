@@ -2,8 +2,7 @@
   function notifyAdminOfNewBooking(payload) {
     console.info("[Kim's Coaching booking email] notifyAdminOfNewBooking called", {
       traceId: payload.traceId,
-      relatedId: payload.relatedId,
-      customerEmail: payload.email
+      relatedId: payload.relatedId
     });
     const emailPayload = {
       ...payload,
@@ -15,8 +14,7 @@
 
     console.info("[Kim's Coaching booking email] booking email calls starting", {
       traceId: payload.traceId,
-      hasEmailService: Boolean(window.KimsEmailService),
-      customerEmail: emailPayload.email
+      hasEmailService: Boolean(window.KimsEmailService)
     });
     return Promise.allSettled([
       window.KimsEmailService?.sendBookingAdminNotification(emailPayload),
@@ -30,7 +28,7 @@
       });
       const emailStatus = {
         queued: true,
-        payload,
+        traceId: payload.traceId || "",
         admin: adminResult || { status: "skipped" },
         customer: customerResult || { status: "skipped" },
         calendarInvite: emailPayload.ics || window.KimsEmailService?.generateICSInvite?.(emailPayload) ? "generated" : "not_available"

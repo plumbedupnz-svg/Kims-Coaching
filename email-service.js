@@ -1,5 +1,17 @@
 (function () {
   const endpoint = "/api/send-email";
+  const settings = window.KIMS_SUPABASE || {};
+  const client = settings.url && settings.anonKey && window.supabase
+    ? window.supabase.createClient(settings.url, settings.anonKey)
+    : null;
+
+  async function getRequestHeaders() {
+    const headers = { "Content-Type": "application/json" };
+    if (!client) return headers;
+    const { data } = await client.auth.getSession();
+    if (data?.session?.access_token) headers.Authorization = `Bearer ${data.session.access_token}`;
+    return headers;
+  }
 
   function logEmailFailure(type, error) {
     console.warn("Email send failed safely", {
@@ -13,12 +25,11 @@
       console.info("[Kim's Coaching email] API request starting", {
         traceId: payload.traceId,
         type,
-        endpoint,
-        recipient: payload.email || payload.customerEmail || payload.customer_email || ""
+        endpoint
       });
       const response = await fetch(endpoint, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: await getRequestHeaders(),
         body: JSON.stringify({ type, payload }),
         keepalive: true
       });
@@ -28,8 +39,7 @@
         traceId: payload.traceId,
         type,
         httpStatus: response.status,
-        ok: response.ok,
-        result
+        ok: response.ok
       });
       if (!response.ok) {
         throw new Error(result.error || `Email endpoint returned ${response.status}`);

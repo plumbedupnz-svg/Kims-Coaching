@@ -20,7 +20,7 @@ async function markEvent(event, status, errorMessage = "") {
     await restUpdate("stripe_webhook_events", { id: `eq.${event.id}` }, {
       processed_at: new Date().toISOString(),
       status,
-      error_message: errorMessage || null
+      error_message: errorMessage ? String(errorMessage).slice(0, 500) : null
     }, "");
   } catch (error) {
     console.error("[Stripe webhook] could not update event log", { eventId: event.id, message: error.message });
@@ -33,19 +33,25 @@ async function createEventLog(event) {
       id: event.id,
       event_type: event.type,
       stripe_created_at: event.created ? new Date(event.created * 1000).toISOString() : null,
-      payload: event,
+      payload: {
+        object_id: event.data?.object?.id || null,
+        livemode: Boolean(event.livemode)
+      },
       status: "processing"
     }, "id");
     return true;
   } catch (error) {
     if (/duplicate|23505|409/i.test(error.message || "")) {
       const rows = await restSelect("stripe_webhook_events", "id,status", { id: `eq.${event.id}`, limit: "1" });
-      if (rows[0]?.status === "processed") return false;
-      await restUpdate("stripe_webhook_events", { id: `eq.${event.id}` }, {
+      if (rows[0]?.status !== "failed") return false;
+      const claimed = await restUpdate("stripe_webhook_events", {
+        id: `eq.${event.id}`,
+        status: "eq.failed"
+      }, {
         status: "processing",
         error_message: null
-      }, "");
-      return true;
+      }, "id");
+      return Boolean(claimed?.id);
     }
     throw error;
   }
@@ -365,8 +371,7 @@ async function sendShopEmails(order) {
 
   if (!order.admin_notification_email_sent_at) {
     console.info("Sending shop notification email to admin", {
-      orderId: order.id,
-      customerEmail: order.customer_email || ""
+      orderId: order.id
     });
     const adminResult = await callEmail("shop_order_admin_notification", payload);
     if (adminResult?.sent === true || adminResult?.status === "sent") {
@@ -393,8 +398,7 @@ async function sendShopEmails(order) {
 
   if (!order.customer_confirmation_email_sent_at) {
     console.info("Sending shop confirmation email to customer", {
-      orderId: order.id,
-      customerEmail: order.customer_email || ""
+      orderId: order.id
     });
     const customerResult = await callEmail("shop_order_customer_confirmation", payload);
     if (customerResult?.sent === true || customerResult?.status === "sent") {
@@ -440,7 +444,6 @@ async function handleShopOrder(session) {
   console.info("[Stripe webhook] processing paid shop order", {
     orderId,
     currentStatus: existingOrder.order_status,
-    customerEmail: existingOrder.customer_email || "",
     adminEmailSent: Boolean(existingOrder.admin_notification_email_sent_at),
     customerEmailSent: Boolean(existingOrder.customer_confirmation_email_sent_at)
   });
@@ -465,7 +468,7 @@ async function handleCheckoutCompleted(session) {
   if (type === "private_lesson") return handlePrivateLesson(session);
   if (type === "junior_group") return handleJuniorGroup(session);
   if (type === "shop_order") return handleShopOrder(session);
-  console.info("[Stripe webhook] ignored checkout session without supported booking_type", { sessionId: session.id, type });
+  console.info("[Stripe webhook] ignored checkout session without supported booking_type", { type });
 }
 
 module.exports = async function handler(req, res) {
@@ -499,7 +502,9 @@ module.exports = async function handler(req, res) {
       message: error.message,
       time: formatDateTime(new Date().toISOString())
     });
-    if (event?.id) await markEvent(event, "failed", error.message || "Webhook failed.");
-    res.status(400).json({ error: error.message || "Webhook failed." });
+    if (event?.id) await markEvent(event, "failed", "Webhook processing failed.");
+    res.status(error.statusCode || 400).json({ error: "Webhook rejected." });
   }
 };
+
+module.exports._test = { createEventLog };

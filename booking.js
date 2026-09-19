@@ -1139,7 +1139,6 @@
       traceId: emailTraceId,
       availabilityId: payload.availability_id,
       lessonTypeId: payload.lesson_type_id,
-      customerEmail: payload.customer_email,
       startTime: payload.start_time,
       endTime: payload.end_time
     });
@@ -1203,8 +1202,7 @@
     window.KimsAnalytics?.track("generate_lead", "private_lesson", result.data?.id);
     console.info("[Kim's Coaching booking email] booking saved", {
       traceId: emailTraceId,
-      bookingId: result.data?.id || "",
-      customerEmail: payload.customer_email
+      bookingId: result.data?.id || ""
     });
 
     if (payload.payment_option === "pay_now") {
@@ -1246,8 +1244,7 @@
     };
     console.info("[Kim's Coaching booking email] notification dispatch starting", {
       traceId: emailTraceId,
-      bookingId: notificationPayload.relatedId,
-      customerEmail: notificationPayload.email
+      bookingId: notificationPayload.relatedId
     });
     const emailStatus = await window.KimsBookingServices?.notifyAdminOfNewBooking(notificationPayload);
     console.info("[Kim's Coaching booking email] notification dispatch finished", {
