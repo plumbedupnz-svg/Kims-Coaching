@@ -42,7 +42,8 @@ module.exports = async function handler(request, response) {
     };
     let inventoryRows;
     try {
-      inventoryRows = await fetchRows("inventory_items", INVENTORY_GALLERY_SELECT, shopParams);
+      inventoryRows = await fetchRows("inventory_items", `${INVENTORY_GALLERY_SELECT},item_kind`, shopParams)
+        .catch(error => { if (!OPTIONAL_SHOP_COLUMN_ERROR.test(error.message || "")) throw error; return fetchRows("inventory_items", INVENTORY_GALLERY_SELECT, shopParams); });
     } catch (error) {
       if (!OPTIONAL_SHOP_COLUMN_ERROR.test(error.message || "")) throw error;
       try {

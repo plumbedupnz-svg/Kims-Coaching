@@ -421,7 +421,7 @@ async function getShopLineItems(cart) {
   }
   async function selectInventoryForShop() {
     if (!inventoryIds.length) return [];
-    return restSelect("inventory_items", "id,product_name,sku,category,description,short_description,full_description,sell_price,cost_price,purchase_price,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at", { id: uuidList(inventoryIds) })
+    return restSelect("inventory_items", "id,product_name,sku,category,description,short_description,full_description,sell_price,cost_price,purchase_price,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,item_kind,discount,archived_at", { id: uuidList(inventoryIds) })
       .catch((error) => {
         if (/cost_price|schema cache|PGRST|42703/i.test(error.message || "")) {
           console.warn("[Stripe checkout] inventory cost columns are not available yet; continuing without cost snapshots.", { message: error.message });
@@ -440,7 +440,7 @@ async function getShopLineItems(cart) {
   return cart.map((item) => {
     const quantity = Number(item.quantity || 1);
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > 99) {
-      throw new Error("Choose a quantity between 1 and 99 for each product.");
+      throw new Error("Choose a whole quantity between 1 and 99.");
     }
     const product = productsById.get(String(item.id));
     const inventory = inventoryById.get(String(item.inventory_item_id || item.id));
@@ -452,7 +452,7 @@ async function getShopLineItems(cart) {
         const linkedTracksStock = linked && linked.track_stock !== false && linked.is_order_to_sale !== true;
         if (!linked || (linkedTracksStock && linked.quantity_on_hand < quantity)) throw new Error(`Not enough stock available for ${product.name}.`);
       }
-      const unitAmount = calculateDiscountedPrice(product.price, product.discount);
+      const unitAmount = Number(calculateDiscountedPrice(product.price, product.discount).toFixed(2));
       const linked = product.inventory_item_id ? inventoryById.get(String(product.inventory_item_id)) : null;
       const purchasePrice = Number(product.purchase_price ?? product.cost_price ?? linked?.cost_price ?? 0);
       const lineTotal = unitAmount * quantity;
@@ -473,8 +473,8 @@ async function getShopLineItems(cart) {
         gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
         gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
         sku: linked?.sku || "",
-        fulfilment_type: isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "stock" : "order_to_sale",
-        availability_note: isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "" : ORDER_TO_SALE_NOTICE
+        fulfilment_type: linked?.item_kind === "service" ? "service" : isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "stock" : "order_to_sale",
+        availability_note: linked?.item_kind === "service" ? "" : isStock && linked?.is_order_to_sale !== true && linked?.track_stock !== false ? "" : ORDER_TO_SALE_NOTICE
       };
     }
 
@@ -482,7 +482,7 @@ async function getShopLineItems(cart) {
     if (inventory.visible_in_shop !== true || inventory.is_active === false || inventory.archived_at) throw new Error(`${inventory.product_name} is not available.`);
     const tracksStock = inventory.track_stock !== false && inventory.is_order_to_sale !== true;
     if (tracksStock && Number(inventory.quantity_on_hand || 0) < quantity) throw new Error(`Not enough stock available for ${inventory.product_name}.`);
-    const unitAmount = Number(inventory.sell_price || 0);
+    const unitAmount = Number(calculateDiscountedPrice(inventory.sell_price, inventory.discount).toFixed(2));
     const purchasePrice = Number(inventory.purchase_price ?? inventory.cost_price ?? 0);
     const lineTotal = unitAmount * quantity;
     const costTotal = purchasePrice * quantity;
@@ -502,26 +502,29 @@ async function getShopLineItems(cart) {
       gross_profit_at_sale: Number((lineTotal - costTotal).toFixed(2)),
       gross_margin_percent_at_sale: lineTotal > 0 ? Number(((lineTotal - costTotal) / lineTotal * 100).toFixed(2)) : 0,
       sku: inventory.sku || "",
-      fulfilment_type: tracksStock ? "stock" : "order_to_sale",
-      availability_note: tracksStock ? "" : ORDER_TO_SALE_NOTICE
+      fulfilment_type: inventory.item_kind === "service" ? "service" : tracksStock ? "stock" : "order_to_sale",
+      availability_note: inventory.item_kind === "service" || tracksStock ? "" : ORDER_TO_SALE_NOTICE
     };
   });
 }
 
-async function getShopSettings() {
+async function getShopSettings(strict = false) {
   const baseColumns = "pickup_label,pickup_instructions,local_delivery_enabled,local_delivery_fee,courier_delivery_enabled,courier_delivery_fee,free_shipping_threshold";
   const taxColumns = "tax_mode,tax_label,tax_rate_percent,prices_include_tax,stripe_automatic_tax";
   try {
     const rows = await restSelect("shop_inventory_settings", `${baseColumns},${taxColumns}`, { id: "eq.true", limit: "1" })
       .catch(async (error) => {
+        if (strict) throw error;
         if (/tax_mode|tax_label|tax_rate_percent|prices_include_tax|stripe_automatic_tax|schema cache|PGRST|42703/i.test(error.message || "")) {
           console.warn("[Stripe checkout] shop tax settings are not available yet; defaulting to no tax.", { message: error.message });
           return restSelect("shop_inventory_settings", baseColumns, { id: "eq.true", limit: "1" });
         }
         throw error;
       });
+    if (strict && !rows[0]) throw new Error("Shop settings are missing.");
     return normalizeShopSettings(rows[0] || {});
   } catch (error) {
+    if (strict) throw new Error("Checkout settings could not be loaded. Please try again shortly.");
     console.warn("[Stripe checkout] using default shop settings", { message: error.message });
     return normalizeShopSettings();
   }
@@ -597,24 +600,24 @@ async function insertShopOrder(payload) {
   }
 }
 
-async function createShopCheckout({ user, body }) {
+async function prepareShopOrder({ user, body, strictSettings = false }) {
   const cart = Array.isArray(body.cart) ? body.cart : [];
-  if (!cart.length) throw new Error("Your cart is empty.");
+  if (!cart.length || cart.length > 100) throw new Error("Your cart is empty.");
   const profile = await getProfile(user?.id);
   const checkout = body.checkout || {};
-  const settings = await getShopSettings();
+  const settings = await getShopSettings(strictSettings);
   const customer = normalizeShopCustomer({ checkout, profile, user });
   const deliveryAddress = normalizeDeliveryAddress(checkout, customer);
-  const fulfilmentMethod = checkout.fulfilment_method || checkout.fulfilmentMethod || "pickup";
-  validateFulfilment(fulfilmentMethod, deliveryAddress);
   const items = await getShopLineItems(cart);
+  const fulfilmentMethod = items.every(item => item.fulfilment_type === "service") ? "pickup" : checkout.fulfilment_method || checkout.fulfilmentMethod || "pickup";
+  validateFulfilment(fulfilmentMethod, deliveryAddress);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const taxSummary = calculateShopTaxSummary(subtotal, settings);
   const tax = taxSummary.amount;
   const discount = 0;
   const shipping = calculateShippingAmount(fulfilmentMethod, subtotal, settings);
   const total = Math.max(0, subtotal + tax + shipping - discount);
-  const order = await insertShopOrder({
+  const payload = {
     user_id: user?.id || null,
     customer_name: customer.name,
     customer_email: customer.email,
@@ -634,11 +637,18 @@ async function createShopCheckout({ user, body }) {
     discount_amount: Number(discount.toFixed(2)),
     total_amount: Number(total.toFixed(2)),
     payment_status: "pending",
+    notes: items.some(item => item.fulfilment_type === "service") ? String(checkout.service_details || "").trim().slice(0, 1000) : null,
     items,
     subtotal,
     total,
     order_status: "pending_payment"
-  });
+  };
+  return { payload, settings, items, fulfilmentMethod, shipping, total, tax, taxSummary };
+}
+
+async function createShopCheckout({ user, body }) {
+  const { payload, settings, items, fulfilmentMethod, shipping, total, tax, taxSummary } = await prepareShopOrder({ user, body });
+  const order = await insertShopOrder(payload);
   console.info("[Stripe checkout] pending shop order created", {
     orderId: order.id,
     fulfilmentMethod,
@@ -691,7 +701,7 @@ async function createShopCheckout({ user, body }) {
   return session;
 }
 
-module.exports = async function handler(req, res) {
+module.exports = async function handler(req, res, legacyShop = false) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
     res.status(405).json({ error: "Method not allowed" });
@@ -710,6 +720,8 @@ module.exports = async function handler(req, res) {
     const authHeader = req.headers.authorization || req.headers.Authorization || "";
     let session;
     if (bookingType === "shop_order") {
+      // Cached clients also honour invoice checkout. Only our server router can use the legacy path.
+      if (!legacyShop) { req.body = body; return require("../shop-checkout")(req, res); }
       const user = hasBearerToken(authHeader) ? await verifyUser(authHeader) : null;
       session = await createShopCheckout({ user, body });
     } else {
@@ -739,3 +751,6 @@ module.exports = async function handler(req, res) {
     res.status(error.statusCode || 400).json({ error: message });
   }
 };
+
+module.exports.prepareShopOrder = prepareShopOrder;
+module.exports.getShopLineItems = getShopLineItems;

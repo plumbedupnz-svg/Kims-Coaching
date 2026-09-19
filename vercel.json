@@ -1,8 +1,16 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
-  "crons": [{ "path": "/api/racket-reminders", "schedule": "0 21 * * *" }],
-  "functions": { "api/racket-reminders.js": { "maxDuration": 60 } },
+  "crons": [
+    { "path": "/api/racket-reminders", "schedule": "0 21 * * *" },
+    { "path": "/api/xero-webhook", "schedule": "30 20 * * *" }
+  ],
+  "functions": {
+    "api/racket-reminders.js": { "maxDuration": 60 },
+    "api/xero.js": { "maxDuration": 60 },
+    "api/xero-webhook.js": { "maxDuration": 60 },
+    "api/shop-checkout.js": { "maxDuration": 60 }
+  },
   "redirects": [{ "source": "/book-private-lesson", "destination": "/booking", "permanent": true }],
   "rewrites": [
     { "source": "/", "destination": "/index.html" },
@@ -16,7 +24,8 @@
     { "source": "/login", "destination": "/account.html" },
     { "source": "/account", "destination": "/account.html" },
     { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/owner", "destination": "/owner.html" }
+    { "source": "/owner", "destination": "/owner.html" },
+    { "source": "/order-payment", "destination": "/order-payment.html" }
   ],
   "headers": [
     {

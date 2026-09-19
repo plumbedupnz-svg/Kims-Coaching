@@ -452,8 +452,9 @@
       need_order_threshold: Number(item.need_order_threshold ?? item.reorder_threshold ?? 0),
       status: item.status || "out_of_stock",
       visible_in_shop: Boolean(item.visible_in_shop),
-      track_stock: item.track_stock !== false && item.is_order_to_sale !== true,
-      is_order_to_sale: Boolean(item.is_order_to_sale) || item.track_stock === false,
+      item_kind: item.item_kind || "product",
+      track_stock: item.item_kind !== "service" && item.track_stock !== false && item.is_order_to_sale !== true,
+      is_order_to_sale: item.item_kind !== "service" && (Boolean(item.is_order_to_sale) || item.track_stock === false),
       short_description: item.short_description || "",
       is_active: item.is_active !== false,
       image_url: imageUrl,
@@ -478,13 +479,14 @@
   }
 
   function getItemTypeLabel(item = {}) {
+    if (item.item_kind === "service") return "Service";
     if (item.is_order_to_sale || item.track_stock === false) return "Order-to-sale";
     return "Stock tracked";
   }
 
   function getShopVisibilityLabel(item = {}) {
     if (!item.visible_in_shop) return "Hidden";
-    return item.is_order_to_sale || item.track_stock === false ? "Shop - order" : "Shop - stock";
+    return item.item_kind === "service" ? "Shop - service" : item.is_order_to_sale || item.track_stock === false ? "Shop - order" : "Shop - stock";
   }
 
   function matchesInventoryViewFilter(item = {}, status = "all") {
@@ -1641,6 +1643,7 @@
     fields.quantity_on_hand.value = Number(item?.quantity_on_hand || 0);
     fields.low_stock_threshold.value = Number(item?.low_stock_threshold ?? 2);
     fields.need_order_threshold.value = Number(item?.need_order_threshold ?? 0);
+    if (fields.item_kind) { fields.item_kind.value = item?.item_kind || "product"; fields.item_kind.disabled = Boolean(item?.id); }
     if (fields.track_stock) fields.track_stock.checked = item ? item.track_stock !== false && !item.is_order_to_sale : true;
     fields.visible_in_shop.checked = Boolean(item?.visible_in_shop);
     if (fields.is_order_to_sale) fields.is_order_to_sale.checked = Boolean(item?.is_order_to_sale) || item?.track_stock === false;
@@ -1680,13 +1683,16 @@
   function syncInventoryOptionControls() {
     if (!productFormEl) return;
     const fields = productFormEl.elements;
-    const isOrderToSale = Boolean(fields.is_order_to_sale?.checked);
+    const isService = fields.item_kind?.value === "service";
+    const isOrderToSale = !isService && Boolean(fields.is_order_to_sale?.checked);
     const hiddenAdminOnly = Boolean(fields.hidden_admin_only?.checked);
 
     if (fields.track_stock) {
-      if (isOrderToSale) fields.track_stock.checked = false;
+      if (isOrderToSale || isService) fields.track_stock.checked = false;
       else if (fields.track_stock.disabled && !fields.track_stock.checked) fields.track_stock.checked = true;
-      fields.track_stock.disabled = isOrderToSale;
+      fields.track_stock.disabled = isOrderToSale || isService;
+      if (fields.is_order_to_sale) { fields.is_order_to_sale.disabled = isService; if (isService) fields.is_order_to_sale.checked = false; }
+      if (fields.quantity_on_hand) fields.quantity_on_hand.disabled = isService;
     }
 
     if (fields.visible_in_shop) {
@@ -1829,10 +1835,14 @@
 
     const formData = new FormData(productFormEl);
     const fields = productFormEl.elements;
-    const isOrderToSale = Boolean(fields.is_order_to_sale?.checked);
+    const isService = fields.item_kind?.value === "service";
+    const isOrderToSale = !isService && Boolean(fields.is_order_to_sale?.checked);
     const hiddenAdminOnly = Boolean(fields.hidden_admin_only?.checked);
-    const trackStock = !isOrderToSale && Boolean(fields.track_stock?.checked);
+    const trackStock = !isService && !isOrderToSale && Boolean(fields.track_stock?.checked);
     const visibleInShop = !hiddenAdminOnly && Boolean(fields.visible_in_shop?.checked);
+    if (isService && inventoryItems.some(item => item.id === formData.get("inventory_item_id") && item.item_kind !== "service" && item.quantity_on_hand > 0)) {
+      setMessage(productMessageEl, "Adjust this item’s physical stock before changing it to a service.", "error"); return;
+    }
     const imageFiles = getProductImageFiles();
     for (const imageFile of imageFiles) {
       const validationError = validateProductImage(imageFile);
@@ -1870,7 +1880,7 @@
       p_low_stock_threshold: Number(formData.get("low_stock_threshold") || 0),
       p_need_order_threshold: Number(formData.get("need_order_threshold") || 0),
       p_image: null,
-      p_visible_in_shop: visibleInShop,
+      p_visible_in_shop: isService ? false : visibleInShop,
       p_is_active: Boolean(fields.is_active?.checked),
       p_brand: formData.get("brand"),
       p_short_description: formData.get("short_description"),
@@ -1901,6 +1911,10 @@
       return;
     }
 
+    if (isService || inventoryItems.find(item => item.id === savedItem?.id)?.item_kind === "service") {
+      const kindResult = await client.rpc("admin_set_inventory_item_kind", { p_id: savedItem.id, p_kind: isService ? "service" : "product", p_publish: visibleInShop });
+      if (kindResult.error) { setMessage(productMessageEl, "Item saved but service settings need attention: " + kindResult.error.message, "error"); return; }
+    }
     try {
       await saveProductImageSelection(savedItem?.id, imageFiles);
     } catch (imageError) {
@@ -2292,7 +2306,7 @@
   cancelEditBtnEl?.addEventListener("click", hideProductForm);
   productFormEl?.addEventListener("submit", saveProduct);
   productFormEl?.addEventListener("change", (event) => {
-    if (event.target.matches('[name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
+    if (event.target.matches('[name="item_kind"], [name="track_stock"], [name="visible_in_shop"], [name="is_order_to_sale"], [name="hidden_admin_only"]')) {
       syncInventoryOptionControls();
     }
     if (event.target.matches("[data-inventory-gst-mode]")) {

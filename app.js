@@ -163,7 +163,7 @@ const SHOP_LOAD_TIMEOUT_MS = 8000;
 const SHOP_IMAGE_LOAD_TIMEOUT_MS = 2500;
 const PUBLIC_SHOP_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
 const PUBLIC_SHOP_DISCOUNT_BASE_SELECT = "id,product_name,brand,sku,slug,short_description,category,category_id,description,full_description,sell_price,discount,image_url,quantity_on_hand,status,visible_in_shop,is_active,track_stock,is_order_to_sale,archived_at";
-const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_DISCOUNT_BASE_SELECT},inventory_item_images(id,image_url,sort_order,is_main)`;
+const PUBLIC_SHOP_SELECT = `${PUBLIC_SHOP_DISCOUNT_BASE_SELECT},item_kind,inventory_item_images(id,image_url,sort_order,is_main)`;
 const PUBLIC_SHOP_IMAGE_SELECT = "id,image_url";
 const OPTIONAL_PUBLIC_SHOP_COLUMN_ERROR = /inventory_item_images|discount|relationship|schema cache|does not exist|column|PGRST|42P01|42703/i;
 const PUBLIC_PRODUCTS_FALLBACK_SELECT = "id,name,category,category_id,description,price,discount,image_url,is_active,fulfilment_type,visible_in_shop,archived_at";
@@ -360,8 +360,9 @@ function normalizeInventoryShopProduct(row) {
   const imageUrl = galleryImages.find((image) => image.is_main)?.image_url
     || galleryImages[0]?.image_url
     || getStorableImage(row.image_url || row.image);
-  const trackStock = row.track_stock !== false && !isTruthy(row.is_order_to_sale);
-  const isOrderToSale = isTruthy(row.is_order_to_sale) || !trackStock;
+  const isService = row.item_kind === "service" || row.fulfilment_type === "service";
+  const trackStock = !isService && row.track_stock !== false && !isTruthy(row.is_order_to_sale);
+  const isOrderToSale = !isService && (isTruthy(row.is_order_to_sale) || !trackStock);
   return {
     id: row.shop_product_id || row.id || (inventoryId ? `inv-${inventoryId}` : `shop-${Date.now()}`),
     inventory_item_id: inventoryId,
@@ -386,7 +387,8 @@ function normalizeInventoryShopProduct(row) {
     stock_status: row.status || row.stock_status || "out_of_stock",
     track_stock: trackStock,
     is_order_to_sale: isOrderToSale,
-    fulfilment_type: isOrderToSale ? "order_to_sale" : "stock",
+    item_kind: isService ? "service" : "product",
+    fulfilment_type: isService ? "service" : isOrderToSale ? "order_to_sale" : "stock",
     visible_in_shop: isTruthy(row.visible_in_shop),
     archived_at: row.archived_at || null,
     source_row: "inventory_items"
@@ -1147,7 +1149,7 @@ function getStorableImage(image) {
 }
 
 function getMinimalCartItem(item) {
-  const fulfilmentType = item.fulfilment_type === "order_to_sale" ? "order_to_sale" : item.fulfilment_type === "stock" ? "stock" : "";
+  const fulfilmentType = item.fulfilment_type === "service" ? "service" : item.fulfilment_type === "order_to_sale" ? "order_to_sale" : item.fulfilment_type === "stock" ? "stock" : "";
   const availabilityNote = item.availability_note || getProductAvailabilityNote(item);
   return {
     id: item.id,
@@ -2180,7 +2182,7 @@ function getShopDebugMarkup(publicCount, filteredCount) {
 }
 
 function isProductOutOfStock(product) {
-  if (product.fulfilment_type === "order_to_sale") return false;
+  if (["service", "order_to_sale"].includes(product.fulfilment_type)) return false;
   if (product.inventory_item_id || product.stock_status) {
     return Number(product.quantity_on_hand || 0) <= 0 || product.stock_status === "out_of_stock";
   }
@@ -2188,6 +2190,7 @@ function isProductOutOfStock(product) {
 }
 
 function getProductStockText(product) {
+  if (product.fulfilment_type === "service") return "Service · labour only";
   if (product.fulfilment_type === "order_to_sale") return "Available to order";
   if (!(product.inventory_item_id || product.stock_status)) return "Available";
   const quantity = Number(product.quantity_on_hand || 0);
@@ -2241,7 +2244,7 @@ function addToCart(product, quantity = 1) {
   const requestedQuantity = Math.max(1, Number(quantity || 1));
   const cart = loadCart();
   const existing = cart.find((item) => item.id === product.id);
-  const availableQuantity = product.fulfilment_type === "order_to_sale" ? Infinity : Number(product.quantity_on_hand ?? Infinity);
+  const availableQuantity = ["service", "order_to_sale"].includes(product.fulfilment_type) ? Infinity : Number(product.quantity_on_hand ?? Infinity);
   const nextQuantity = existing ? existing.quantity + requestedQuantity : requestedQuantity;
   if (Number.isFinite(availableQuantity) && nextQuantity > availableQuantity) {
     alert("Not enough stock is available for that product.");
@@ -2261,7 +2264,7 @@ function updateQuantity(productId, action) {
   if (!item) return;
   const products = getCurrentShopProducts();
   const product = products.find((entry) => entry.id === productId);
-  const availableQuantity = product?.fulfilment_type === "order_to_sale" ? Infinity : Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
+  const availableQuantity = ["service", "order_to_sale"].includes(product?.fulfilment_type || item.fulfilment_type) ? Infinity : Number(product?.quantity_on_hand ?? item.quantity_on_hand ?? Infinity);
   if (action === "increase" && Number.isFinite(availableQuantity) && item.quantity + 1 > availableQuantity) {
     alert("Not enough stock is available for that product.");
     return;
