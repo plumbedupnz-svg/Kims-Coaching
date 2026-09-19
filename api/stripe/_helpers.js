@@ -186,6 +186,7 @@ async function createStripeCheckoutSession({ lineItems, metadata, customerEmail,
   const siteUrl = getSiteUrl();
   const params = new URLSearchParams();
   params.append("mode", "payment");
+  params.append("payment_method_types[0]", "card");
   params.append("success_url", `${siteUrl}${successPath}?session_id={CHECKOUT_SESSION_ID}`);
   params.append("cancel_url", `${siteUrl}${cancelPath}`);
   formAppend(params, "customer_email", customerEmail);
