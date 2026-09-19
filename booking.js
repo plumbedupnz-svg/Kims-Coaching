@@ -264,10 +264,11 @@
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, analytics_consent: window.KimsAnalytics?.isAllowed?.() === true })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
+    window.KimsAnalytics?.checkout?.(data, "private_lesson");
     try { sessionStorage.setItem("kims_pending_checkout_type", payload.booking_type || "private_lesson"); } catch (error) {}
     window.location.href = data.url;
   }
@@ -935,6 +936,7 @@
 
     try {
       const savedRequest = await saveWaitlistRequest(request);
+      window.KimsAnalytics?.track("generate_lead", "waitlist", savedRequest?.id);
       const emailPayload = {
         ...request,
         relatedId: savedRequest?.id || "",
@@ -1197,6 +1199,7 @@
       await loadAvailableSlots();
       return;
     }
+    window.KimsAnalytics?.track("generate_lead", "private_lesson", result.data?.id);
     console.info("[Kim's Coaching booking email] booking saved", {
       traceId: emailTraceId,
       bookingId: result.data?.id || ""

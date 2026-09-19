@@ -315,12 +315,14 @@
       headers,
       body: JSON.stringify({
         booking_type: "shop_order",
+        analytics_consent: window.KimsAnalytics?.isAllowed?.() === true,
         cart,
         checkout
       })
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.url) throw new Error(data.error || "Could not start Stripe Checkout.");
+    window.KimsAnalytics?.checkout?.(data, "shop_order");
     try { sessionStorage.setItem("kims_pending_checkout_type", "shop_order"); } catch (error) {}
     window.location.href = data.url;
   }

@@ -62,6 +62,9 @@ const ownerProductFormTitleEl = document.querySelector("[data-product-form-title
 const ownerProductSubmitEl = document.querySelector("[data-product-submit]");
 const ownerProductCancelEditEl = document.querySelector("[data-product-cancel-edit]");
 const categoryFilterEl = document.getElementById("category-filter");
+const shopSearchEl = document.getElementById("shop-search");
+const shopSearchClearEl = document.getElementById("shop-search-clear");
+const shopResultsSummaryEl = document.getElementById("shop-results-summary");
 const ownerProductCategorySelectEl = document.getElementById("owner-product-category");
 const ownerNewCategoryEl = document.getElementById("owner-new-category");
 const addCategoryBtnEl = document.getElementById("add-category-btn");
@@ -308,6 +311,8 @@ function normalizeShopProduct(row) {
     id: row.id,
     inventory_item_id: row.inventory_item_id || inventory.id || "",
     name: row.name || inventory.product_name,
+    brand: row.brand || inventory.brand || "",
+    sku: row.sku || inventory.sku || "",
     slug: row.slug || "",
     short_description: row.short_description || inventory.short_description || "",
     price: Number(row.price || 0),
@@ -1993,8 +1998,26 @@ async function refreshShopCategoriesBeforeRender() {
   }
 }
 
+function normalizeShopSearch(value) {
+  return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function productMatchesShopSearch(product, terms) {
+  if (!terms.length) return true;
+  const searchableText = normalizeShopSearch([
+    product.name, product.brand, product.sku, product.category,
+    product.short_description, product.description,
+    String(product.sku || "").replace(/[^a-z0-9]/gi, "")
+  ].filter(Boolean).join(" "));
+  return terms.every((term) => searchableText.includes(term));
+}
+
 function renderProducts() {
+  const searchValue = shopSearchEl?.value || "";
+  const searchTerms = normalizeShopSearch(searchValue).split(" ").filter(Boolean);
+  if (shopSearchClearEl) shopSearchClearEl.hidden = !searchValue;
   if (isShopPage && supabaseClient && publicShopProducts === null) {
+    if (shopResultsSummaryEl) shopResultsSummaryEl.textContent = "Loading products…";
     if (productListEl) {
       productListEl.innerHTML = `<p class="empty-cart">Loading shop products...</p>${getShopDebugMarkup(0, 0)}`;
     }
@@ -2030,13 +2053,20 @@ function renderProducts() {
   renderCategoryFilter(publicProducts);
   if (!productListEl) return;
 
-  const filteredProducts = selectedCategory === SHOP_ALL_CATEGORY
+  const categoryProducts = selectedCategory === SHOP_ALL_CATEGORY
     ? publicProducts
     : publicProducts.filter((p) => productMatchesSelectedCategory(p, selectedCategory));
-  shopLoadDebug.rowsAfterCategoryFilter = filteredProducts.length;
-  if (showShopDebug) console.log("AFTER CATEGORY FILTER", filteredProducts);
+  shopLoadDebug.rowsAfterCategoryFilter = categoryProducts.length;
+  const filteredProducts = categoryProducts.filter((product) => productMatchesShopSearch(product, searchTerms));
+  if (shopResultsSummaryEl) {
+    const hasFilters = searchTerms.length || selectedCategory !== SHOP_ALL_CATEGORY;
+    shopResultsSummaryEl.textContent = hasFilters
+      ? `${filteredProducts.length} of ${publicProducts.length} products found`
+      : `${publicProducts.length} ${publicProducts.length === 1 ? "product" : "products"}`;
+  }
+  if (showShopDebug) console.log("AFTER CATEGORY FILTER", categoryProducts);
   logShopFilterState("products after category filter", {
-    productsAfterCategoryFilter: filteredProducts.length
+    productsAfterCategoryFilter: categoryProducts.length
   });
   if (isShopPage && !initialShopRenderComplete) {
     if (showShopDebug) console.log("[Kim Shop] first render", {
@@ -2051,7 +2081,8 @@ function renderProducts() {
     console.info("[Kim Shop] render counts", {
       rowsSentToRenderer: products.length,
       rowsAfterVisibilityFilter: publicProducts.length,
-      rowsAfterCategoryFilter: filteredProducts.length,
+      rowsAfterCategoryFilter: categoryProducts.length,
+      rowsAfterSearchFilter: filteredProducts.length,
       selectedCategory,
       filters: shopLoadDebug.filters,
       source: shopLoadDebug.source
@@ -2088,9 +2119,11 @@ function renderProducts() {
     })
     .join("");
 
-  const emptyMessage = publicProducts.length
-    ? "No products found in this category."
-    : "No public shop products found.";
+  const emptyMessage = !publicProducts.length
+    ? "No public shop products found."
+    : searchTerms.length
+      ? "No products match your search. Try another name or product code, or choose All categories."
+      : "No products found in this category.";
   productListEl.innerHTML = cards
     ? `<div class="cards three-col">${cards}</div>`
     : `<p class="empty-cart">${emptyMessage}</p>${getShopDebugMarkup(publicProducts.length, filteredProducts.length)}`;
@@ -2217,6 +2250,7 @@ function addToCart(product, quantity = 1) {
   if (existing) existing.quantity += requestedQuantity;
   else cart.push(getMinimalCartItem({ ...product, quantity: requestedQuantity }));
   saveCart(cart);
+  window.KimsAnalytics?.commerce?.("add_to_cart", [{ id: product.id, name: product.name, price: getDiscountedPrice(product), quantity: requestedQuantity }]);
   renderCart();
   return true;
 }
@@ -2234,6 +2268,7 @@ function updateQuantity(productId, action) {
   }
   item.quantity += action === "increase" ? 1 : -1;
   saveCart(cart.filter((entry) => entry.quantity > 0));
+  window.KimsAnalytics?.commerce?.(action === "increase" ? "add_to_cart" : "remove_from_cart", [{ id: item.id, name: item.name, price: Number(item.price), quantity: 1 }]);
   renderCart();
 }
 
@@ -2586,6 +2621,7 @@ if (cartItemsEl) cartItemsEl.addEventListener("click", (event) => {
 });
 
 if (clearCartBtnEl) clearCartBtnEl.addEventListener("click", () => {
+  window.KimsAnalytics?.commerce?.("remove_from_cart", loadCart());
   saveCart([]);
   renderCart();
 });
@@ -2598,6 +2634,13 @@ if (ownerProductInventoryLinkEl) ownerProductInventoryLinkEl.addEventListener("c
 if (categoryFilterEl) categoryFilterEl.addEventListener("change", () => {
   selectedCategory = getSelectedShopCategory();
   renderProducts();
+});
+if (shopSearchEl) shopSearchEl.addEventListener("input", renderProducts);
+if (shopSearchClearEl) shopSearchClearEl.addEventListener("click", () => {
+  if (!shopSearchEl) return;
+  shopSearchEl.value = "";
+  renderProducts();
+  shopSearchEl.focus();
 });
 window.addEventListener("kims:categories-ready", () => {
   if (!isShopPage) return;

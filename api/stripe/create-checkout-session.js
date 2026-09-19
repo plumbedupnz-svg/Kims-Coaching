@@ -11,6 +11,7 @@ const {
   verifyUser
 } = require("./_helpers");
 const { enforceRateLimit } = require("../_rate-limit");
+const { checkoutMeasurement, createAnalyticsToken } = require("./_analytics");
 
 const ORDER_TO_SALE_NOTICE = "We'll confirm arrival once stock levels have been checked.";
 const SHOP_SETTINGS_DEFAULTS = {
@@ -684,6 +685,9 @@ async function createShopCheckout({ user, body }) {
   });
 
   await restUpdate("shop_orders", { id: `eq.${order.id}` }, { stripe_session_id: session.id }, "");
+  session.analyticsOrder = {
+    items, shipping_amount: shipping, tax_amount: tax, tax_included_amount: taxSummary.includedAmount
+  };
   return session;
 }
 
@@ -716,7 +720,18 @@ module.exports = async function handler(req, res) {
       else throw new Error("Unknown checkout type.");
     }
 
-    res.status(200).json({ id: session.id, url: session.url });
+    let analytics;
+    if (body.analytics_consent === true) {
+      try {
+        const commerce = await checkoutMeasurement(session, session.analyticsOrder);
+        const token = commerce && createAnalyticsToken(session.id);
+        if (token) analytics = { commerce, token };
+      } catch (_) {
+        // Optional measurement must never stop a customer from paying.
+        console.warn("Checkout analytics unavailable; payment can continue.");
+      }
+    }
+    res.status(200).json({ id: session.id, url: session.url, ...(analytics ? { analytics } : {}) });
   } catch (error) {
     console.error("[Stripe checkout] failed", { message: error.message });
     const internalError = /(?:select|insert|update) failed:|not configured|Stripe returned|schema cache|PGRST|SUPABASE_/i.test(error.message || "");

@@ -1201,3 +1201,6 @@ module.exports._test = {
   parseEmailBody,
   sanitizeSubject
 };
+
+// Shared by the scheduled stringing reminder worker; preserves the saved admin settings.
+module.exports.loadEmailSettings = loadEmailSettings;

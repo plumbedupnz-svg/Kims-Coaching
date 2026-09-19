@@ -3,12 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shop | Kim Jones Coaching</title>
+    <title>Tennis Shop | Kim Jones Coaching</title>
+    <meta name="description" content="Browse tennis equipment and training essentials from Kim Jones Coaching. Explore products, check availability and order online." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="layout-option-2.css?v=20260718-shop-card-size" />
+    <link rel="stylesheet" href="styles.css?v=20260913-shop-search" />
+    <link rel="stylesheet" href="layout-option-2.css?v=20260913-shop-search" />
+    <link rel="stylesheet" href="privacy.css?v=20260913" />
+    <link rel="canonical" href="https://www.kimjonescoaching.co.nz/shop" />
+    <link rel="stylesheet" href="analytics.css?v=20260917" />
+    <script src="analytics.js?v=20260917-live" defer></script>
   </head>
   <body>
     <header class="site-header">
@@ -40,14 +45,24 @@
         <div class="container">
           <div class="section-head">
             <p class="eyebrow">SportsCo Products</p>
-            <h2>Shop by category</h2>
+            <h1>Shop products</h1>
           </div>
-          <div class="shop-toolbar">
-            <label for="category-filter" class="shop-filter-label">Filter by category</label>
-            <select id="category-filter" class="shop-filter-select">
-              <option value="all">All categories</option>
-            </select>
+          <div class="shop-toolbar" role="search" aria-label="Find products">
+            <div class="shop-search-field">
+              <label for="shop-search" class="shop-filter-label">Search products</label>
+              <div class="shop-search-row">
+                <input id="shop-search" class="shop-search-input" type="search" placeholder="Name, brand or product code" autocomplete="off" spellcheck="false" aria-controls="product-list" />
+                <button id="shop-search-clear" class="btn btn-secondary" type="button" hidden>Clear search</button>
+              </div>
+            </div>
+            <div class="shop-category-field">
+              <label for="category-filter" class="shop-filter-label">Filter by category</label>
+              <select id="category-filter" class="shop-filter-select" aria-controls="product-list">
+                <option value="all">All categories</option>
+              </select>
+            </div>
           </div>
+          <p id="shop-results-summary" class="shop-results-summary" role="status" aria-live="polite" aria-atomic="true"></p>
 
           <div id="product-list" class="shop-categories"></div>
         </div>
@@ -71,6 +86,7 @@
             
             <div class="checkout-details" data-checkout-details>
               <h4>Checkout details</h4>
+              <p class="privacy-notice">Kim Jones Coaching uses these details to fulfil your order, arrange delivery or pickup and contact you. We share relevant details with Stripe and any delivery provider. Required checkout details are needed to complete your order. Our <a href="privacy.html" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> explains who holds your information, your access and correction rights, and how to contact us.</p>
               <label for="checkout-full-name">Full name</label>
               <input id="checkout-full-name" type="text" autocomplete="name" placeholder="Full name" />
               <label for="checkout-email">Email</label>
@@ -113,11 +129,14 @@
         </div>
       </section>
     </main>
+    <footer class="site-footer">
+      <div class="container footer-inner"><p>Kim Jones Coaching</p><a href="privacy.html">Privacy policy</a></div>
+    </footer>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="email-service.js"></script>
     <script src="product-categories.js?v=20260718-shop-categories"></script>
-    <script src="app.js?v=20260718-shop-categories"></script>
-    <script src="shop-order-emails.js"></script>
+    <script src="app.js?v=20260917-tracking"></script>
+    <script src="shop-order-emails.js?v=20260917-tracking"></script>
   </body>
 </html>
