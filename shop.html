@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260913-shop-search" />
+    <link rel="stylesheet" href="styles.css?v=20260920-shop-pages" />
     <link rel="stylesheet" href="layout-option-2.css?v=20260913-shop-search" />
     <link rel="stylesheet" href="privacy.css?v=20260913" />
     <link rel="canonical" href="https://www.kimjonescoaching.co.nz/shop" />
@@ -63,10 +63,37 @@
                 <option value="all">All categories</option>
               </select>
             </div>
+            <div class="shop-page-size-field">
+              <label for="shop-page-size" class="shop-filter-label">Items per page</label>
+              <select id="shop-page-size" class="shop-filter-select" aria-controls="product-list">
+                <option value="20" selected>20</option>
+                <option value="40">40</option>
+                <option value="60">60</option>
+                <option value="all">All</option>
+              </select>
+            </div>
           </div>
-          <p id="shop-results-summary" class="shop-results-summary" role="status" aria-live="polite" aria-atomic="true"></p>
+          <p id="shop-results-summary" class="shop-results-summary" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p>
+          <nav class="shop-pagination" aria-label="Product pages" data-shop-pagination hidden>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="-1" aria-controls="product-list">Previous</button>
+            <div class="shop-page-picker">
+              <label for="shop-page-top">Page</label>
+              <select id="shop-page-top" data-shop-page aria-controls="product-list"></select>
+              <span data-shop-page-total></span>
+            </div>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="1" aria-controls="product-list">Next</button>
+          </nav>
 
           <div id="product-list" class="shop-categories"></div>
+          <nav class="shop-pagination shop-pagination-bottom" aria-label="Product pages below results" data-shop-pagination hidden>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="-1" aria-controls="product-list">Previous</button>
+            <div class="shop-page-picker">
+              <label for="shop-page-bottom">Page</label>
+              <select id="shop-page-bottom" data-shop-page aria-controls="product-list"></select>
+              <span data-shop-page-total></span>
+            </div>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="1" aria-controls="product-list">Next</button>
+          </nav>
         </div>
       </section>
       <section class="section alt" id="cart">
@@ -140,7 +167,7 @@
     <script src="supabase-config.js"></script>
     <script src="email-service.js"></script>
     <script src="product-categories.js?v=20260718-shop-categories"></script>
-    <script src="app.js?v=20260920-cart"></script>
+    <script src="app.js?v=20260920-shop-pages"></script>
     <script src="shop-order-emails.js?v=20260917-invoices"></script>
   </body>
 </html>
