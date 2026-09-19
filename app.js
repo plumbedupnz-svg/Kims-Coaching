@@ -1172,6 +1172,7 @@ function loadCart() {
 function saveCart(cart) {
   const payload = Array.isArray(cart) ? cart.map(getMinimalCartItem) : [];
   safeStorageSet(CART_KEY, JSON.stringify(payload));
+  window.dispatchEvent(new CustomEvent("kims:cart-updated"));
 }
 
 function isAdminProfile(profile = currentProfile) {
@@ -2978,6 +2979,12 @@ if (menuToggleEl && navLinksEl) {
     menuToggleEl.setAttribute("aria-label", "Open menu");
   });
 }
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== CART_KEY && event.key !== null) return;
+  renderCart();
+  renderCustomerAccount();
+});
 
 async function init() {
   try {
