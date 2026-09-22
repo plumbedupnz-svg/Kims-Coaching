@@ -1,5 +1,7 @@
 # Resend email setup
 
+For the Admin → Emails workspace (group messages, newsletters and unsubscribe links), also follow [Email workspace setup](EMAIL_WORKSPACE_SETUP.md).
+
 Kim's Coaching uses Resend for every live email. There are two sending paths:
 
 1. The Vercel API sends booking, shop, waitlist, and admin notifications through the Resend HTTP API.

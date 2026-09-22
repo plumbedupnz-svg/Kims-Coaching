@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="styles.css?v=20260718-product-gallery" />
     <link rel="stylesheet" href="admin-availability.css?v=20260718-price-gst-basis" />
     <link rel="stylesheet" href="admin-rackets.css?v=20260912" />
+    <link rel="stylesheet" href="admin-emails.css?v=20260922" />
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
   </head>
@@ -51,6 +52,7 @@
               <a href="#products" data-admin-tab="products">Products</a>
               <a href="#inventory" data-admin-tab="inventory">Inventory</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
+              <a href="#emails" data-admin-tab="emails">Emails</a>
               <a href="#waitlist" data-admin-tab="waitlist">Waitlist</a>
               <a href="#junior-programmes" data-admin-tab="junior-programmes">Junior Programmes</a>
               <a href="#junior-groups" data-admin-tab="junior-groups">Junior Groups</a>
@@ -573,6 +575,15 @@
               <div class="admin-list-panel"><div class="admin-data-list" data-admin-customers-list></div></div>
             </section>
 
+            <section class="admin-section email-workspace" data-admin-section="emails" hidden>
+              <div class="admin-section-head">
+                <div><p class="eyebrow">Stay in touch</p><h2>Emails</h2><p class="helper-text">A personal note, a group update, or your next newsletter.</p></div>
+                <button type="button" class="btn btn-secondary" data-email-action="refresh">Refresh</button>
+              </div>
+              <p class="form-message" data-email-workspace-message role="status" aria-live="polite"></p>
+              <div data-email-workspace><p class="helper-text">Opening your email workspace…</p></div>
+            </section>
+
             <section class="admin-section" data-admin-section="waitlist" hidden>
               <div class="admin-section-head"><div><p class="eyebrow">Waitlist</p><h2>Waitlist requests</h2></div></div>
               <div class="admin-list-panel"><div class="admin-data-list" data-admin-waitlist-list></div></div>
@@ -1002,6 +1013,8 @@
     <script src="admin-reports.js?v=20260714-reports"></script>
     <script src="racket-stringing.js?v=20260912"></script>
     <script src="admin-rackets.js?v=20260912"></script>
+    <script src="email-campaign-content.js?v=20260922-extra-recipients"></script>
+    <script src="admin-emails.js?v=20260922-extra-recipients"></script>
     <script src="admin-dashboard.js?v=20260912-rackets"></script>
     <script src="admin-lessons.js?v=20260626-slot-defaults"></script>
     <script src="admin-coaching-settings.js?v=20260626-slot-defaults"></script>
