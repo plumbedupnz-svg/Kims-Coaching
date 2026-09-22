@@ -6,7 +6,7 @@
   const link = document.createElement("a");
   link.className = "header-cart";
   link.dataset.headerCart = "";
-  link.href = document.getElementById("cart") ? "#cart" : "shop.html#cart";
+  link.href = document.getElementById("cart") ? "#cart" : "/shop#cart";
   link.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 3h2l2.4 12h11.2l2-8H6"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg><span class="header-cart-label">Cart</span><span class="header-cart-count" aria-hidden="true">0</span>`;
   const status = document.createElement("span");
   status.className = "header-cart-status";

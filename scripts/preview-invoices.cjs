@@ -163,7 +163,7 @@ http
         status = url.searchParams.get("value") || "pending";
         return send({ status });
       }
-      let relative = url.pathname === "/" ? "shop.html" : url.pathname.slice(1);
+      let relative = ["/", "/shop.html", "/shop"].includes(url.pathname) ? "lib/shop/templates/shop-legacy.html" : url.pathname.slice(1);
       if (!path.extname(relative)) relative += ".html";
       const file = path.resolve(root, relative);
       if (

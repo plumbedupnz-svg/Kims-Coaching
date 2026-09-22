@@ -1,5 +1,7 @@
 User-agent: *
 Allow: /
 Disallow: /api/
+Allow: /api/shop-products$
+Allow: /api/shop-products?
 
 Sitemap: https://www.kimjonescoaching.co.nz/sitemap.xml

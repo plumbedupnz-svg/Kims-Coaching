@@ -2,54 +2,189 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "crons": [
-    { "path": "/api/racket-reminders", "schedule": "0 21 * * *" },
-    { "path": "/api/xero-webhook", "schedule": "30 20 * * *" }
+    {
+      "path": "/api/racket-reminders",
+      "schedule": "0 21 * * *"
+    },
+    {
+      "path": "/api/xero-webhook",
+      "schedule": "30 20 * * *"
+    }
   ],
   "functions": {
-    "api/email-campaigns.js": { "maxDuration": 60 },
-    "api/racket-reminders.js": { "maxDuration": 60 },
-    "api/xero.js": { "maxDuration": 60 },
-    "api/xero-webhook.js": { "maxDuration": 60 },
-    "api/shop-checkout.js": { "maxDuration": 60 }
+    "api/email-campaigns.js": {
+      "maxDuration": 60
+    },
+    "api/racket-reminders.js": {
+      "maxDuration": 60
+    },
+    "api/xero.js": {
+      "maxDuration": 60
+    },
+    "api/xero-webhook.js": {
+      "maxDuration": 60
+    },
+    "api/shop-checkout.js": {
+      "maxDuration": 60
+    },
+    "api/storefront.js": {
+      "maxDuration": 30,
+      "includeFiles": "lib/shop/templates/shop-legacy.html"
+    }
   },
-  "redirects": [{ "source": "/book-private-lesson", "destination": "/booking", "permanent": true }],
+  "redirects": [
+    {
+      "source": "/book-private-lesson",
+      "destination": "/booking",
+      "permanent": true
+    },
+    {
+      "source": "/shop.html",
+      "destination": "/shop",
+      "permanent": true
+    },
+    {
+      "source": "/product.html",
+      "destination": "/product",
+      "permanent": true
+    }
+  ],
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/booking", "destination": "/booking.html" },
-    { "source": "/booking-confirmation", "destination": "/booking-confirmation.html" },
-    { "source": "/payment-success", "destination": "/payment-success.html" },
-    { "source": "/payment-cancelled", "destination": "/payment-cancelled.html" },
-    { "source": "/email-verified", "destination": "/email-verified.html" },
-    { "source": "/shop", "destination": "/shop.html" },
-    { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/login", "destination": "/account.html" },
-    { "source": "/account", "destination": "/account.html" },
-    { "source": "/admin", "destination": "/admin.html" },
-    { "source": "/owner", "destination": "/owner.html" },
-    { "source": "/order-payment", "destination": "/order-payment.html" }
+    {
+      "source": "/shop",
+      "destination": "/api/storefront?view=shop"
+    },
+    {
+      "source": "/shop/:category",
+      "destination": "/api/storefront?view=shop&category=:category"
+    },
+    {
+      "source": "/product",
+      "destination": "/api/storefront?view=product"
+    },
+    {
+      "source": "/sitemap.xml",
+      "destination": "/api/storefront?view=sitemap"
+    },
+    {
+      "source": "/merchant-products.xml",
+      "destination": "/api/storefront?view=merchant"
+    },
+    {
+      "source": "/delivery",
+      "destination": "/api/storefront?view=delivery"
+    },
+    {
+      "source": "/returns",
+      "destination": "/api/storefront?view=returns"
+    },
+    {
+      "source": "/contact",
+      "destination": "/api/storefront?view=contact"
+    },
+    {
+      "source": "/guides/junior-racket-size",
+      "destination": "/api/storefront?view=guides/junior-racket-size"
+    },
+    {
+      "source": "/guides/tennis-grips",
+      "destination": "/api/storefront?view=guides/tennis-grips"
+    },
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/booking",
+      "destination": "/booking.html"
+    },
+    {
+      "source": "/booking-confirmation",
+      "destination": "/booking-confirmation.html"
+    },
+    {
+      "source": "/payment-success",
+      "destination": "/payment-success.html"
+    },
+    {
+      "source": "/payment-cancelled",
+      "destination": "/payment-cancelled.html"
+    },
+    {
+      "source": "/email-verified",
+      "destination": "/email-verified.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/login",
+      "destination": "/account.html"
+    },
+    {
+      "source": "/account",
+      "destination": "/account.html"
+    },
+    {
+      "source": "/admin",
+      "destination": "/admin.html"
+    },
+    {
+      "source": "/owner",
+      "destination": "/owner.html"
+    },
+    {
+      "source": "/order-payment",
+      "destination": "/order-payment.html"
+    }
   ],
   "headers": [
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.resend.com; frame-src https://js.stripe.com https://hooks.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" },
-        { "key": "Strict-Transport-Security", "value": "max-age=31536000; includeSubDomains" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' https://www.googletagmanager.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' https://www.googletagmanager.com https://*.google-analytics.com data: blob: https://*.supabase.co; connect-src 'self' https://www.googletagmanager.com https://*.google-analytics.com https://*.google.com https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://api.resend.com; frame-src https://js.stripe.com https://hooks.stripe.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=31536000; includeSubDomains"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        }
       ]
     },
     {
       "source": "/api/(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store"
+        }
       ]
     },
     {
       "source": "/(admin|account|owner)(.*)",
       "headers": [
-        { "key": "Cache-Control", "value": "no-store, private" }
+        {
+          "key": "Cache-Control",
+          "value": "no-store, private"
+        }
       ]
     }
   ]

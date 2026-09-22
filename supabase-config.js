@@ -5,7 +5,7 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
 
 (function () {
   const nav = document.querySelector("[data-nav-links]");
-  if (!nav) return;
+  if (!nav || nav.hasAttribute("data-storefront-nav")) return;
 
   const currentFile = (window.location.pathname.split("/").pop() || "index.html").replace(/^$/, "index.html");
   const isCurrent = (file) => currentFile === file || (file === "index.html" && currentFile === "");
@@ -15,8 +15,8 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
     <a href="index.html"${currentAttr("index.html")}>Home</a>
     <a href="booking.html"${currentAttr("booking.html")}>Book Coaching</a>
     <a href="shop.html"${currentAttr("shop.html")}>Shop</a>
-    <a href="index.html#about">About</a>
-    <a href="index.html#programmes">Programmes</a>
+    <a href="/#about">About</a>
+    <a href="/booking">Programmes</a>
     <a href="account.html" data-auth-public${currentAttr("account.html")}>Login</a>
     <a href="account.html" data-auth-private hidden${currentAttr("account.html")}>My Account</a>
     <a href="admin.html" data-admin-link hidden${currentAttr("admin.html")}>Admin</a>

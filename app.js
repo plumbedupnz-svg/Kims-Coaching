@@ -1319,7 +1319,7 @@ function setAuthMode(mode) {
     authCopyEl.textContent = isReset
       ? "Enter a new password for your Kim Jones Coaching account."
       : isSignup
-      ? "Set up your customer profile before booking or buying SportsCo gear."
+      ? "Set up your customer profile before booking or buying tennis and pickleball gear."
       : "Access your coaching account and continue where you left off.";
   }
   if (authSubmitEl) authSubmitEl.textContent = isReset ? "Update Password" : isSignup ? "Create Account" : "Login";
@@ -2246,7 +2246,7 @@ function renderCart() {
     return item.availability_note || getProductAvailabilityNote({ ...product, ...item, fulfilment_type: item.fulfilment_type || product?.fulfilment_type });
   };
   cartItemsEl.innerHTML = !cart.length
-    ? `<p class="empty-cart">Your cart is empty. Add a SportsCo product above.</p>`
+    ? `<p class="empty-cart">Your cart is empty. Add a product above.</p>`
     : cart
         .map(
           (item) => `<div class="cart-item"><div><h4>${item.name}</h4><p>${money(Number(item.price))} each</p></div><div class="qty-controls"><button class="qty-btn" data-action="decrease" data-id="${item.id}">−</button><span>${item.quantity}</span><button class="qty-btn" data-action="increase" data-id="${item.id}">+</button></div></div>`
