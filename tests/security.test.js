@@ -91,7 +91,7 @@ test("Stripe JSON parser enforces the request size cap", async () => {
   );
 });
 
-test("Stripe Checkout only enables synchronous card payments", async (context) => {
+test("Stripe Checkout enables cards and Afterpay without automatic tax", async (context) => {
   const originalFetch = global.fetch;
   const originalEnv = { ...process.env };
   context.after(() => {
@@ -119,6 +119,7 @@ test("Stripe Checkout only enables synchronous card payments", async (context) =
   });
 
   assert.equal(checkoutParams.get("payment_method_types[0]"), "card");
+  assert.equal(checkoutParams.get("payment_method_types[1]"), "afterpay_clearpay");
   assert.equal(checkoutParams.get("automatic_tax[enabled]"), null);
 });
 
