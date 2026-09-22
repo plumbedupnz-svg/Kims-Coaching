@@ -425,7 +425,7 @@ async function getShopLineItems(cart) {
       .catch((error) => {
         if (/cost_price|schema cache|PGRST|42703/i.test(error.message || "")) {
           console.warn("[Stripe checkout] inventory cost columns are not available yet; continuing without cost snapshots.", { message: error.message });
-          return restSelect("inventory_items", "id,product_name,sku,category,description,sell_price,quantity_on_hand,status,visible_in_shop,is_active,archived_at", { id: uuidList(inventoryIds) });
+          return restSelect("inventory_items", "id,product_name,sku,category,description,sell_price,discount,item_kind,track_stock,is_order_to_sale,quantity_on_hand,status,visible_in_shop,is_active,archived_at", { id: uuidList(inventoryIds) });
         }
         throw error;
       });

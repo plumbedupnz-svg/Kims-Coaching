@@ -1126,11 +1126,7 @@ function updateOwnerProductStockOptions() {
 }
 
 function getDiscountedPrice(product) {
-  const base = Number(product.price);
-  const discount = Number(product.discount || 0);
-  if (Number.isNaN(base)) return 0;
-  if (Number.isNaN(discount) || discount <= 0) return base;
-  return Math.max(0, base * (1 - discount / 100));
+  return window.KimsPricing.unitPrice(product.price, product.discount);
 }
 
 function loadProducts() {
@@ -1161,7 +1157,9 @@ function getMinimalCartItem(item) {
     id: item.id,
     inventory_item_id: item.inventory_item_id || "",
     name: item.name || "Product",
-    price: Number(item.price || 0),
+    base_price: Number(item.base_price ?? item.price ?? 0),
+    discount: Number(item.discount || 0),
+    price: window.KimsPricing.unitPrice(item.base_price ?? item.price ?? 0, item.discount),
     quantity: Math.max(1, Number(item.quantity || 1)),
     image_url: getStorableImage(item.image_url || item.image),
     fulfilment_type: fulfilmentType,
@@ -1172,7 +1170,14 @@ function getMinimalCartItem(item) {
 
 function loadCart() {
   const cart = safeJsonParse(safeStorageGet(CART_KEY, "[]"), []);
-  return Array.isArray(cart) ? cart.map(getMinimalCartItem) : [];
+  const catalogue = getCurrentShopProducts();
+  return Array.isArray(cart) ? cart.map((item) => {
+    const product = catalogue.find((candidate) => String(candidate.id) === String(item.id));
+    // Refresh old carts from the current catalogue; never discount an already discounted price.
+    return getMinimalCartItem(product
+      ? { ...item, ...product, base_price: product.price, quantity: item.quantity }
+      : item);
+  }) : [];
 }
 
 function saveCart(cart) {

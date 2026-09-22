@@ -123,6 +123,7 @@
   }
 
   function loadCart() {
+    if (window.KimsShop?.loadCart) return window.KimsShop.loadCart();
     try {
       return JSON.parse(localStorage.getItem("kims_cart") || "[]");
     } catch (error) {
