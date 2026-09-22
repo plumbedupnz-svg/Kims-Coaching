@@ -174,7 +174,7 @@ function moneyText(value) {
 }
 
 function calculateDiscountedPrice(price, discount) {
-  return Math.max(0, Number(price || 0) * (1 - Number(discount || 0) / 100));
+  return require("../../shop-pricing").unitPrice(price, discount);
 }
 
 function formAppend(params, key, value) {

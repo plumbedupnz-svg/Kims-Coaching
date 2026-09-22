@@ -244,3 +244,12 @@ test("revocation in another tab stops measurement in this tab", () => {
   assert.equal(app.reloads(), 1);
   assert.equal(app.window["ga-disable-G-TEST123"], true);
 });
+
+test('new public categories and guides are measured without user search data; unknown routes stay private', () => {
+  for (const route of ['/shop/junior-tennis-rackets', '/shop/pickleball-paddles', '/guides/tennis-grips', '/delivery', '/contact']) {
+    const app = load({url:'https://www.kimjonescoaching.co.nz'+route+'?q=private%40example.com',choice:'granted'});
+    assert.equal(app.commands().filter(args=>args[1]==='page_view').length,1,route);
+    assert.doesNotMatch(JSON.stringify(app.commands()),/private@example/);
+  }
+  assert.equal(load({url:'https://www.kimjonescoaching.co.nz/shop/private-customer',choice:'granted'}).scripts.length,0);
+});

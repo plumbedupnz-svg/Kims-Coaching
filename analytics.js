@@ -10,8 +10,21 @@
     "/booking": "Book Tennis Coaching | Kim Jones Coaching",
     "/shop": "Tennis Shop | Kim Jones Coaching",
     "/product": "Product | Kim Jones Coaching",
-    "/privacy": "Privacy Policy | Kim Jones Coaching"
+    "/privacy": "Privacy Policy | Kim Jones Coaching",
+    "/delivery": "NZ Delivery & Pickup | Kim Jones Coaching",
+    "/returns": "Returns & Order Help | Kim Jones Coaching",
+    "/contact": "Contact Kim | Kim Jones Coaching",
+    "/guides/junior-racket-size": "Junior Racket Guide | Kim Jones Coaching",
+    "/guides/tennis-grips": "Tennis Grip Guide | Kim Jones Coaching"
   };
+  for (const [slug, title] of Object.entries({
+    "junior-tennis-rackets": "Junior Tennis Rackets NZ", "tennis-rackets": "Tennis Rackets NZ",
+    "pickleball-paddles": "Pickleball Paddles NZ", "tennis-grips": "Tennis Grips NZ",
+    "tennis-balls": "Tennis Balls NZ", "tennis-bags": "Tennis Bags NZ",
+    "tennis-strings": "Tennis Strings NZ", "dampeners": "Tennis Dampeners NZ",
+    "pickleball-accessories": "Pickleball Accessories NZ", "training": "Tennis Training NZ",
+    "accessories": "Tennis Accessories NZ", "racket-services": "Racket Services"
+  })) pageTitles["/shop/" + slug] = title + " | Kim Jones Coaching";
   const path = window.location.pathname.replace(/\.html$/, "").replace(/\/$/, "") || "/";
   const pagePath = path === "/index" ? "/" : path === "/book-private-lesson" ? "/booking" : path;
   const paymentReturn = pagePath === "/payment-success";
@@ -57,6 +70,21 @@
 
   function gtag() { window.dataLayer.push(arguments); }
 
+  function publicPageLocation() {
+    const base = "https://www.kimjonescoaching.co.nz";
+    // Product identity comes from server-rendered catalogue metadata, never an
+    // arbitrary query string. Search queries, tokens and customer data stay out.
+    if (pagePath === "/product") {
+      try {
+        const canonical = new URL(document.querySelector('link[rel="canonical"]')?.href);
+        if (canonical.origin === base && canonical.pathname === "/product"
+            && [...canonical.searchParams.keys()].length === 1
+            && /^[a-z0-9-]{1,90}$/.test(canonical.searchParams.get("slug") || "")) return canonical.href;
+      } catch (_) {}
+    }
+    return base + (paymentReturn ? "/checkout-complete" : pagePath);
+  }
+
   function start() {
     if (started || consent !== "granted") return;
     started = true;
@@ -71,7 +99,7 @@
     // Fixed titles and clean URLs keep names, emails, auth tokens, search terms,
     // order IDs and booking details out of automatic page and engagement events.
     const page = {
-      page_location: "https://www.kimjonescoaching.co.nz" + (paymentReturn ? "/checkout-complete" : pagePath),
+      page_location: publicPageLocation(),
       page_referrer: referrerOrigin(),
       page_title: paymentReturn ? "Checkout complete | Kim Jones Coaching" : pageTitles[pagePath]
     };

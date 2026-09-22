@@ -1,8 +1,8 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
-  const client = settings.url && settings.anonKey && window.supabase
+  const client = window.KimsStorefrontClient || (settings.url && settings.anonKey && window.supabase
     ? window.supabase.createClient(settings.url, settings.anonKey)
-    : null;
+    : null);
 
   const defaults = {
     pickup_label: "Pick up from coaching / club",
@@ -123,6 +123,7 @@
   }
 
   function loadCart() {
+    if (window.KimsShop?.loadCart) return window.KimsShop.loadCart();
     try {
       return JSON.parse(localStorage.getItem("kims_cart") || "[]");
     } catch (error) {
@@ -224,6 +225,12 @@
   }
 
   async function loadCheckoutSettings() {
+    if (window.KimsStorefrontSettings) {
+      checkoutSettings = normalizeCheckoutSettings(window.KimsStorefrontSettings);
+      renderFulfilmentOptions();
+      window.KimsShop?.renderCart?.();
+      return;
+    }
     if (!client) {
       renderFulfilmentOptions();
       return;
@@ -380,11 +387,12 @@
 
     try {
       if (!paymentOptionsReady) throw new Error("Payment options are still loading. Please try again shortly.");
+      await window.KimsShop?.ensureCartCurrent?.();
       const checkout = getCheckoutPayload();
       validateCheckout(checkout);
       const session = await getSession();
       if (fields.message) fields.message.textContent = paymentOptions.provider === "xero" ? "Creating your order and invoice…" : "Redirecting to secure Stripe Checkout...";
-      await startShopCheckout(cart, session?.access_token || "", checkout);
+      await startShopCheckout(loadCart(), session?.access_token || "", checkout);
     } catch (error) {
       button.dataset.stripeCheckoutHandled = "false";
       if (fields.message) fields.message.textContent = error.message || "Could not start Stripe Checkout.";

@@ -2,16 +2,19 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <meta name="robots" content="noindex,follow" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Product | Kim Jones Coaching</title>
+    <title>Tennis Shop | Kim Jones Coaching</title>
+    <meta name="description" content="Browse tennis equipment and training essentials from Kim Jones Coaching. Explore products, check availability and order online." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="styles.css?v=20260718-product-gallery" />
-    <link rel="stylesheet" href="layout-option-2.css?v=20260718-shop-card-size" />
+    <link rel="stylesheet" href="styles.css?v=20260920-shop-pages" />
+    <link rel="stylesheet" href="layout-option-2.css?v=20260913-shop-search" />
     <link rel="stylesheet" href="privacy.css?v=20260913" />
+    <link rel="canonical" href="https://www.kimjonescoaching.co.nz/shop" />
     <link rel="stylesheet" href="analytics.css?v=20260917" />
-    <script src="analytics.js?v=20260917-live" defer></script>
+    <script src="analytics.js?v=20260922" defer></script>
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
   </head>
@@ -28,9 +31,11 @@
           <span></span>
         </button>
         <div class="nav-links" id="primary-nav" data-nav-links>
-          <a href="index.html#shop">Shop</a>
-          <a href="index.html#about">About</a>
-          <a href="booking.html">Book Coaching</a>
+          <a href="/shop">Shop</a>
+          <a href="/#about">About</a>
+          <a href="/#about">Philosophy</a>
+          <a href="/booking">Programmes</a>
+          <a href="/contact">Contact</a>
           <a href="account.html" data-auth-public>Login</a>
           <a href="account.html?mode=signup" data-auth-public>Create Account</a>
           <a href="account.html" data-auth-private hidden>My Account</a>
@@ -38,16 +43,60 @@
         </div>
       </nav>
     </header>
-
     <main>
-      <section class="section product-detail-section">
+      <section class="section" id="shop">
         <div class="container">
-          <div data-product-detail>
-            <p class="empty-cart">Loading product...</p>
+          <div class="section-head">
+            <p class="eyebrow">Kim Jones Coaching Shop</p>
+            <h1>Shop products</h1>
           </div>
+          <div class="shop-toolbar" role="search" aria-label="Find products">
+            <div class="shop-search-field">
+              <label for="shop-search" class="shop-filter-label">Search products</label>
+              <div class="shop-search-row">
+                <input id="shop-search" class="shop-search-input" type="search" placeholder="Name, brand or product code" autocomplete="off" spellcheck="false" aria-controls="product-list" />
+                <button id="shop-search-clear" class="btn btn-secondary" type="button" hidden>Clear search</button>
+              </div>
+            </div>
+            <div class="shop-category-field">
+              <label for="category-filter" class="shop-filter-label">Filter by category</label>
+              <select id="category-filter" class="shop-filter-select" aria-controls="product-list">
+                <option value="all">All categories</option>
+              </select>
+            </div>
+            <div class="shop-page-size-field">
+              <label for="shop-page-size" class="shop-filter-label">Items per page</label>
+              <select id="shop-page-size" class="shop-filter-select" aria-controls="product-list">
+                <option value="20" selected>20</option>
+                <option value="40">40</option>
+                <option value="60">60</option>
+                <option value="all">All</option>
+              </select>
+            </div>
+          </div>
+          <p id="shop-results-summary" class="shop-results-summary" role="status" aria-live="polite" aria-atomic="true" tabindex="-1"></p>
+          <nav class="shop-pagination" aria-label="Product pages" data-shop-pagination hidden>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="-1" aria-controls="product-list">Previous</button>
+            <div class="shop-page-picker">
+              <label for="shop-page-top">Page</label>
+              <select id="shop-page-top" data-shop-page aria-controls="product-list"></select>
+              <span data-shop-page-total></span>
+            </div>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="1" aria-controls="product-list">Next</button>
+          </nav>
+
+          <div id="product-list" class="shop-categories"></div>
+          <nav class="shop-pagination shop-pagination-bottom" aria-label="Product pages below results" data-shop-pagination hidden>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="-1" aria-controls="product-list">Previous</button>
+            <div class="shop-page-picker">
+              <label for="shop-page-bottom">Page</label>
+              <select id="shop-page-bottom" data-shop-page aria-controls="product-list"></select>
+              <span data-shop-page-total></span>
+            </div>
+            <button class="btn btn-secondary" type="button" data-shop-page-step="1" aria-controls="product-list">Next</button>
+          </nav>
         </div>
       </section>
-
       <section class="section alt" id="cart">
         <div class="container cart-layout">
           <div>
@@ -64,7 +113,7 @@
             <div class="summary-row"><span>Promo Discount</span><strong id="promo-discount">-$0.00</strong></div>
             <div class="summary-row"><span>Shipping / pickup</span><strong id="shipping">$0.00</strong></div>
             <div class="summary-row total"><span>Total</span><strong id="total">$0.00</strong></div>
-
+            
             <div class="checkout-details" data-checkout-details>
               <h4>Checkout details</h4>
               <p class="privacy-notice">Kim Jones Coaching uses these details to fulfil your order, arrange delivery or pickup and contact you. We share relevant details with Stripe, Xero when invoicing is enabled, and any delivery provider. Required checkout details are needed to complete your order. Our <a href="privacy.html" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> explains who holds your information, your access and correction rights, and how to contact us.</p>
@@ -115,12 +164,12 @@
     <footer class="site-footer">
       <div class="container footer-inner"><p>Kim Jones Coaching</p><a href="privacy.html">Privacy policy</a></div>
     </footer>
-
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="supabase-config.js"></script>
     <script src="email-service.js"></script>
-    <script src="app.js?v=20260920-cart"></script>
+    <script src="product-categories.js?v=20260718-shop-categories"></script>
+    <script src="shop-pricing.js?v=20260922"></script>
+    <script src="app.js?v=20260922-pricing"></script>
     <script src="shop-order-emails.js?v=20260917-invoices"></script>
-    <script src="product-detail.js?v=20260917-invoices"></script>
   </body>
 </html>
