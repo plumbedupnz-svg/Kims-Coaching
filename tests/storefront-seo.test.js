@@ -81,3 +81,14 @@ test('category pages and every information/guide route have useful initial HTML'
     assert.match(response.body,/rel="canonical"/);
   }
 });
+
+test('owner hide-out-of-stock preference removes sold-out cards but preserves services and sourced items', async()=>{
+  const products=[item({slug:'stocked',product_name:'Stocked racket'}),item({id:'sold',slug:'sold',product_name:'Sold racket',quantity_on_hand:0}),item({id:'sourced',slug:'sourced',product_name:'Sourced racket',track_stock:false,quantity_on_hand:0}),item({id:'labour',slug:'labour',product_name:'Stringing labour',item_kind:'service',quantity_on_hand:0})];
+  const data={products,settings:{...settings,hide_out_of_stock:true}};
+  const response=await request('/shop',data);
+  assert.match(response.body,/Showing 1–3 of 3/);
+  const seed=JSON.parse(response.body.match(/id="shop-page-data">(.*?)<\/script>/s)[1]);
+  assert.deepEqual(seed.products.map(p=>p.slug).sort(),['labour','sourced','stocked']);
+  assert.equal((await request('/product?slug=sold',data)).statusCode,200);
+  assert.match((await request('/shop',{products,settings})).body,/Showing 1–4 of 4/);
+});
