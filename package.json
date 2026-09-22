@@ -2,7 +2,8 @@
   "private": true,
   "scripts": {
     "test": "node --test",
-    "preview:rackets": "node scripts/preview-rackets.cjs"
+    "preview:rackets": "node scripts/preview-rackets.cjs",
+    "preview:emails": "node scripts/preview-emails.cjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8"

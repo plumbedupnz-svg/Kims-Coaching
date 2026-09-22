@@ -6,6 +6,7 @@
     { "path": "/api/xero-webhook", "schedule": "30 20 * * *" }
   ],
   "functions": {
+    "api/email-campaigns.js": { "maxDuration": 60 },
     "api/racket-reminders.js": { "maxDuration": 60 },
     "api/xero.js": { "maxDuration": 60 },
     "api/xero-webhook.js": { "maxDuration": 60 },
