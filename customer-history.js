@@ -1,8 +1,8 @@
 (function () {
   const panel = document.querySelector('[data-account-history]');
-  const config = window.KIMS_SUPABASE || {};
-  if (!panel || !window.supabase || !config.url) return;
-  const client = window.supabase.createClient(config.url, config.anonKey);
+  // Reuse the account client so it alone consumes recovery links and sets the password screen.
+  const client = typeof supabaseClient !== "undefined" ? supabaseClient : null;
+  if (!panel || !client) return;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const date = v => new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium' }).format(new Date(v.length === 10 ? v + 'T12:00:00Z' : v));
   let revision = 0;
