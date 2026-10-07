@@ -1,0 +1,13 @@
+/* Customer invoices and account history */
+[data-customer-invoices] { margin-bottom: 1.25rem; }
+[data-customer-invoices] summary { cursor: pointer; font-weight: 600; }
+[data-customer-invoices] > details { margin: 1rem 0; }
+[data-customer-invoices] [data-invoice-form] { display: grid; gap: 1rem; }
+[data-customer-invoices] label { display: grid; gap: .4rem; }
+[data-customer-invoices] [data-lines] { display: grid; gap: .75rem; }
+[data-customer-invoices] [data-lines] .admin-action-row { align-items: end; }
+[data-customer-invoices] [data-lines] label:first-child { flex: 1; min-width: 12rem; }
+[data-customer-invoices] [data-lines] label:nth-child(2) { width: 6rem; }
+[data-customer-invoices] [data-invoice-form] > button { justify-self: start; }
+[data-customer-invoices] [data-create-customer] { margin-top: 1rem; }
+[data-account-history] article { padding: .75rem 0; border-bottom: 1px solid #e5e7eb; }

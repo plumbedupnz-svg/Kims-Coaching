@@ -68,3 +68,15 @@ Implementation is on `codex/shop-xero-invoices`. Live activation requires the mi
 `npm test` exercises database permissions, stock reservation/release, partial/paid/reversed payments, retries, queue leases, signed webhooks, token encryption, authoritative prices and provider routing, as well as the existing application tests.
 
 `node scripts/preview-invoices.cjs` serves synthetic UI data at `http://127.0.0.1:4175/shop.html`; its admin preview is `/admin.html#settings`. It makes no Xero calls, sends no emails and takes no payments. It is for local review, not production.
+
+## Admin-created customers and invoices
+
+Admin → Inventory → **Create customer invoice** lets Kim load customers, create a customer with a name/email/phone, select inventory items (including hidden items and stringing labour), review quantities and the estimated total, and create/email an invoice. This uses existing Xero settings, server prices, discounts, stock reservations and retry protection. Fulfilment is pickup. Review final invoice/payment/email state in Products → Shop Orders. No extra migration is required beyond the existing profile, racket and Xero migrations.
+
+Creating a customer makes an unconfirmed Supabase Auth user and its customer profile. It does not email them, set a shared password or grant admin access. Existing email addresses reuse their customer profile. Invoices are linked to that profile immediately and never wait for email verification.
+
+**Send account activation email** is a separate admin action. It uses Supabase's password recovery email: following the link proves email ownership and opens the existing account password-setting screen. Confirm Supabase Auth email confirmation is enabled, SMTP is configured, and `https://www.kimjonescoaching.co.nz/account.html` is in its redirect allowlist. This action sends a real email in production; the local preview only simulates it.
+
+After verification/sign-in, Account → **Purchases & racket history** shows the customer's latest 100 linked purchases plus their recorded rackets, strings and tensions. The server checks email verification and scopes every query to the authenticated user's ID. Guest purchases from before this account existed are not automatically linked by matching an email. Admins continue recording actual strings/tension in Customers → Rackets; invoice instructions do not create a stringing record.
+
+Validate on a test deployment with synthetic recipients first: create an unverified customer, issue an invoice, activate the account, set its password and verify the original order and racket history remain attached to that same customer. Never use a real customer for release testing without authorisation.

@@ -404,7 +404,7 @@ async function createAdminJuniorPaymentRequest({ user, body }) {
   return session;
 }
 
-async function getShopLineItems(cart) {
+async function getShopLineItems(cart, adminSale = false) {
   if (cart.length > 50) throw new Error("Your cart contains too many line items.");
   const ids = [...new Set(cart.map((item) => String(item.id || "")).filter(Boolean))];
   const inventoryIds = [...new Set(cart.map((item) => String(item.inventory_item_id || item.id || "")).filter(Boolean))];
@@ -479,7 +479,7 @@ async function getShopLineItems(cart) {
     }
 
     if (!inventory) throw new Error(`${item.name || "Product"} is not available.`);
-    if (inventory.visible_in_shop !== true || inventory.is_active === false || inventory.archived_at) throw new Error(`${inventory.product_name} is not available.`);
+    if ((!adminSale && inventory.visible_in_shop !== true) || inventory.is_active === false || inventory.archived_at) throw new Error(`${inventory.product_name} is not available.`);
     const tracksStock = inventory.track_stock !== false && inventory.is_order_to_sale !== true;
     if (tracksStock && Number(inventory.quantity_on_hand || 0) < quantity) throw new Error(`Not enough stock available for ${inventory.product_name}.`);
     const unitAmount = Number(calculateDiscountedPrice(inventory.sell_price, inventory.discount).toFixed(2));
@@ -600,7 +600,7 @@ async function insertShopOrder(payload) {
   }
 }
 
-async function prepareShopOrder({ user, body, strictSettings = false }) {
+async function prepareShopOrder({ user, body, strictSettings = false, adminSale = false }) {
   const cart = Array.isArray(body.cart) ? body.cart : [];
   if (!cart.length || cart.length > 100) throw new Error("Your cart is empty.");
   const profile = await getProfile(user?.id);
@@ -608,7 +608,7 @@ async function prepareShopOrder({ user, body, strictSettings = false }) {
   const settings = await getShopSettings(strictSettings);
   const customer = normalizeShopCustomer({ checkout, profile, user });
   const deliveryAddress = normalizeDeliveryAddress(checkout, customer);
-  const items = await getShopLineItems(cart);
+  const items = await getShopLineItems(cart, adminSale);
   const fulfilmentMethod = items.every(item => item.fulfilment_type === "service") ? "pickup" : checkout.fulfilment_method || checkout.fulfilmentMethod || "pickup";
   validateFulfilment(fulfilmentMethod, deliveryAddress);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
