@@ -530,7 +530,7 @@ async function getShopSettings(strict = false) {
   }
 }
 
-function normalizeShopCustomer({ checkout = {}, profile, user }) {
+function normalizeShopCustomer({ checkout = {}, profile, user, requirePhone = true }) {
   const customer = checkout.customer || {};
   const profileName = getCustomerName(profile, user);
   const name = String(customer.full_name || customer.name || profile?.delivery_full_name || profileName || "").trim();
@@ -538,7 +538,7 @@ function normalizeShopCustomer({ checkout = {}, profile, user }) {
   const phone = String(customer.phone || profile?.delivery_phone || profile?.phone || profile?.mobile || "").trim();
   if (!name) throw new Error("Customer name is required.");
   if (!email) throw new Error("Customer email is required.");
-  if (!phone) throw new Error("Customer phone is required.");
+  if (requirePhone && !phone) throw new Error("Customer phone is required.");
   return { name, email, phone };
 }
 
@@ -601,22 +601,25 @@ async function insertShopOrder(payload) {
 }
 
 async function prepareShopOrder({ user, body, strictSettings = false, adminSale = false }) {
-  const cart = Array.isArray(body.cart) ? body.cart : [];
-  if (!cart.length || cart.length > 100) throw new Error("Your cart is empty.");
+  const invoice = require('../../lib/admin-invoice');
+  const cart = adminSale ? invoice.normalizeCart(body.cart) : Array.isArray(body.cart) ? body.cart : [];
+  const custom = adminSale ? invoice.customLines(body.custom_lines) : [];
+  if ((!cart.length && !custom.length) || cart.length + custom.length > 50) throw new Error("Add between 1 and 50 invoice items.");
   const profile = await getProfile(user?.id);
   const checkout = body.checkout || {};
   const settings = await getShopSettings(strictSettings);
-  const customer = normalizeShopCustomer({ checkout, profile, user });
+  const customer = normalizeShopCustomer({ checkout, profile, user, requirePhone: !adminSale });
   const deliveryAddress = normalizeDeliveryAddress(checkout, customer);
-  const items = await getShopLineItems(cart, adminSale);
+  const items = [...await getShopLineItems(cart, adminSale), ...custom];
   const fulfilmentMethod = items.every(item => item.fulfilment_type === "service") ? "pickup" : checkout.fulfilment_method || checkout.fulfilmentMethod || "pickup";
   validateFulfilment(fulfilmentMethod, deliveryAddress);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);
   const taxSummary = calculateShopTaxSummary(subtotal, settings);
   const tax = taxSummary.amount;
-  const discount = 0;
+  const discount = adminSale ? invoice.discountCents(Math.round(subtotal * 100), body.invoice_discount) / 100 : 0;
   const shipping = calculateShippingAmount(fulfilmentMethod, subtotal, settings);
   const total = Math.max(0, subtotal + tax + shipping - discount);
+  if (adminSale && total <= 0) throw new Error("The invoice total must be greater than $0.");
   const payload = {
     user_id: user?.id || null,
     customer_name: customer.name,

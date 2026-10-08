@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="admin-emails.css?v=20260922" />
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
-      <link rel="stylesheet" href="customer-invoices.css?v=20261008">
+      <link rel="stylesheet" href="customer-invoices.css?v=20261008-2">
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -322,12 +322,21 @@
                 <form data-invoice-form>
                   <label>Customer<select name="customer_id" required><option value="">Load customers first</option></select></label>
                   <button type="button" class="btn btn-secondary" data-activation>Send account activation email</button>
+                  <label>Search items<input type="search" data-item-search placeholder="Search by name, SKU or category" autocomplete="off"></label>
+                  <div class="invoice-search-results" data-search-results aria-live="polite">Load customers and items to search the catalogue.</div>
+                  <h3>Invoice items</h3>
                   <div data-lines></div>
-                  <p class="helper-text" data-total>Estimated total: $0.00 · Pickup</p>
-                  <button type="button" class="btn btn-secondary" data-add>Add item</button>
+                  <button type="button" class="btn btn-secondary" data-custom>Add custom line</button>
+                  <div class="invoice-discount">
+                    <label>Invoice discount<select name="discount_type"><option value="none">No extra discount</option><option value="percent">Percentage (%)</option><option value="amount">Dollar amount ($)</option></select></label>
+                    <label>Discount value<input name="discount_value" type="number" min="0" step="0.01" value="0" required></label>
+                  </div>
+                  <p class="helper-text">Extra discount applies to the subtotal after existing catalogue discounts. Final prices and stock are checked when saved.</p>
+                  <p class="helper-text" data-total>Subtotal $0.00 − discount $0.00 = total $0.00 · Pickup</p>
                   <label>Racket / player details<textarea name="service_details" maxlength="1000" placeholder="Player, racket and stringing instructions"></textarea></label>
                   <p class="helper-text">Creating an invoice queues a Xero invoice email to this customer. Account activation is separate. Record actual strings and tension under Customers → Rackets.</p>
                   <button class="btn btn-primary" type="submit">Create &amp; email invoice</button>
+                  <button class="btn btn-secondary" type="button" data-new-invoice>Clear lines for a new invoice</button>
                 </form>
                 <p class="form-message" role="status" data-message></p>
               </details>
@@ -1049,8 +1058,9 @@
     <script src="admin-junior-groups.js?v=20260703-junior-calendar-groups"></script>
     <script src="admin-settings-tabs.js?v=20260716-admin-overflow"></script>
     <script src="admin-shop-settings.js?v=20260718-gst-helper"></script>
-    <script src="admin-xero.js?v=20260917"></script>
-    <script src="admin-customer-invoices.js?v=20261008"></script>
+    <script src="admin-xero.js?v=20261008-2"></script>
+    <script src="lib/admin-invoice.js?v=20261008-2"></script>
+    <script src="admin-customer-invoices.js?v=20261008-2"></script>
     <script src="admin-shop-orders.js?v=20260917-invoices"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>

@@ -11,3 +11,13 @@
 [data-customer-invoices] [data-invoice-form] > button { justify-self: start; }
 [data-customer-invoices] [data-create-customer] { margin-top: 1rem; }
 [data-account-history] article { padding: .75rem 0; border-bottom: 1px solid #e5e7eb; }
+
+.invoice-search-results { max-height: 18rem; overflow: auto; border: 1px solid #e5e7eb; border-radius: .5rem; padding: .5rem; }
+.invoice-search-result { display: flex; justify-content: space-between; align-items: center; gap: 1rem; width: 100%; padding: .75rem; border: 0; border-bottom: 1px solid #e5e7eb; background: white; text-align: left; cursor: pointer; color: inherit; font: inherit; }
+.invoice-search-result:hover, .invoice-search-result:focus-visible { background: #eff6ff; }
+.invoice-search-result small, .invoice-line small { display: block; color: #586174; }
+.invoice-line { display: grid; grid-template-columns: minmax(0, 1fr) 6rem 6rem auto; gap: .75rem; align-items: end; padding: .85rem; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: .5rem; }
+.invoice-line-custom { grid-template-columns: minmax(0, 1fr) 8rem 6rem 6rem auto; }
+.invoice-line [data-line-total] { align-self: center; }
+.invoice-discount { display: grid; grid-template-columns: minmax(0, 1fr) 10rem; gap: 1rem; }
+@media(max-width: 700px) { .invoice-line, .invoice-line-custom, .invoice-discount { grid-template-columns: 1fr 1fr; } .invoice-line > :first-child { grid-column: 1 / -1; } .invoice-search-result { flex-wrap: wrap; } }

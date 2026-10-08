@@ -55,6 +55,8 @@ module.exports = async (req, res) => {
       req.body = {
         checkout_key: body.checkout_key,
         cart: body.cart,
+        custom_lines: body.custom_lines,
+        invoice_discount: body.invoice_discount,
         checkout: {
           customer: { full_name: `${customer.first_name} ${customer.last_name}`.trim(), email: customer.email, phone: customer.phone },
           payment_method: 'bank_transfer', fulfilment_method: 'pickup', service_details: body.service_details,
