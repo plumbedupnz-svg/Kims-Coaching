@@ -49,6 +49,7 @@ const invoiceSettings = {
   sales_account_code: "200",
   branding_theme_id: service.id,
 };
+const customers = [{ id: service.id, first_name: "Alex", last_name: "Taylor", email: "alex@example.com", phone: "021 000 0000" }];
 let order = null,
   status = "pending";
 const bootstrap = `window.KIMS_SUPABASE={url:location.origin,anonKey:'preview'};
@@ -62,6 +63,17 @@ http
         res.end(JSON.stringify(v));
       };
     try {
+      if (url.pathname === '/api/admin-customers') {
+        if (req.method === 'GET') return send({ customers });
+        let raw = ''; for await (const chunk of req) raw += chunk;
+        const body = JSON.parse(raw);
+        if (body.action === 'create') {
+          const customer = { ...body, id: require('node:crypto').randomUUID() };
+          customers.push(customer); return send({ id: customer.id });
+        }
+        if (body.action === 'activation') return send({ sent: true });
+        return send({ provider: 'xero', url: '/order-payment.html#' + body.checkout_key });
+      }
       if (url.pathname.startsWith("/rest/v1/")) {
         const table = url.pathname.split("/").pop();
         return send(
@@ -185,6 +197,8 @@ http
         const scripts =
           relative === "admin.html"
             ? [
+                "shop-pricing.js",
+                "admin-customer-invoices.js",
                 "admin-settings-tabs.js",
                 "admin-xero.js",
                 "admin-dashboard.js",

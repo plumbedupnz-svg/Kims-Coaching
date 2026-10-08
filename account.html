@@ -17,6 +17,7 @@
     <link rel="stylesheet" href="privacy.css?v=20260913" />
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
+      <link rel="stylesheet" href="customer-invoices.css?v=20261008">
   </head>
   <body>
     <header class="site-header">
@@ -148,6 +149,14 @@
             </div>
           </div>
 
+          <section class="dashboard-card" data-account-history hidden>
+            <h2>Purchases &amp; racket history</h2>
+            <button type="button" class="btn btn-secondary">Refresh history</button>
+            <p class="form-message" role="status" data-history-message></p>
+            <h3>Purchases (latest 100)</h3><div data-orders></div>
+            <h3>Rackets, strings &amp; tension</h3><div data-rackets></div>
+          </section>
+
           <form class="profile-form dashboard-card" data-profile-form>
             <h2>Profile Details</h2>
             <p class="privacy-notice">Kim Jones Coaching uses these details to manage player profiles, arrange suitable coaching and save delivery information. Notes are optional; include only what is relevant. If adding another person, make sure you have authority and share our <a href="privacy.html#players" target="_blank" rel="noopener">privacy policy (opens in a new tab)</a> with them. It explains who holds and receives information, access and correction rights, and our privacy contact.</p>
@@ -249,6 +258,7 @@
     <script src="supabase-config.js?v=20260626-lesson-rules"></script>
     <script src="shop-pricing.js?v=20260922"></script>
     <script src="app.js?v=20260922"></script>
+    <script src="customer-history.js?v=20261008"></script>
     <script src="email-service.js?v=20260626-lesson-rules"></script>
     <script src="booking-notifications.js?v=20260626-lesson-rules"></script>
     <script src="booking.js?v=20260626-lesson-rules"></script>

@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="admin-emails.css?v=20260922" />
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
+      <link rel="stylesheet" href="customer-invoices.css?v=20261008">
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -304,6 +305,32 @@
                   <p class="helper-text">Manage every item once, including stock on hand, order-to-sale products, hidden admin-only items, and online shop visibility.</p>
                 </div>
               </div>
+
+              <details class="admin-list-panel" data-customer-invoices>
+                <summary>Create customer invoice</summary>
+                <p class="helper-text">Invoice existing or new customers for inventory and stringing labour. Account verification is only needed to access their account. Prices come from Inventory; stock is reserved when the order is saved.</p>
+                <button type="button" class="btn btn-secondary" data-load>Load / refresh customers and items</button>
+                <details><summary>Create customer account</summary>
+                  <form data-create-customer class="profile-grid">
+                    <label>First name<input name="first_name" required maxlength="75"></label>
+                    <label>Last name<input name="last_name" maxlength="75"></label>
+                    <label>Email<input name="email" type="email" required maxlength="254"></label>
+                    <label>Phone<input name="phone" type="tel" maxlength="50"></label>
+                    <button class="btn btn-secondary" type="submit">Create customer</button>
+                  </form>
+                </details>
+                <form data-invoice-form>
+                  <label>Customer<select name="customer_id" required><option value="">Load customers first</option></select></label>
+                  <button type="button" class="btn btn-secondary" data-activation>Send account activation email</button>
+                  <div data-lines></div>
+                  <p class="helper-text" data-total>Estimated total: $0.00 · Pickup</p>
+                  <button type="button" class="btn btn-secondary" data-add>Add item</button>
+                  <label>Racket / player details<textarea name="service_details" maxlength="1000" placeholder="Player, racket and stringing instructions"></textarea></label>
+                  <p class="helper-text">Creating an invoice queues a Xero invoice email to this customer. Account activation is separate. Record actual strings and tension under Customers → Rackets.</p>
+                  <button class="btn btn-primary" type="submit">Create &amp; email invoice</button>
+                </form>
+                <p class="form-message" role="status" data-message></p>
+              </details>
 
               <div class="inventory-workspace">
                 <nav class="inventory-subtabs" aria-label="Inventory sections">
@@ -1023,6 +1050,7 @@
     <script src="admin-settings-tabs.js?v=20260716-admin-overflow"></script>
     <script src="admin-shop-settings.js?v=20260718-gst-helper"></script>
     <script src="admin-xero.js?v=20260917"></script>
+    <script src="admin-customer-invoices.js?v=20261008"></script>
     <script src="admin-shop-orders.js?v=20260917-invoices"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>

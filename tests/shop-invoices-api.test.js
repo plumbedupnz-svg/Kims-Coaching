@@ -570,3 +570,32 @@ test("both payment choices save server totals and the configured bank and due da
     assert.match(saved.xero_due_date, /^\d{4}-\d{2}-\d{2}$/);
   }
 });
+
+test('admin invoices save an unverified customer identity without authenticating as the customer', async () => {
+  let saved, adminSale;
+  const handler = load('api/shop-checkout.js', {
+    './stripe/create-checkout-session': { prepareShopOrder: async args => {
+      adminSale = args.adminSale;
+      return { payload: { ...order, user_id: args.user.id, items: [{ name: 'Labour', fulfilment_type: 'service' }], total_amount: 50 } };
+    } },
+    './stripe/_helpers': {
+      readJsonBody: async r => r.body, restSelect: async () => [], getSiteUrl: () => 'https://shop.example',
+      verifyUser: async () => { throw Error('Must not require customer login or verification'); },
+    },
+    '../lib/xero/client': { ...client, publicOptions: async () => ({ provider: 'xero' }), connection: async () => ({ tenant_id: key }), settings: async () => ({ bank_name: 'Kim', bank_number: '01-0286-0978708-00', due_days: 0 }), rpc: async (name, p) => { saved = p.p_order; } },
+    '../lib/xero/invoices': { processJobs: async () => {}, runInBackground: p => p },
+  });
+  const res = response();
+  await handler({ method: 'POST', headers: { authorization: 'Bearer admin-session' }, body: { checkout_key: key, cart: [{ id: key, quantity: 1 }], checkout: { payment_method: 'bank_transfer' } } }, res, { id: key, email_confirmed_at: null });
+  assert.equal(res.code, 200); assert.equal(saved.user_id, key); assert.equal(adminSale, true);
+});
+
+test('hidden inventory is available for admin invoices but not public checkout; server prices still apply', async () => {
+  const helpers = require('../api/stripe/_helpers');
+  const fn = load('api/stripe/create-checkout-session.js', { './_helpers': { ...helpers, restSelect: async table => table === 'inventory_items' ? [{ id: key, product_name: 'Private strings', sell_price: 20, discount: 10, visible_in_shop: false, is_active: true, track_stock: true, quantity_on_hand: 2 }] : [] } });
+  const cart = [{ id: key, quantity: 2, price: 0 }];
+  await assert.rejects(fn.getShopLineItems(cart), /not available/);
+  const lines = await fn.getShopLineItems(cart, true);
+  assert.equal(lines[0].lineTotal, 36);
+  await assert.rejects(fn.getShopLineItems([{ id: key, quantity: 3 }], true), /Not enough stock/);
+});

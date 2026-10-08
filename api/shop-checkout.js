@@ -30,7 +30,7 @@ function digest(body, user) {
 function orderUrl(key) {
   return `${getSiteUrl()}/order-payment.html#${encodeURIComponent(key)}`;
 }
-module.exports = async function (req, res) {
+module.exports = async function (req, res, adminCustomer = null) {
   res.setHeader("Cache-Control", "no-store");
   try {
     if (req.method === "GET")
@@ -76,9 +76,9 @@ module.exports = async function (req, res) {
         });
     }
     const key = body.checkout_key;
-    const user = req.headers.authorization
+    const user = adminCustomer || (req.headers.authorization
       ? await verifyUser(req.headers.authorization)
-      : null;
+      : null);
     const requestDigest = digest(body, user);
     // Resolve a previous invoice before choosing a provider, even if invoicing was disabled.
     if (x.uuid(key)) {
@@ -106,6 +106,8 @@ module.exports = async function (req, res) {
       }
     }
     const options = await x.publicOptions();
+    if (adminCustomer && options.provider !== "xero")
+      throw new Error("Enable Xero invoicing in Settings before creating customer invoices.");
     if (options.provider !== "xero") {
       if (body.checkout?.payment_method === "bank_transfer")
         throw new Error("Bank-transfer invoices are not enabled yet.");
@@ -124,6 +126,7 @@ module.exports = async function (req, res) {
       user,
       body,
       strictSettings: true,
+      adminSale: Boolean(adminCustomer),
     });
     if (payload.tax_mode !== "none")
       throw new Error(
