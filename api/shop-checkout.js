@@ -24,6 +24,8 @@ function digest(body, user) {
       user_id: user?.id || null,
       cart: body.cart,
       checkout: body.checkout,
+      ...(body.custom_lines !== undefined ? { custom_lines: body.custom_lines } : {}),
+      ...(body.invoice_discount !== undefined ? { invoice_discount: body.invoice_discount } : {}),
     }),
   );
 }

@@ -53,7 +53,7 @@ const customers = [{ id: service.id, first_name: "Alex", last_name: "Taylor", em
 let order = null,
   status = "pending";
 const bootstrap = `window.KIMS_SUPABASE={url:location.origin,anonKey:'preview'};
-class Query {constructor(t){this.t=t;} select(){return this;} order(){return this;} limit(){return this;} eq(){return this;} in(){return this;} is(){return this;} maybeSingle(){return Promise.resolve({data:this.t==='shop_inventory_settings'?${JSON.stringify(settings)}:{role:'admin'}});} single(){return this.maybeSingle();} then(a,b){return fetch('/rest/v1/'+this.t).then(r=>r.json()).then(data=>({data,count:data.length})).then(a,b);}}
+class Query {constructor(t){this.t=t;} select(){return this;} order(){return this;} limit(){return this;} eq(){return this;} in(){return this;} range(){return this;} is(){return this;} maybeSingle(){return Promise.resolve({data:this.t==='shop_inventory_settings'?${JSON.stringify(settings)}:{role:'admin'}});} single(){return this.maybeSingle();} then(a,b){return fetch('/rest/v1/'+this.t).then(r=>r.json()).then(data=>({data,count:data.length})).then(a,b);}}
 window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:location.pathname.includes('admin')?{user:{id:'preview-admin',email:'preview@example.com'},access_token:'preview'}:null}}),onAuthStateChange:()=>{}},from:t=>new Query(t),rpc:async()=>({data:[]})})};`;
 http
   .createServer(async (req, res) => {
@@ -198,6 +198,7 @@ http
           relative === "admin.html"
             ? [
                 "shop-pricing.js",
+                "lib/admin-invoice.js",
                 "admin-customer-invoices.js",
                 "admin-settings-tabs.js",
                 "admin-xero.js",
