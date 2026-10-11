@@ -15,19 +15,16 @@ module.exports = async (req, res) => {
       return res.status(200).json({ allowed: true, admin: true, coach: false });
     }
 
-    let [coach] = await h.restSelect("coaches", "id,is_active", {
-      profile_id: `eq.${user.id}`,
-      is_active: "eq.true",
-      limit: "1",
-    });
-
-    if (!coach && user.email) {
-      [coach] = await h.restSelect("coaches", "id,is_active", {
-        email: `ilike.${String(user.email).trim()}`,
-        is_active: "eq.true",
-        limit: "1",
-      });
-    }
+    const activeCoaches = await h.restSelect(
+      "coaches",
+      "id,profile_id,email,is_active",
+      { is_active: "eq.true", limit: "500" },
+    );
+    const loginEmail = String(user.email || "").trim().toLowerCase();
+    const coach = activeCoaches.find((item) =>
+      item.profile_id === user.id ||
+      (loginEmail && String(item.email || "").trim().toLowerCase() === loginEmail)
+    );
 
     if (!coach) {
       return res.status(403).json({
