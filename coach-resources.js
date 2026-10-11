@@ -29,30 +29,23 @@
       return;
     }
 
-    const user = sessionData?.session?.user;
-    if (!user) {
+    const session = sessionData?.session;
+    if (!session?.user || !session?.access_token) {
       window.location.replace("/account");
       return;
     }
 
-    const [{ data: profile }, { data: canAccess, error: accessError }] = await Promise.all([
-      client.from("profiles").select("role").eq("id", user.id).single(),
-      client.rpc("current_user_is_coach")
-    ]);
+    const response = await fetch("/api/coach-resource-access", {
+      headers: { Authorization: `Bearer ${session.access_token}` }
+    });
+    const access = await response.json().catch(() => ({}));
 
-    if (accessError) {
-      setStatus("Coach access is still being configured. Please try again shortly.", "error");
+    if (!response.ok || !access.allowed) {
+      setStatus(access.error || "This resource area is available to active coaches and admins only.", "error");
       return;
     }
 
-    const isAdmin = profile?.role === "admin";
-    if (!isAdmin && !canAccess) {
-      setStatus("This resource area is available to linked coaches and admins only.", "error");
-      return;
-    }
-
-    if (adminReturnEl) adminReturnEl.hidden = !isAdmin;
-    setStatus("");
+    if (adminReturnEl) adminReturnEl.hidden = !access.admin;
     if (statusEl) statusEl.hidden = true;
     if (resourcesEl) resourcesEl.hidden = false;
   }
@@ -64,5 +57,8 @@
 
   printEl?.addEventListener("click", () => window.print());
 
-  load();
+  load().catch((error) => {
+    console.error(error);
+    setStatus("Could not load Coach Resources. Please try again.", "error");
+  });
 })();
