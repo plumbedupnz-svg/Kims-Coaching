@@ -112,6 +112,7 @@ const accountVerificationMessageEl = document.querySelector("[data-account-verif
 const publicAuthEls = document.querySelectorAll("[data-auth-public]");
 const privateAuthEls = document.querySelectorAll("[data-auth-private]");
 const signOutEls = document.querySelectorAll("[data-sign-out]");
+const coachResourceEls = document.querySelectorAll("[data-coach-resource]");
 const menuToggleEl = document.querySelector("[data-menu-toggle]");
 const navLinksEl = document.querySelector("[data-nav-links]");
 
@@ -1190,6 +1191,10 @@ function isAdminProfile(profile = currentProfile) {
   return profile?.role === "admin";
 }
 
+function isCoachProfile(profile = currentProfile) {
+  return Boolean(profile?.is_coach);
+}
+
 function activeAccount() {
   if (!currentUser) return null;
   return {
@@ -1201,7 +1206,9 @@ function activeAccount() {
 }
 
 function getAccountDestination(profile = currentProfile) {
-  return isAdminProfile(profile) ? "/admin" : "/account#customer-account";
+  if (isAdminProfile(profile)) return "/admin";
+  if (isCoachProfile(profile)) return "/coach-resources";
+  return "/account#customer-account";
 }
 
 function getRouteName() {
@@ -1249,6 +1256,22 @@ async function loadProfile(user) {
     }
   } catch (playerError) {
     console.warn("Could not load player rows", playerError);
+  }
+
+  try {
+    const { data: coachSessionData } = await supabaseClient.auth.getSession();
+    const accessToken = coachSessionData?.session?.access_token;
+    if (accessToken) {
+      const response = await fetch("/api/coach-resource-access", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (response.ok) {
+        const access = await response.json();
+        data.is_coach = Boolean(access?.allowed && access?.coach);
+      }
+    }
+  } catch (coachAccessError) {
+    console.warn("Could not check coach access", coachAccessError);
   }
 
   return data;
@@ -1499,6 +1522,9 @@ function renderAccountNavigation() {
   });
   signOutEls.forEach((button) => {
     button.hidden = !account;
+  });
+  coachResourceEls.forEach((item) => {
+    item.hidden = !account || (!isAdmin && !isCoachProfile(currentProfile));
   });
 }
 

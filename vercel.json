@@ -131,6 +131,10 @@
       "destination": "/admin.html"
     },
     {
+      "source": "/coach-resources",
+      "destination": "/coach-resources.html"
+    },
+    {
       "source": "/owner",
       "destination": "/owner.html"
     },
@@ -179,7 +183,7 @@
       ]
     },
     {
-      "source": "/(admin|account|owner)(.*)",
+      "source": "/(admin|account|owner|coach-resources)(.*)",
       "headers": [
         {
           "key": "Cache-Control",
