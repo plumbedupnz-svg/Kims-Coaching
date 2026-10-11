@@ -1259,9 +1259,17 @@ async function loadProfile(user) {
   }
 
   try {
-    const { data: coachAccess, error: coachAccessError } = await supabaseClient.rpc("current_user_is_coach");
-    if (!coachAccessError) data.is_coach = Boolean(coachAccess);
-    else console.warn("Could not check coach access", coachAccessError.message);
+    const { data: coachSessionData } = await supabaseClient.auth.getSession();
+    const accessToken = coachSessionData?.session?.access_token;
+    if (accessToken) {
+      const response = await fetch("/api/coach-resource-access", {
+        headers: { Authorization: `Bearer ${accessToken}` }
+      });
+      if (response.ok) {
+        const access = await response.json();
+        data.is_coach = Boolean(access?.allowed && access?.coach);
+      }
+    }
   } catch (coachAccessError) {
     console.warn("Could not check coach access", coachAccessError);
   }
