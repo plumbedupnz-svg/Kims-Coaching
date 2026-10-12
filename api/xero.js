@@ -102,8 +102,9 @@ module.exports = async function (req, res) {
           .status(200)
           .json({
             configured: false,
-            message:
-              "One-time server setup is needed before Connect Xero is available.",
+            setup: x.configuration(),
+            callback_url: x.callbackUrl(),
+            message: "Xero server setup is incomplete. Add the missing settings in Vercel Production, then redeploy.",
           });
       const [s, c] = await Promise.all([x.settings(), x.connection()]);
       let organisations = [],
@@ -150,6 +151,10 @@ module.exports = async function (req, res) {
     if (body.action === "connect") {
       if (!x.configured())
         throw new Error("Complete the Xero server setup first.");
+      // OAuth's state cookie must be set on the same host that receives the callback.
+      const host = String(req.headers['x-forwarded-host'] || req.headers.host || '').split(',')[0].trim().toLowerCase();
+      if (host && host !== new URL(getSiteUrl()).host.toLowerCase())
+        return res.status(200).json({ admin_url: `${getSiteUrl()}/admin#settings` });
       const state = crypto.randomBytes(32).toString("hex"),
         cookie = crypto.randomBytes(32).toString("hex");
       await restInsert("xero_oauth_states", {

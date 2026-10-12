@@ -599,3 +599,51 @@ test('hidden inventory is available for admin invoices but not public checkout; 
   assert.equal(lines[0].lineTotal, 36);
   await assert.rejects(fn.getShopLineItems([{ id: key, quantity: 3 }], true), /Not enough stock/);
 });
+
+test('admin custom-only and mixed invoices save discounted totals that match Xero', async () => {
+  const helpers = require('../api/stripe/_helpers');
+  const fn = load('api/stripe/create-checkout-session.js', { './_helpers': { ...helpers, restSelect: async table => {
+    if (table === 'inventory_items') return [{ id: key, product_name: 'Labour', sell_price: 50, discount: 0, item_kind: 'service', track_stock: false, visible_in_shop: true, is_active: true }];
+    if (table === 'shop_inventory_settings') return [{ tax_mode: 'none' }];
+    return [];
+  } } });
+  const body = { cart: [{ id: key, quantity: 1 }, { id: key, quantity: 1 }], custom_lines: [{ name: 'Grip fitting', unit_amount: 12.35, quantity: 3 }], invoice_discount: { type: 'percent', value: 10 }, checkout: { customer: { full_name: 'Demo', email: 'demo@example.com', phone: '0210000000' } } };
+  const { payload } = await fn.prepareShopOrder({ body, adminSale: true });
+  assert.equal(payload.items.length, 2); assert.equal(payload.items[0].quantity, 2);
+  assert.equal(payload.subtotal_amount, 137.05); assert.equal(payload.discount_amount, 13.71); assert.equal(payload.total_amount, 123.34);
+  const lib = load('lib/xero/invoices.js', { '../../api/stripe/_helpers': { getSiteUrl: () => 'https://shop.example' } });
+  const xero = lib.invoicePayload({ ...order, ...payload }, settings, key);
+  assert.equal(Math.round(xero.LineItems.reduce((sum, line) => sum + line.Quantity * line.UnitAmount, 0) * 100), 12334);
+  assert.equal(xero.LineItems.at(-1).UnitAmount, -13.71);
+  const customOnly = await fn.prepareShopOrder({ body: { ...body, cart: [] }, adminSale: true });
+  assert.equal(customOnly.payload.total_amount, 33.34); assert.equal(customOnly.payload.items[0].custom_line, true);
+  await assert.rejects(fn.prepareShopOrder({ body: { ...body, invoice_discount: { type: 'percent', value: 100 } }, adminSale: true }), /greater than/);
+  const publicOrder = await fn.prepareShopOrder({ body });
+  assert.equal(publicOrder.payload.total_amount, 100); assert.equal(publicOrder.payload.discount_amount, 0); assert.equal(publicOrder.payload.items.length, 2);
+  await assert.rejects(fn.prepareShopOrder({ body: { ...body, cart: [] } }), /Add between/);
+});
+
+test('Xero connect from a deployment alias redirects before creating OAuth cookies or state', async () => {
+  const handler = load('api/xero.js', {
+    './stripe/_helpers': { getSiteUrl: () => 'https://www.kimjonescoaching.co.nz', readJsonBody: async r => r.body, restInsert: async () => { throw Error('Must not create cross-host state'); } },
+    '../lib/xero/client': { requireAdmin: async () => ({ id: key }), configured: () => true },
+    '../lib/xero/invoices': {},
+  });
+  const res = response();
+  await handler({ method: 'POST', url: '/api/xero', headers: { host: 'preview.vercel.app' }, body: { action: 'connect' } }, res);
+  assert.equal(res.code, 200); assert.equal(res.body.admin_url, 'https://www.kimjonescoaching.co.nz/admin#settings'); assert.equal(res.headers['Set-Cookie'], undefined);
+});
+
+
+test('Xero setup reports missing or invalid variable names without returning credential values', () => {
+  const build = env => load('lib/xero/client.js', {}, { process: { env } });
+  const missing = build({});
+  assert.equal(missing.configured(), false);
+  assert.equal(missing.configuration().missing.join(','), 'XERO_CLIENT_ID,XERO_CLIENT_SECRET,XERO_TOKEN_ENCRYPTION_KEY');
+  const invalid = build({ XERO_CLIENT_ID: 'secret-id', XERO_CLIENT_SECRET: 'secret-value', XERO_TOKEN_ENCRYPTION_KEY: 'bad' });
+  assert.equal(invalid.configured(), false);
+  assert.equal(invalid.configuration().invalid[0], 'XERO_TOKEN_ENCRYPTION_KEY');
+  assert.doesNotMatch(JSON.stringify(invalid.configuration()), /secret-id|secret-value/);
+  const valid = build({ XERO_CLIENT_ID: 'id', XERO_CLIENT_SECRET: 'secret', XERO_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64') });
+  assert.equal(valid.configured(), true);
+});

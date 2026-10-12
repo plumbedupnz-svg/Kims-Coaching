@@ -267,4 +267,19 @@ test("invoice permissions, duplicate checkout, reservations and Xero payment upd
       );
     },
   );
+  await t.test('custom-only discounted invoices persist without inventory movements and retries reuse the same order', async () => {
+    const before = await quantity();
+    const math = require('../lib/admin-invoice');
+    const custom = { ...payload, customer_email: 'custom@example.com', checkout_key_hash: 'c'.repeat(64), checkout_digest: 'd'.repeat(64),
+      items: math.customLines([{ name: 'Grip fitting', unit_amount: 12.35, quantity: 3 }]),
+      subtotal: 37.05, subtotal_amount: 37.05, discount_amount: 3.71, total: 33.34, total_amount: 33.34 };
+    const first = await create(custom), again = await create(custom);
+    assert.equal(first.id, again.id);
+    assert.equal(Number(first.total_amount), 33.34);
+    assert.equal(Number(first.discount_amount), 3.71);
+    assert.equal(first.items[0].custom_line, true);
+    assert.equal(await quantity(), before);
+    assert.equal((await db.query('select * from stock_movements where related_id=$1', [first.id])).rows.length, 0);
+  });
+
 });

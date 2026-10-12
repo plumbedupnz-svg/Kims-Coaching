@@ -34,7 +34,8 @@
       panel.querySelector("[data-xero-select]").disabled = !data.connected;
       form.querySelector("button").disabled = !data.connected;
       if (!data.configured) {
-        message.textContent = data.message;
+        const setup = data.setup || {};
+        message.textContent = [data.message, setup.missing?.length ? 'Missing: ' + setup.missing.join(', ') + '.' : '', setup.invalid?.length ? 'Invalid: ' + setup.invalid.join(', ') + ' (use a base64-encoded 32-byte key).' : '', data.callback_url ? 'Xero app redirect URI: ' + data.callback_url : ''].filter(Boolean).join(' ');
         return;
       }
       options(organisation, data.organisations, data.tenant_id);
@@ -66,7 +67,7 @@
     .addEventListener("click", async () => {
       try {
         const data = await api({ action: "connect" });
-        location.href = data.url;
+        location.href = data.admin_url || data.url;
       } catch (e) {
         message.textContent = e.message;
       }
