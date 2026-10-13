@@ -175,3 +175,17 @@ test("shop customer confirmation includes a professional HTML receipt", async (c
   assert.match(resendCall.body.html, /Some items are ordered in as needed/);
   assert.match(resendCall.body.text, /Tourna Grip Blue/);
 });
+
+
+test("environment fallback keeps the domain sender and routes replies to Outlook", async (context) => {
+  const originalEnv = { ...process.env };
+  context.after(() => { process.env = originalEnv; });
+  for (const key of ["SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY", "EMAIL_REPLY_TO"]) delete process.env[key];
+  process.env.EMAIL_PROVIDER = "resend";
+  process.env.EMAIL_FROM_ADDRESS = "notify@example.com";
+  const settings = await handler.loadEmailSettings();
+  assert.equal(settings.from_email, "notify@example.com");
+  assert.equal(settings.reply_to_email, "kimjonescoaching@outlook.com");
+  process.env.EMAIL_REPLY_TO = "custom@example.com";
+  assert.equal((await handler.loadEmailSettings()).reply_to_email, "custom@example.com");
+});

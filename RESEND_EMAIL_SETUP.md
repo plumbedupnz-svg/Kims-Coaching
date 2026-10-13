@@ -20,8 +20,8 @@ EMAIL_PROVIDER=resend
 RESEND_API_KEY=re_...
 EMAIL_FROM_NAME=Kim Jones Coaching
 EMAIL_FROM_ADDRESS=notifications@your-verified-domain.example
-EMAIL_REPLY_TO=kim@your-domain.example
-EMAIL_ADMIN_TO=kim@your-domain.example
+EMAIL_REPLY_TO=kimjonescoaching@outlook.com
+EMAIL_ADMIN_TO=kimjonescoaching@outlook.com
 SUPABASE_URL=https://tbvfpaikyxqhncjvnusr.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...
 ```

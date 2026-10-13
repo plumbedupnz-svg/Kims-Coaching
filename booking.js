@@ -36,7 +36,7 @@
   const waitlistLessonTypeEl = document.querySelector("[data-waitlist-lesson-type]");
   const waitlistClubEl = document.querySelector("[data-waitlist-club]");
   const waitlistCoachEl = document.querySelector("[data-waitlist-coach]");
-  const adminWaitlistEmail = "kim@kimjonescoaching.co.nz";
+  const adminWaitlistEmail = "kimjonescoaching@outlook.com";
   const invalidStartMessage = "Lesson times must start on the hour or half hour.";
   const durationOptions = [30, 45, 60, 90, 120];
   const levelOrder = ["Beginner", "Developing", "Interclub", "Tournament"];

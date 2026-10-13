@@ -312,7 +312,7 @@ async function sendInventoryReorderEmailIfNeeded({ order, item, inventory, quant
     traceId: `inventory-reorder-${order.id}-${inventory.id}`,
     relatedType: "inventory_item",
     relatedId: inventory.id,
-    adminEmail: "kim@kimjonescoaching.co.nz",
+    adminEmail: "kimjonescoaching@outlook.com",
     productName: inventory.product_name || item.name,
     sku: inventory.sku || "",
     quantityBefore: before,

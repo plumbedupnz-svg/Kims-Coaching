@@ -132,7 +132,7 @@
     if (!formEl) return;
     formEl.elements.provider.value = data.enabled ? "resend" : "disabled";
     formEl.elements.from_name.value = data.from_name || "Kim Jones Coaching";
-    formEl.elements.from_email.value = data.from_email || "kimjonescoaching@outlook.com";
+    formEl.elements.from_email.value = data.from_email || "kim@kimjonescoaching.co.nz";
     formEl.elements.reply_to_email.value = data.reply_to_email || "kimjonescoaching@outlook.com";
     formEl.elements.enabled.checked = Boolean(data.enabled);
   }
@@ -197,7 +197,7 @@
     const payload = {
       provider: formData.get("provider") === "disabled" ? "disabled" : "resend",
       from_name: formData.get("from_name")?.trim() || "Kim Jones Coaching",
-      from_email: formData.get("from_email")?.trim() || "kimjonescoaching@outlook.com",
+      from_email: formData.get("from_email")?.trim() || "kim@kimjonescoaching.co.nz",
       reply_to_email: formData.get("reply_to_email")?.trim() || "kimjonescoaching@outlook.com",
       encrypted_secret_placeholder: "Secrets are stored in Vercel environment variables.",
       enabled: formData.get("enabled") === "on"

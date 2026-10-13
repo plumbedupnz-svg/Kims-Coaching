@@ -5,7 +5,7 @@ const defaultEmailSettings = {
   provider: "disabled",
   from_name: "Kim Jones Coaching",
   from_email: "kim@kimjonescoaching.co.nz",
-  reply_to_email: "kim@kimjonescoaching.co.nz",
+  reply_to_email: "kimjonescoaching@outlook.com",
   enabled: false
 };
 
@@ -116,7 +116,7 @@ function getCustomerEmail(payload = {}) {
 
 function getRecipients(type, payload = {}, settings = defaultEmailSettings) {
   if (type === "report_email" && getCustomerEmail(payload)) return [getCustomerEmail(payload)];
-  const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email || "kim@kimjonescoaching.co.nz";
+  const adminEmail = process.env.EMAIL_ADMIN_TO || settings.reply_to_email || settings.from_email || defaultEmailSettings.reply_to_email;
   if (adminTypes.has(type)) return [adminEmail].filter(Boolean);
   return [getCustomerEmail(payload)].filter(Boolean);
 }
@@ -231,7 +231,7 @@ function getFallbackSettings() {
     provider,
     from_name: process.env.EMAIL_FROM_NAME || defaultEmailSettings.from_name,
     from_email: process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.from_email,
-    reply_to_email: process.env.EMAIL_REPLY_TO || process.env.EMAIL_FROM_ADDRESS || defaultEmailSettings.reply_to_email,
+    reply_to_email: process.env.EMAIL_REPLY_TO || defaultEmailSettings.reply_to_email,
     enabled: provider !== "disabled"
   };
 }
