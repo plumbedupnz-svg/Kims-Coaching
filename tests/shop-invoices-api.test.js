@@ -599,3 +599,15 @@ test('hidden inventory is available for admin invoices but not public checkout; 
   assert.equal(lines[0].lineTotal, 36);
   await assert.rejects(fn.getShopLineItems([{ id: key, quantity: 3 }], true), /Not enough stock/);
 });
+
+
+test("Xero callback uses the registered production URL independently of general site settings", (context) => {
+  const original = { ...process.env };
+  context.after(() => { process.env = original; });
+  delete process.env.XERO_REDIRECT_URI;
+  process.env.NEXT_PUBLIC_SITE_URL = "https://old-preview.example";
+  const xero = require("../lib/xero/client");
+  assert.equal(xero.callbackUrl(), "https://www.kimjonescoaching.co.nz/api/xero?action=callback");
+  process.env.XERO_REDIRECT_URI = " https://test.example/api/xero?action=callback ";
+  assert.equal(xero.callbackUrl(), "https://test.example/api/xero?action=callback");
+});

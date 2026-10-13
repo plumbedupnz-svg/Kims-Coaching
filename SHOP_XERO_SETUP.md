@@ -23,6 +23,7 @@ Implementation is on `codex/shop-xero-invoices`. Live activation requires the mi
 
    | Variable | Value |
    | --- | --- |
+   | `XERO_REDIRECT_URI` | Optional exact registered callback; defaults to `https://www.kimjonescoaching.co.nz/api/xero?action=callback`. Set explicitly for a separate test app/deployment. |
    | `XERO_CLIENT_ID` | The web app client ID |
    | `XERO_CLIENT_SECRET` | The web app client secret |
    | `XERO_TOKEN_ENCRYPTION_KEY` | A securely generated 32-byte random key encoded as base64; retain it securely for token decryption |
