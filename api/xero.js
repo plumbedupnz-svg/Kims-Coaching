@@ -120,7 +120,7 @@ module.exports = async function (req, res) {
             .filter(
               (a) =>
                 a.Status === "ACTIVE" &&
-                ["REVENUE", "SALES", "OTHERINCOME"].includes(a.Type),
+                ["REVENUE", "SALES", "OTHERINCOME"].includes(a.Type) && a.Code === "201",
             )
             .map((a) => ({ code: a.Code, name: a.Name }));
           themes = (t.BrandingThemes || []).map((t) => ({
@@ -168,7 +168,7 @@ module.exports = async function (req, res) {
         client_id: process.env.XERO_CLIENT_ID,
         redirect_uri: x.callbackUrl(),
         scope:
-          "offline_access accounting.invoices accounting.contacts accounting.settings.read",
+          "offline_access accounting.invoices accounting.contacts accounting.settings.read accounting.manualjournals",
         state,
       }).forEach(([k, v]) => auth.searchParams.set(k, v));
       return res.status(200).json({ url: auth.href });
@@ -200,6 +200,7 @@ module.exports = async function (req, res) {
     if (body.action === "save_settings") {
       const s = body.settings || {},
         c = await x.connection();
+      if (s.sales_account_code !== "201") throw new Error("Shop invoices must use 201 — Shop Sales.");
       const due = Number(s.due_days),
         bank = String(s.bank_number || "").trim(),
         bankName = String(s.bank_name || "").trim();

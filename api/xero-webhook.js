@@ -13,7 +13,11 @@ module.exports = async function (req, res) {
       if (!x.configured()) return res.status(200).json({ disabled: true });
       // Daily recovery in addition to live webhook updates and the admin refresh action.
       const queued = await x.rpc("enqueue_xero_recovery", {});
-      runInBackground(processJobs(10));
+      runInBackground((async () => {
+        await processJobs(5);
+        const { processAccounting } = require("../lib/xero/accounting");
+        await processAccounting(5);
+      })());
       return res.status(200).json({ queued });
     }
     if (req.method !== "POST") {
@@ -40,7 +44,10 @@ module.exports = async function (req, res) {
           tenant_id: e.tenantId,
         })),
       });
-    if (events.length) runInBackground(processJobs());
+    if (events.length) runInBackground((async () => {
+      await processJobs(3);
+      await require("../lib/xero/accounting").processAccounting(3);
+    })());
     return res.status(200).json({ received: true });
   } catch (e) {
     return res

@@ -2055,6 +2055,18 @@
       }
     }
 
+    const { error: accountingError } = await client.rpc("complete_supplier_accounting_import", {p_invoice_id: pendingInvoice.id});
+    if (accountingError) {
+      setMessage(invoiceReviewMessageEl, "Stock imported, but accounting completion failed: " + accountingError.message + ". Do not import these lines again; review the saved supplier invoice.", "error");
+      clearInvoiceReview();
+      await loadInventory();
+      if (invoiceImportConfirmEl) invoiceImportConfirmEl.disabled = false;
+      return;
+    }
+    try {
+      const {data: authData} = await client.auth.getSession();
+      if (authData.session) await fetch("/api/xero-accounting", {method:"POST",headers:{Authorization:`Bearer ${authData.session.access_token}`,"Content-Type":"application/json"},body:JSON.stringify({action:"process"})});
+    } catch { /* The committed queue remains visible in Xero accounting status. */ }
     const importedCount = invoiceReviewItems.length;
     clearInvoiceReview();
     setMessage(invoiceMessageEl, `Imported ${importedCount} reviewed Sportco invoice item${importedCount === 1 ? "" : "s"}.`, "success");

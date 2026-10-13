@@ -68,7 +68,7 @@ const order = {
 };
 const settings = {
   enabled: true,
-  sales_account_code: "200",
+  sales_account_code: "201",
   branding_theme_id: key,
 };
 const invoice = {
@@ -96,7 +96,7 @@ test("invoice lines contain labour, strings and delivery with no GST; unsafe lin
   );
   assert.ok(
     result.LineItems.every(
-      (l) => l.TaxType === "NONE" && l.AccountCode === "200",
+      (l) => l.TaxType === "NONE" && l.AccountCode === "201",
     ),
   );
   assert.throws(
@@ -177,6 +177,7 @@ test("webhooks require a signature, accept intent validation, and only queue eve
     queued;
   const secret = "test-webhook-key";
   const handler = load("api/xero-webhook.js", {
+    "../lib/xero/accounting": { processAccounting: async () => {} },
     "./stripe/_helpers": { getRawBody: async (req) => req.body },
     "../lib/xero/client": {
       ...client,

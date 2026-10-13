@@ -18,6 +18,7 @@
     "api/racket-reminders.js": {
       "maxDuration": 60
     },
+    "api/xero-accounting.js": {"maxDuration": 60},
     "api/xero.js": {
       "maxDuration": 60
     },

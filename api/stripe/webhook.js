@@ -494,6 +494,11 @@ module.exports = async function handler(req, res) {
     }
 
     await markEvent(event, "processed");
+    if (process.env.XERO_CLIENT_ID && event.type === "checkout.session.completed") {
+      const { runInBackground } = require("../../lib/xero/invoices");
+      const { processAccounting } = require("../../lib/xero/accounting");
+      runInBackground(processAccounting(3));
+    }
     res.status(200).json({ received: true });
   } catch (error) {
     console.error("[Stripe webhook] failed", {

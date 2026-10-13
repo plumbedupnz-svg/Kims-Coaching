@@ -982,6 +982,19 @@
                     <button class="btn btn-primary" type="submit">Save invoice settings</button>
                   </form>
                   <p class="helper-text">Unpaid invoices reserve physical stock. Void an unpaid invoice in Xero to release it. Stringing labour has no stock quantity. Payment and fulfilment are tracked separately in Shop Orders.</p>
+                  <section data-xero-accounting>
+                    <h3>Coaching, purchases &amp; stock accounting</h3>
+                    <p>Coaching income: 200 Sales. Shop income: 201 Shop Sales. Stock purchases: 631 Shop Stock on Hand. Stock sold: debit 311 Purchases - Gear &amp; Uniform, credit 631.</p>
+                    <p>New paid coaching, paid Stripe shop orders, completed supplier imports and sold stock costs create drafts for review in Xero. Approve and match payments in Xero; no customer email or payment is sent by this sync. Existing records are excluded. Order-to-sale stock and stock returns need separate review.</p>
+                    <p data-accounting-status role="status"></p>
+                    <div class="admin-action-row">
+                      <button type="button" class="btn btn-primary" data-accounting-enable>Enable new-record sync</button>
+                      <button type="button" class="btn btn-secondary" data-accounting-pause>Pause accounting sync</button>
+                      <button type="button" class="btn btn-secondary" data-accounting-process>Sync pending drafts</button>
+                      <button type="button" class="btn btn-secondary" data-accounting-refresh>Refresh accounting status</button>
+                    </div>
+                    <div data-accounting-jobs></div>
+                  </section>
                   <details><summary>One-time connection setup</summary><p>Register a Xero Web app and configure the server credentials before connecting. Callback: <code>https://www.kimjonescoaching.co.nz/api/xero?action=callback</code>. Invoice webhook: <code>https://www.kimjonescoaching.co.nz/api/xero-webhook</code>. Follow SHOP_XERO_SETUP.md in the project. Never paste client secrets into this form.</p></details>
                 </section>
                 <form id="email-settings-form" class="owner-add-form settings-panel-wide" data-settings-panel="email" data-email-settings-form hidden>
@@ -1050,12 +1063,13 @@
     <script src="admin-junior-groups.js?v=20260703-junior-calendar-groups"></script>
     <script src="admin-settings-tabs.js?v=20260716-admin-overflow"></script>
     <script src="admin-shop-settings.js?v=20260718-gst-helper"></script>
-    <script src="admin-xero.js?v=20260917"></script>
+    <script src="admin-xero.js?v=20261014-accounting"></script>
+    <script src="admin-xero-accounting.js?v=20261014"></script>
     <script src="admin-customer-invoices.js?v=20261008"></script>
     <script src="admin-shop-orders.js?v=20260917-invoices"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>
-    <script src="admin-inventory.js?v=20260917-invoices"></script>
+    <script src="admin-inventory.js?v=20261014-accounting"></script>
     <script src="admin-availability-state.js?v=20260702-junior-times"></script>
     <script src="admin-availability.js?v=20260626-slot-defaults"></script>
   </body>

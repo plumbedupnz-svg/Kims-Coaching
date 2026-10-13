@@ -81,3 +81,18 @@ Creating a customer makes an unconfirmed Supabase Auth user and its customer pro
 After verification/sign-in, Account → **Purchases & racket history** shows the customer's latest 100 linked purchases plus their recorded rackets, strings and tensions. The server checks email verification and scopes every query to the authenticated user's ID. Guest purchases from before this account existed are not automatically linked by matching an email. Admins continue recording actual strings/tension in Customers → Rackets; invoice instructions do not create a stringing record.
 
 Validate on a test deployment with synthetic recipients first: create an unverified customer, issue an invoice, activate the account, set its password and verify the original order and racket history remain attached to that same customer. Never use a real customer for release testing without authorisation.
+
+
+## Coaching, supplier and stock accounting drafts
+
+Apply `20261014000000_xero_accounting_sync.sql` before deploying the accounting sync. Reconnect Xero to grant `accounting.manualjournals`, then use **Enable new-record sync** in Settings → Xero & Invoices. Activation validates the actual active account codes and permission to read journals.
+
+Mappings are fixed to the established ledger: private and junior coaching → 200 Sales; Stripe shop income → 201 Shop Sales; reviewed supplier invoices → 631 Shop Stock on Hand; sold physical stock costs → debit 311 Purchases - Gear & Uniform and credit 631. Existing Xero shop invoices retain their shop-account mapping; no second sales invoice is created for them.
+
+All additional accounting records are **DRAFT**. Review and approve them in Xero, then match the existing bank/Stripe payment rather than creating a second receipt. This does not send customer emails, initiate payments, or post journals automatically. The supplier invoice number is preserved in the bill reference; the integration invoice number identifies the immutable source. Tax mapping is No GST.
+
+Only records created after activation are captured. Historical entries and journal #807 are not replayed. Pausing stops new capture and sending; queued work remains. A paid source changing, a missing/zero stock cost, a refund, a deleted source or an uncertain response requires review. The retry action searches for the source's existing Xero record before creating anything. Do not manually duplicate a pending draft. Missing cost snapshots must be investigated; changing today's item cost does not rewrite past sales.
+
+Stock-cost drafts cover physical stock reserved by the website. Order-to-sale items, returns, write-offs and coaching supplies need separate accounting review. Supplier drafts are queued only when the complete reviewed import is committed. If this final marker fails, review the saved invoice; do not import the lines twice.
+
+Stripe and Xero webhook workers process new drafts. Completed supplier imports also request processing. Admins can use **Sync pending drafts** for offline/manual payments. Daily recovery additionally requires the existing `CRON_SECRET` to be configured. The status list displays the latest 50 entries, errors and Xero record IDs; it never exposes tokens or raw payloads.
