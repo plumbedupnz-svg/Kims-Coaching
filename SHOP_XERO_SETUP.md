@@ -85,7 +85,7 @@ Validate on a test deployment with synthetic recipients first: create an unverif
 
 ## Coaching, supplier and stock accounting drafts
 
-Apply `20261014000000_xero_accounting_sync.sql` before deploying the accounting sync. Reconnect Xero to grant `accounting.manualjournals`, then use **Enable new-record sync** in Settings → Xero & Invoices. Activation validates the actual active account codes and permission to read journals.
+Apply `20261013235900_supplier_accounting_prerequisites.sql` then `20261014000000_xero_accounting_sync.sql` before deploying the accounting sync. Reconnect Xero to grant `accounting.manualjournals`, then use **Enable new-record sync** in Settings → Xero & Invoices. Activation validates the actual active account codes and permission to read journals.
 
 Mappings are fixed to the established ledger: private and junior coaching → 200 Sales; Stripe shop income → 201 Shop Sales; reviewed supplier invoices → 631 Shop Stock on Hand; sold physical stock costs → debit 311 Purchases - Gear & Uniform and credit 631. Existing Xero shop invoices retain their shop-account mapping; no second sales invoice is created for them.
 

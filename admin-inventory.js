@@ -2028,10 +2028,11 @@
     invoiceImportConfirmEl.disabled = true;
     setMessage(invoiceReviewMessageEl, "Importing reviewed invoice items...");
 
-    for (const item of invoiceReviewItems) {
+    for (const [lineIndex, item] of invoiceReviewItems.entries()) {
       const category = getCategoryById(item.finalCategoryId);
       const { error } = await client.rpc("import_reviewed_supplier_invoice_item", {
         p_invoice_id: pendingInvoice.id,
+        p_line_key: String(lineIndex),
         p_inventory_item_id: item.matchedInventoryItemId || null,
         p_product_name: item.productName,
         p_sku: item.sku || null,

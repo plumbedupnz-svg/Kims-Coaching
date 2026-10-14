@@ -29,3 +29,27 @@ test('accounting capture is private, forward-only, idempotent and uses immutable
  await db.exec("update xero_accounting_jobs set lease_until=now()-interval '1 second' where status='processing'");await db.query('select * from claim_xero_accounting_job($1)',[first.id]);assert.equal((await db.query('select status from xero_accounting_jobs where id=$1',[first.id])).rows[0].status,'needs_review');
  await db.query("update bookings set payment_status='refunded' where id=$1",[booking]);assert.equal((await db.query('select status from xero_accounting_jobs where source_id=$1',[booking])).rows[0].status,'needs_review');
 });
+
+test('supplier prerequisites enforce admin access and prevent repeated lines increasing stock twice',async t=>{
+ const db=new PGlite();t.after(()=>db.close());
+ await db.exec(fs.readFileSync('tests/fixtures/racket-base.sql','utf8'));
+ await db.exec(fs.readFileSync('tests/fixtures/shop-invoices-base.sql','utf8'));
+ await db.exec(`alter table inventory_items add column normalized_name text generated always as(lower(trim(product_name))) stored,add column archived_at timestamptz,add column review_status text default 'reviewed',add column item_kind text default 'product';
+ create schema storage;create table storage.buckets(id text primary key,name text,public boolean,file_size_limit bigint,allowed_mime_types text[]);create table storage.objects(id uuid default gen_random_uuid(),bucket_id text);alter table storage.objects enable row level security;
+ create function get_category_id(uuid,text) returns uuid language sql as $$select id from product_categories limit 1$$;
+ create function apply_stock_movement(uuid,integer,text,text,text,uuid) returns void language sql as $$update inventory_items set quantity_on_hand=quantity_on_hand+$2 where id=$1$$;
+ create function sync_inventory_item_to_public_product(uuid) returns void language sql as $$select$$;
+ insert into product_categories(name) values('Other');`);
+ const sql=fs.readFileSync('supabase/migrations/20261013235900_supplier_accounting_prerequisites.sql','utf8');await db.exec(sql);await db.exec(sql);
+ const invoice=randomUUID(),stock=randomUUID();await db.query("insert into supplier_invoices(id,supplier,uploaded_by) values($1,'Demo supplier','00000000-0000-0000-0000-000000000001')",[invoice]);await db.query("insert into inventory_items(id,product_name,sku,quantity_on_hand) values($1,'Racket','R1',3)",[stock]);
+ const call="select import_reviewed_supplier_invoice_item(p_invoice_id:=$1,p_inventory_item_id:=$2,p_product_name:='Racket',p_quantity:=2,p_unit_cost:=10,p_total_cost:=20,p_line_key:='0')";
+ await db.query(call,[invoice,stock]);await db.query(call,[invoice,stock]);
+ assert.equal((await db.query('select quantity_on_hand from inventory_items where id=$1',[stock])).rows[0].quantity_on_hand,5);
+ assert.equal((await db.query('select * from supplier_invoice_items')).rows.length,1);
+ await assert.rejects(db.query(call.replace('p_total_cost:=20','p_total_cost:=21'),[invoice,stock]),/changed/);
+ await db.exec("select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false);set role authenticated");
+ assert.equal((await db.query('select * from supplier_invoices')).rows.length,0);
+ await assert.rejects(db.query(call,[invoice,stock]),/Admin access/);
+ await db.exec('reset role');
+ assert.equal((await db.query("select public from storage.buckets where id='supplier-invoices'")).rows[0].public,false);
+});
