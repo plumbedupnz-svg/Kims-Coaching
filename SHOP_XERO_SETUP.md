@@ -71,7 +71,7 @@ Implementation is on `codex/shop-xero-invoices`. Live activation requires the mi
 
 ## Admin-created customers and invoices
 
-Admin → Inventory → **Create customer invoice** lets Kim load customers, create a customer with a name/email/phone, select inventory items (including hidden items and stringing labour), review quantities and the estimated total, and create/email an invoice. This uses existing Xero settings, server prices, discounts, stock reservations and retry protection. Fulfilment is pickup. Review final invoice/payment/email state in Products → Shop Orders. No extra migration is required beyond the existing profile, racket and Xero migrations.
+Admin → **Invoices** lets Kim load customers, create a customer with a name/email/phone, select inventory items (including hidden items and stringing labour), review quantities and the estimated total, and create/email an invoice. This uses existing Xero settings, server prices, discounts, stock reservations and retry protection. Fulfilment is pickup. Review final invoice/payment/email state in Products → Shop Orders. No extra migration is required beyond the existing profile, racket and Xero migrations.
 
 Creating a customer makes an unconfirmed Supabase Auth user and its customer profile. It does not email them, set a shared password or grant admin access. Existing email addresses reuse their customer profile. Invoices are linked to that profile immediately and never wait for email verification.
 
@@ -83,8 +83,12 @@ Validate on a test deployment with synthetic recipients first: create an unverif
 
 ## Search, custom lines and invoice discounts
 
-The Inventory invoice form searches active inventory and standalone products by name, SKU and category. Add several results; selecting an item again increments its quantity. Each line shows quantity and its current total. Catalogue refresh preserves selected lines and updates their displayed prices. The server merges repeated catalogue rows and checks stock inside the existing order transaction.
+The Invoices tab searches active inventory and standalone products by name, SKU and category. Add several results; selecting an item again increments its quantity. Each line shows quantity and its current total. Catalogue refresh preserves selected lines and updates their displayed prices. The server merges repeated catalogue rows and checks stock inside the existing order transaction.
 
 **Add custom line** creates a one-off description, unit price and quantity without adding a product or adjusting stock. Custom-only invoices are supported. Catalogue prices remain server-controlled. Extra **Invoice discount** accepts a percentage or dollar amount against the subtotal after catalogue discounts. The preview shows subtotal, discount and amount due. The server validates cent precision, quantity/line limits and a positive final total; Xero receives the same discount as a separate negative line. Custom lines and discounts are included in retry checks, so changed details cannot reuse an existing invoice key. No SQL migration is added.
 
 Xero connection status now names missing server variables and an invalid encryption-key length. A connection started on a deployment alias moves to the configured production admin domain first, so OAuth state cookies and callback hosts match. Sign in there, then select Connect Xero again. Create a standard OAuth web app at https://developer.xero.com/app/manage with the redirect URI above, configure its credentials in Vercel Production, configure webhook/token keys, redeploy, then authorise Kim's organisation. Keep secret values out of chat and source control.
+
+## Dedicated invoice workspace
+
+Admin → Invoices opens the invoice editor directly. Choose the billed customer, then add manual descriptions with quantity and unit price, stock on hand, or both. The stock picker starts with its on-hand filter enabled; untick it for services and other catalogue items. Customer email/phone are shown next to the account link. Invoice rows show description, quantity, unit price and amount, with discounts and totals grouped below. Invoice numbers and payment terms still come from the existing server/Xero settings; this redesign adds no SQL migration.

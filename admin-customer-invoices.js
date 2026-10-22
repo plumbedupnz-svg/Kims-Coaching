@@ -10,11 +10,16 @@
   const lines = panel.querySelector('[data-lines]');
   const search = panel.querySelector('[data-item-search]');
   const results = panel.querySelector('[data-search-results]');
-  let items = [], key = crypto.randomUUID(), busy = false, loaded = false;
+  let customers = [], items = [], key = crypto.randomUUID(), busy = false, loaded = false;
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const money = n => '$' + Number(n).toFixed(2);
   const price = item => window.KimsPricing.unitPrice(item.sell_price, item.discount);
-  function changed() { key = crypto.randomUUID(); total(); }
+  function changed() { key = crypto.randomUUID(); panel.querySelector('[data-invoice-state]').textContent = 'Not issued'; total(); }
+  panel.querySelector('[data-invoice-date]').textContent = new Intl.DateTimeFormat('en-NZ', { timeZone: 'Pacific/Auckland', dateStyle: 'medium' }).format(new Date());
+  function customerContact() {
+    const customer = customers.find(c => c.id === select.value);
+    panel.querySelector('[data-customer-contact]').textContent = customer ? [customer.email, customer.phone].filter(Boolean).join(' · ') : 'Select a customer to link this invoice to their account.';
+  }
   async function request(body) {
     const { data: { session } } = await client.auth.getSession();
     if (!session) throw new Error('Please log in as an administrator.');
@@ -37,14 +42,15 @@
       request(), catalogue('inventory_items', 'id,product_name,sku,category,sell_price,discount,item_kind,track_stock,is_order_to_sale,quantity_on_hand'),
       catalogue('products', 'id,name,category,price,discount,inventory_item_id'),
     ]);
+    customers = data.customers;
     select.innerHTML = '<option value="">Choose customer</option>' + data.customers.map(c => `<option value="${esc(c.id)}">${esc(`${c.first_name} ${c.last_name} · ${c.email}`)}</option>`).join('');
-    select.value = selected;
+    select.value = selected; customerContact();
     items = inventory.map(i => ({ ...i, token: 'inventory:' + i.id, name: i.product_name, inventory_item_id: i.id })).concat(products.filter(p => !p.inventory_item_id).map(p => ({ ...p, token: 'product:' + p.id, sell_price: p.price })));
     loaded = true; renderSearch(); changed();
   }
   function renderSearch() {
     if (!loaded) { results.textContent = 'Load customers and items to search the catalogue.'; return; }
-    const matches = items.filter(i => math.matches(i, search.value));
+    const matches = items.filter(i => math.matches(i, search.value) && (!panel.querySelector('[data-stock-only]').checked || (i.inventory_item_id && i.item_kind !== 'service' && i.track_stock !== false && !i.is_order_to_sale && Number(i.quantity_on_hand) > 0)));
     results.innerHTML = matches.length ? `<p class="helper-text">${matches.length} matching item${matches.length === 1 ? '' : 's'}${matches.length > 20 ? ' · Showing the first 20; refine your search' : ''}</p>` + matches.slice(0, 20).map(i => {
       const stock = i.item_kind === 'service' ? 'Service' : i.track_stock === true && !i.is_order_to_sale ? `${i.quantity_on_hand || 0} in stock` : '';
       return `<button type="button" class="invoice-search-result" data-pick="${esc(i.token)}"><span><strong>${esc(i.name)}</strong><small>${esc([i.sku, i.category, stock].filter(Boolean).join(' · '))}</small></span><span>${money(price(i))} · Add</span></button>`;
@@ -73,11 +79,14 @@
         if (!Number.isFinite(unit)) throw new Error('A selected item is no longer available.');
         const line = unit * quantity; cents += line;
         row.querySelector('[data-line-total]').textContent = money(line / 100);
-        if (item) row.querySelector('[data-unit-price]').textContent = money(unit / 100) + ' each';
+        if (item) row.querySelector('[data-unit-price]').textContent = money(unit / 100);
       }
       const reduction = math.discountCents(cents, discount());
-      panel.querySelector('[data-total]').textContent = `Subtotal ${money(cents / 100)} − discount ${money(reduction / 100)} = total ${money((cents - reduction) / 100)} · Pickup`;
-    } catch (e) { panel.querySelector('[data-total]').textContent = e.message; }
+      panel.querySelector('[data-subtotal]').textContent = money(cents / 100);
+      panel.querySelector('[data-discount-total]').textContent = '−' + money(reduction / 100);
+      panel.querySelector('[data-grand-total]').textContent = money((cents - reduction) / 100);
+      panel.querySelector('[data-total]').textContent = 'Catalogue discounts included · Pickup';
+    } catch (e) { panel.querySelector('[data-grand-total]').textContent = '—'; panel.querySelector('[data-total]').textContent = e.message; }
   }
   function addItem(token) {
     if (busy) return;
@@ -91,14 +100,14 @@
     }
     if (lines.children.length >= 50) { message.textContent = 'Use up to 50 invoice lines.'; return; }
     const row = document.createElement('div'); row.className = 'invoice-line'; row.dataset.token = token;
-    row.innerHTML = `<div><strong>${esc(item.name)}</strong><small>${esc(item.sku || item.category || '')}</small><small data-unit-price>${money(price(item))} each</small></div><label>Quantity<input aria-label="Quantity for ${esc(item.name)}" data-qty type="number" min="1" max="99" step="1" value="1" required></label><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove ${esc(item.name)}">Remove</button>`;
+    row.innerHTML = `<div><strong>${esc(item.name)}</strong><small>${esc(item.sku || item.category || '')} · Catalogue item</small></div><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Quantity for ${esc(item.name)}" data-qty type="number" min="1" max="99" step="1" value="1" required></label><span class="invoice-unit" data-unit-price>${money(price(item))}</span><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove ${esc(item.name)}">Remove</button>`;
     lines.append(row); changed();
   }
   function addCustom() {
     if (busy) return;
     if (lines.children.length >= 50) { message.textContent = 'Use up to 50 invoice lines.'; return; }
     const row = document.createElement('div'); row.className = 'invoice-line invoice-line-custom';
-    row.innerHTML = '<label>Description<input data-description maxlength="200" required placeholder="e.g. Racquet grip fitting"><small>Custom line · No inventory stock change</small></label><label>Unit price ($)<input data-price type="number" min="0" max="1000000" step="0.01" value="0.00" required></label><label>Quantity<input data-qty type="number" min="1" max="99" step="1" value="1" required></label><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove>Remove</button>';
+    row.innerHTML = '<label><span class="invoice-mobile-label">Description</span><input aria-label="Manual line description" data-description maxlength="200" required placeholder="Enter a description"><small>Manual line · No stock adjustment</small></label><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Manual line quantity" data-qty type="number" min="1" max="99" step="1" value="1" required></label><label><span class="invoice-mobile-label">Unit price ($)</span><input aria-label="Manual line unit price" data-price type="number" min="0" max="1000000" step="0.01" value="0.00" required></label><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove manual line">Remove</button>';
     lines.append(row); row.querySelector('input').focus(); changed();
   }
   async function run(button, work, lock = false) {
@@ -112,6 +121,9 @@
   }
   panel.querySelector('[data-load]').onclick = e => run(e.currentTarget, async () => { await load(); message.textContent = 'Customers and items loaded. Search and click Add to build your invoice.'; }, true);
   search.oninput = renderSearch;
+  panel.querySelector('[data-stock-only]').onchange = renderSearch;
+  panel.querySelector('[data-open-stock]').onclick = () => { panel.querySelector('[data-stock-picker]').open = true; search.focus(); };
+  select.addEventListener('change', customerContact);
   results.onclick = e => { const button = e.target.closest('[data-pick]'); if (button) addItem(button.dataset.pick); };
   panel.querySelector('[data-custom]').onclick = addCustom;
   lines.onclick = e => { if (!busy && e.target.matches('[data-remove]')) { e.target.closest('.invoice-line').remove(); changed(); } };
@@ -121,9 +133,14 @@
     run(customerForm.querySelector('button'), async () => { const data = await request(payload); await load(data.id); customerForm.reset(); message.textContent = data.existing ? 'Existing customer selected.' : 'Customer created. Invoice now and activate their account later.'; }, true);
   };
   panel.querySelector('[data-activation]').onclick = e => run(e.currentTarget, async () => { await request({ action: 'activation', customer_id: select.value }); message.textContent = 'Account activation email requested.'; });
-  form.addEventListener('input', e => { if (e.target !== search) changed(); });
-  form.addEventListener('change', changed);
-  panel.querySelector('[data-new-invoice]').onclick = () => { if (busy) return; lines.replaceChildren(); form.service_details.value = ''; form.discount_type.value = 'none'; form.discount_value.value = '0'; message.textContent = ''; changed(); };
+  form.addEventListener('input', e => { if (e.target !== search && !e.target.matches('[data-stock-only]')) changed(); });
+  form.addEventListener('change', e => { if (!e.target.matches('[data-stock-only]')) changed(); });
+  panel.querySelector('[data-new-invoice]').onclick = () => { if (busy) return; lines.replaceChildren(); select.value = ''; customerContact(); form.service_details.value = ''; form.discount_type.value = 'none'; form.discount_value.value = '0'; message.textContent = ''; changed(); };
+  function loadOnOpen() {
+    if (!loaded && !busy) panel.querySelector('[data-load]').click();
+  }
+  window.addEventListener('kims:admin-tab-changed', e => { if (e.detail.activeTab === 'invoices') loadOnOpen(); });
+  if (location.hash === '#invoices') loadOnOpen();
   form.onsubmit = e => {
     e.preventDefault();
     let payload;
@@ -135,6 +152,7 @@
     } catch (error) { message.textContent = error.message; message.dataset.tone = 'error'; return; }
     run(form.querySelector('[type=submit]'), async () => {
       const result = await request(payload);
+      panel.querySelector('[data-invoice-state]').textContent = 'Invoice queued';
       message.textContent = 'Order saved. Invoice and email are queued; check Shop Orders for status. ';
       const link = document.createElement('a'); link.href = result.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'View payment page'; message.append(link);
     }, true);

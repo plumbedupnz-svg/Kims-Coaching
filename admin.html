@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="admin-emails.css?v=20260922" />
     <link rel="stylesheet" href="header-cart.css?v=20260920" />
     <script src="header-cart.js?v=20260920" defer></script>
-      <link rel="stylesheet" href="customer-invoices.css?v=20261008-2">
+      <link rel="stylesheet" href="customer-invoices.css?v=20261023">
   </head>
   <body class="admin-page">
     <header class="site-header">
@@ -52,6 +52,7 @@
               <a href="#adult-coaching" data-admin-tab="lessons">Adult Coaching</a>
               <a href="#products" data-admin-tab="products">Products</a>
               <a href="#inventory" data-admin-tab="inventory">Inventory</a>
+              <a href="#invoices" data-admin-tab="invoices">Invoices</a>
               <a href="#customers" data-admin-tab="customers">Customers</a>
               <a href="#emails" data-admin-tab="emails">Emails</a>
               <a href="#waitlist" data-admin-tab="waitlist">Waitlist</a>
@@ -298,6 +299,28 @@
               </div>
             </section>
 
+            <section class="admin-section invoices-workspace" data-admin-section="invoices" hidden>
+              <div class="admin-section-head"><div><p class="eyebrow">Sales</p><h2>Invoices</h2><p class="helper-text">Create an invoice for a customer using manual lines, stock on hand, or both.</p></div></div>
+              <div class="invoice-sheet" data-customer-invoices>
+                <header class="invoice-sheet-header"><div><p class="eyebrow">Kim Jones Coaching</p><h3>New sales invoice</h3></div><span class="invoice-badge" data-invoice-state>Not issued</span></header>
+                <div class="invoice-sheet-toolbar"><button type="button" class="btn btn-secondary" data-load>Refresh customers &amp; stock</button><button type="button" class="btn btn-secondary" data-new-invoice>New invoice</button></div>
+                <form data-invoice-form>
+                  <div class="invoice-customer-grid">
+                    <div><label>Bill to<select name="customer_id" required><option value="">Choose a customer</option></select></label><p class="helper-text" data-customer-contact>Select a customer to link this invoice to their account.</p><button type="button" class="btn btn-secondary" data-activation>Send account activation email</button></div>
+                    <dl class="invoice-meta"><div><dt>Invoice number</dt><dd>Assigned when issued</dd></div><div><dt>Invoice date</dt><dd data-invoice-date></dd></div><div><dt>Payment terms</dt><dd>From Xero invoice settings</dd></div><div><dt>Currency</dt><dd>NZD</dd></div></dl>
+                  </div>
+                  <div class="invoice-lines-heading"><h3>Line items</h3><span class="helper-text">Prices in NZD</span></div>
+                  <div class="invoice-table"><div class="invoice-table-head" aria-hidden="true"><span>Description / item</span><span>Quantity</span><span>Unit price</span><span>Amount</span><span></span></div><div data-lines></div></div>
+                  <div class="invoice-add-actions"><button type="button" class="btn btn-secondary" data-custom>Add manual line</button><button type="button" class="btn btn-secondary" data-open-stock>Add from stock</button></div>
+                  <details class="invoice-stock-picker" data-stock-picker><summary>Stock &amp; catalogue</summary><label>Search stock or services<input type="search" data-item-search placeholder="Item name, SKU or category" autocomplete="off"></label><label class="invoice-stock-filter"><input type="checkbox" data-stock-only checked> Stock on hand only</label><div class="invoice-search-results" data-search-results aria-live="polite">Open Invoices to load stock.</div></details>
+                  <div class="invoice-bottom-grid"><label>Racket / player instructions<textarea name="service_details" maxlength="1000" rows="3" placeholder="Player, racket or stringing instructions"></textarea></label><div class="invoice-totals"><div class="invoice-discount"><label>Discount<select name="discount_type"><option value="none">No extra discount</option><option value="percent">Percentage (%)</option><option value="amount">Dollar amount ($)</option></select></label><label>Value<input name="discount_value" type="number" min="0" step="0.01" value="0" required></label></div><dl><div><dt>Subtotal</dt><dd data-subtotal>$0.00</dd></div><div><dt>Invoice discount</dt><dd data-discount-total>$0.00</dd></div><div class="invoice-grand-total"><dt>Total NZD</dt><dd data-grand-total>$0.00</dd></div></dl><p class="helper-text" data-total>Catalogue discounts are included. Stock is checked when issued.</p></div></div>
+                  <footer class="invoice-sheet-footer"><p class="helper-text">Create &amp; email issues the invoice through Xero. Customer account verification can happen later.</p><button class="btn btn-primary" type="submit">Create &amp; email invoice</button></footer>
+                </form>
+                <p class="form-message" role="status" data-message></p>
+                <details class="invoice-new-customer"><summary>Create a new customer</summary><form data-create-customer class="profile-grid"><label>First name<input name="first_name" required maxlength="75"></label><label>Last name<input name="last_name" maxlength="75"></label><label>Email<input name="email" type="email" required maxlength="254"></label><label>Phone<input name="phone" type="tel" maxlength="50"></label><button class="btn btn-secondary" type="submit">Create customer</button></form></details>
+              </div>
+            </section>
+
             <section class="admin-section" data-admin-section="inventory" hidden>
               <div class="admin-section-head">
                 <div>
@@ -305,41 +328,6 @@
                   <p class="helper-text">Manage every item once, including stock on hand, order-to-sale products, hidden admin-only items, and online shop visibility.</p>
                 </div>
               </div>
-
-              <details class="admin-list-panel" data-customer-invoices>
-                <summary>Create customer invoice</summary>
-                <p class="helper-text">Invoice existing or new customers for inventory and stringing labour. Account verification is only needed to access their account. Prices come from Inventory; stock is reserved when the order is saved.</p>
-                <button type="button" class="btn btn-secondary" data-load>Load / refresh customers and items</button>
-                <details><summary>Create customer account</summary>
-                  <form data-create-customer class="profile-grid">
-                    <label>First name<input name="first_name" required maxlength="75"></label>
-                    <label>Last name<input name="last_name" maxlength="75"></label>
-                    <label>Email<input name="email" type="email" required maxlength="254"></label>
-                    <label>Phone<input name="phone" type="tel" maxlength="50"></label>
-                    <button class="btn btn-secondary" type="submit">Create customer</button>
-                  </form>
-                </details>
-                <form data-invoice-form>
-                  <label>Customer<select name="customer_id" required><option value="">Load customers first</option></select></label>
-                  <button type="button" class="btn btn-secondary" data-activation>Send account activation email</button>
-                  <label>Search items<input type="search" data-item-search placeholder="Search by name, SKU or category" autocomplete="off"></label>
-                  <div class="invoice-search-results" data-search-results aria-live="polite">Load customers and items to search the catalogue.</div>
-                  <h3>Invoice items</h3>
-                  <div data-lines></div>
-                  <button type="button" class="btn btn-secondary" data-custom>Add custom line</button>
-                  <div class="invoice-discount">
-                    <label>Invoice discount<select name="discount_type"><option value="none">No extra discount</option><option value="percent">Percentage (%)</option><option value="amount">Dollar amount ($)</option></select></label>
-                    <label>Discount value<input name="discount_value" type="number" min="0" step="0.01" value="0" required></label>
-                  </div>
-                  <p class="helper-text">Extra discount applies to the subtotal after existing catalogue discounts. Final prices and stock are checked when saved.</p>
-                  <p class="helper-text" data-total>Subtotal $0.00 − discount $0.00 = total $0.00 · Pickup</p>
-                  <label>Racket / player details<textarea name="service_details" maxlength="1000" placeholder="Player, racket and stringing instructions"></textarea></label>
-                  <p class="helper-text">Creating an invoice queues a Xero invoice email to this customer. Account activation is separate. Record actual strings and tension under Customers → Rackets.</p>
-                  <button class="btn btn-primary" type="submit">Create &amp; email invoice</button>
-                  <button class="btn btn-secondary" type="button" data-new-invoice>Clear lines for a new invoice</button>
-                </form>
-                <p class="form-message" role="status" data-message></p>
-              </details>
 
               <div class="inventory-workspace">
                 <nav class="inventory-subtabs" aria-label="Inventory sections">
@@ -1060,7 +1048,7 @@
     <script src="admin-shop-settings.js?v=20260718-gst-helper"></script>
     <script src="admin-xero.js?v=20261008-2"></script>
     <script src="lib/admin-invoice.js?v=20261008-2"></script>
-    <script src="admin-customer-invoices.js?v=20261008-2"></script>
+    <script src="admin-customer-invoices.js?v=20261023"></script>
     <script src="admin-shop-orders.js?v=20260917-invoices"></script>
     <script src="admin-bookings-management.js?v=20260626-slot-defaults"></script>
     <script src="admin-email-notifications.js?v=20260626-slot-defaults"></script>

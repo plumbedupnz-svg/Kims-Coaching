@@ -237,5 +237,5 @@ http
     }
   })
   .listen(port, "127.0.0.1", () =>
-    console.log("Invoice preview: http://127.0.0.1:" + port + "/shop.html"),
+    console.log("Invoice preview: http://127.0.0.1:" + port + "/admin.html#invoices"),
   );
