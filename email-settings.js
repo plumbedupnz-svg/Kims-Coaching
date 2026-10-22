@@ -7,7 +7,7 @@
   const refreshDiagnosticsButton = document.querySelector("[data-email-refresh-diagnostics]");
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
   let settingsId = null;
 

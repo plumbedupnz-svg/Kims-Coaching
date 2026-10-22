@@ -131,7 +131,7 @@
   }
   const config = window.KIMS_SUPABASE;
   if (config?.url && config?.anonKey && window.supabase) {
-    const client = window.supabase.createClient(config.url, config.anonKey);
+    const client = (window.KimsGetSupabaseClient || window.supabase.createClient)(config.url, config.anonKey);
     window.KimsStorefrontClient = client;
     client.auth.getSession().then(({ data }) => { if (data?.session) document.querySelector('[data-store-account]').textContent = 'My account'; });
   }

@@ -7,7 +7,7 @@
   const printEl = document.querySelector("[data-print-manual]");
 
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
 
   function setStatus(message, tone = "") {

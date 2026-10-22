@@ -5,7 +5,7 @@
   const notice = section.querySelector('[data-email-workspace-message]');
   const { escape: esc, content, templates, parseAddresses } = window.KimsEmailContent;
   const settings = window.KIMS_SUPABASE || {};
-  const client = settings.url && settings.anonKey && window.supabase ? window.supabase.createClient(settings.url, settings.anonKey) : null;
+  const client = settings.url && settings.anonKey && window.supabase ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey) : null;
   let data, current = null, dirty = false, loading = false, busy = false, running = false, pause = false, reviewed = null;
   const $ = (selector) => root.querySelector(selector);
   const statusName = (status) => ({ draft: 'Draft', sending: 'In progress', complete: 'Finished', needs_review: 'Needs checking', subscribed: 'Subscribed', not_subscribed: 'Coaching emails only', unsubscribed: 'Unsubscribed', sent: 'Accepted by Resend', pending: 'Waiting', skipped: 'Skipped' }[status] || status);

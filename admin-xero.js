@@ -2,7 +2,7 @@
   const panel = document.querySelector("[data-xero-panel]");
   if (!panel) return;
   const cfg = window.KIMS_SUPABASE || {};
-  const client = window.supabase?.createClient(cfg.url, cfg.anonKey);
+  const client = (window.KimsGetSupabaseClient || window.supabase?.createClient)?.(cfg.url, cfg.anonKey);
   const message = panel.querySelector("[data-xero-message]"),
     form = panel.querySelector("form");
   const organisation = panel.querySelector("[data-xero-organisation]");

@@ -2,7 +2,7 @@
   const panel = document.querySelector('[data-customer-invoices]');
   const config = window.KIMS_SUPABASE || {};
   if (!panel || !window.supabase || !config.url) return;
-  const client = window.supabase.createClient(config.url, config.anonKey);
+  const client = (window.KimsGetSupabaseClient || window.supabase.createClient)(config.url, config.anonKey);
   const select = panel.querySelector('[name=customer_id]');
   const message = panel.querySelector('[data-message]');
   const lines = panel.querySelector('[data-lines]');
@@ -23,9 +23,9 @@
     const data = await request();
     select.innerHTML = '<option value="">Choose customer</option>' + data.customers.map(c => `<option value="${esc(c.id)}">${esc(`${c.first_name} ${c.last_name} · ${c.email}`)}</option>`).join('');
     select.value = selected;
-    const result = await client.from('inventory_items').select('id,product_name,sell_price,discount,item_kind').eq('is_active', true).is('archived_at', null).order('product_name');
+    const result = await (window.KimsReadAdminRows ? window.KimsReadAdminRows(client, 'admin_list_inventory_items', 'id,product_name,sell_price,discount,item_kind,is_active,archived_at') : client.from('inventory_items').select('id,product_name,sell_price,discount,item_kind').eq('is_active', true).is('archived_at', null).order('product_name'));
     if (result.error) throw result.error;
-    items = result.data || [];
+    items = (result.data || []).filter(item => item.is_active !== false && !item.archived_at).sort((a, b) => a.product_name.localeCompare(b.product_name));
     if (!lines.children.length) addLine();
   }
   function total() {

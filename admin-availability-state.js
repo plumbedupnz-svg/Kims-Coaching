@@ -1,7 +1,7 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
   const hasConfig = Boolean(settings.url && settings.anonKey && window.supabase);
-  const client = hasConfig ? window.supabase.createClient(settings.url, settings.anonKey) : null;
+  const client = hasConfig ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey) : null;
   const formEl = document.querySelector("[data-availability-form]");
   const repeatWeeksEl = document.querySelector("[data-repeat-weeks]");
   const recurringEl = document.querySelector("[data-recurring-weekly]");

@@ -1,7 +1,7 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey) : null;
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey) : null;
   const { today, dueDate, formatDate, tension } = window.KimsStringing;
   const esc = (value = "") => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
