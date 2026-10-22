@@ -68,3 +68,13 @@ test('account history requires verification and scopes every query to session ow
   assert.equal(res.code, 200); assert.equal(calls[0].params.user_id, `eq.${id}`);
   assert.equal(calls[1].params.customer_id, `eq.${id}`); assert.equal(calls[2].params.racket_id, `in.(${id})`);
 });
+
+test('customer history strips internal costs and margins from saved line snapshots', async () => {
+  const handler = load('api/customer-history.js', { './stripe/_helpers': {
+    verifyUser: async () => ({id,email_confirmed_at:'2026-10-23'}),
+    restSelect: async table => table==='shop_orders' ? [{ id, items:[{id:'line',name:'Strings',quantity:1,unitAmount:20,purchase_price_at_sale:8,cost_price_at_sale:8,gross_profit_at_sale:12,list_unit_amount:25}] }] : [],
+  } });
+  const res=response(); await handler({method:'GET',headers:{}},res);
+  assert.equal(res.code,200); assert.equal(res.body.orders[0].items[0].unitAmount,20);
+  assert.doesNotMatch(JSON.stringify(res.body), /purchase_price|cost_price|gross_profit|list_unit_amount/);
+});

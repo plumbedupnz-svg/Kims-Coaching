@@ -15,7 +15,7 @@
 .invoice-meta dd { margin: 0; text-align: right; }
 .invoice-lines-heading h3 { margin: 0; font-size: 1rem; }
 .invoice-table { border: 1px solid #dbe2eb; border-radius: 8px; overflow: hidden; }
-.invoice-table-head, [data-customer-invoices] .invoice-line { display: grid; grid-template-columns: minmax(0, 1fr) 75px 105px 95px 78px; align-items: center; gap: 12px; padding: 12px; }
+.invoice-table-head, [data-customer-invoices] .invoice-line { display: grid; grid-template-columns: minmax(160px, 1fr) 65px 90px 90px 75px 90px 68px; align-items: center; gap: 12px; padding: 12px; }
 .invoice-table-head { background: #f1f5f9; color: #475569; font-size: .75rem; font-weight: 600; }
 [data-customer-invoices] [data-lines] { display: grid; }
 [data-customer-invoices] [data-lines]:empty::after { content: 'Add a manual line or select items from stock to start this invoice.'; display: block; color: #64748b; padding: 28px 14px; font-size: .9rem; }
@@ -48,7 +48,7 @@
 .invoice-new-customer { border-top: 1px solid #e2e8f0; padding-top: 18px; margin-top: 18px; }
 .invoice-new-customer form { margin-top: 14px; }
 [data-account-history] article { padding: .75rem 0; border-bottom: 1px solid #e5e7eb; }
-@media (max-width: 1050px) { .invoice-customer-grid, .invoice-bottom-grid { grid-template-columns: 1fr; gap: 20px; } .invoice-table-head { display: none; } [data-customer-invoices] .invoice-line { grid-template-columns: minmax(0,1fr) 80px; } .invoice-line > :first-child { grid-column: 1/-1; } .invoice-mobile-label { display: block; color: #64748b; font-size: .75rem; } .invoice-sheet-footer { align-items: stretch; flex-direction: column; } }
+@media (max-width: 1250px) { .invoice-customer-grid, .invoice-bottom-grid { grid-template-columns: 1fr; gap: 20px; } .invoice-table-head { display: none; } [data-customer-invoices] .invoice-line { grid-template-columns: minmax(0,1fr) 80px; } .invoice-line > :first-child { grid-column: 1/-1; } .invoice-mobile-label { display: block; color: #64748b; font-size: .75rem; } .invoice-sheet-footer { align-items: stretch; flex-direction: column; } }
 @media (max-width: 600px) { .invoice-sheet-toolbar, .invoice-add-actions { flex-wrap: wrap; } .invoice-meta div { flex-wrap: wrap; } .invoice-meta dd { text-align: left; } }
 
 [data-customer-invoices] input:not([type=checkbox]), [data-customer-invoices] select, [data-customer-invoices] textarea { width: 100%; min-width: 0; box-sizing: border-box; padding: 11px 12px; border: 1px solid #dbe2eb; border-radius: 6px; font: inherit; color: inherit; background: #fff; }

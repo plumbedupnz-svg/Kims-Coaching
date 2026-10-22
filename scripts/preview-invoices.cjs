@@ -3,13 +3,14 @@ const http = require("node:http"),
   fs = require("node:fs"),
   path = require("node:path");
 const root = path.resolve(__dirname, ".."),
-  port = 4175;
+  port = Number(process.env.KIMS_PREVIEW_PORT || 4175);
 const service = {
   id: "12345678-1234-4234-8234-123456789012",
   product_name: "Racket stringing – labour",
   sku: "KJC-STRING-LABOUR",
   category: "Services",
   sell_price: 50,
+  cost_price: 20,
   description: "Labour per racket. Strings charged separately.",
   item_kind: "service",
   track_stock: false,
@@ -26,6 +27,7 @@ const strings = {
   sku: "DEMO-STRINGS",
   category: "Strings",
   sell_price: 20,
+  cost_price: 8,
   item_kind: "product",
   track_stock: true,
   status: "in_stock",
@@ -54,7 +56,7 @@ let order = null,
   status = "pending";
 const bootstrap = `window.KIMS_SUPABASE={url:location.origin,anonKey:'preview'};
 class Query {constructor(t){this.t=t;} select(){return this;} order(){return this;} limit(){return this;} eq(){return this;} in(){return this;} range(){return this;} is(){return this;} maybeSingle(){return Promise.resolve({data:this.t==='shop_inventory_settings'?${JSON.stringify(settings)}:{role:'admin'}});} single(){return this.maybeSingle();} then(a,b){return fetch('/rest/v1/'+this.t).then(r=>r.json()).then(data=>({data,count:data.length})).then(a,b);}}
-window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:location.pathname.includes('admin')?{user:{id:'preview-admin',email:'preview@example.com'},access_token:'preview'}:null}}),onAuthStateChange:()=>{}},from:t=>new Query(t),rpc:async()=>({data:[]})})};`;
+window.supabase={createClient:()=>({auth:{getSession:async()=>({data:{session:location.pathname.includes('admin')?{user:{id:'preview-admin',email:'preview@example.com'},access_token:'preview'}:null}}),onAuthStateChange:()=>{}},from:t=>new Query(t),rpc:name=>name==='admin_list_inventory_items'?new Query('inventory_items'):name==='admin_list_products'?new Query('products'):Promise.resolve({data:[]})})};`;
 http
   .createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1"),

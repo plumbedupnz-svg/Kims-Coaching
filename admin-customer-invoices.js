@@ -2,7 +2,7 @@
   const panel = document.querySelector('[data-customer-invoices]');
   const config = window.KIMS_SUPABASE || {};
   if (!panel || !window.supabase || !config.url) return;
-  const client = window.supabase.createClient(config.url, config.anonKey);
+  const client = (window.KimsGetSupabaseClient || window.supabase.createClient)(config.url, config.anonKey);
   const math = window.KimsAdminInvoice;
   const form = panel.querySelector('[data-invoice-form]');
   const select = panel.querySelector('[name=customer_id]');
@@ -31,7 +31,7 @@
   async function catalogue(table, fields) {
     const rows = [];
     for (let start = 0; ; start += 500) {
-      const result = await client.from(table).select(fields).eq('is_active', true).is('archived_at', null).order('id').range(start, start + 499);
+      const result = await client.rpc(table === 'inventory_items' ? 'admin_list_inventory_items' : 'admin_list_products').select(fields).eq('is_active', true).is('archived_at', null).order('id').range(start, start + 499);
       if (result.error) throw result.error;
       rows.push(...(result.data || []));
       if ((result.data || []).length < 500) return rows;
@@ -39,8 +39,8 @@
   }
   async function load(selected = select.value) {
     const [data, inventory, products] = await Promise.all([
-      request(), catalogue('inventory_items', 'id,product_name,sku,category,sell_price,discount,item_kind,track_stock,is_order_to_sale,quantity_on_hand'),
-      catalogue('products', 'id,name,category,price,discount,inventory_item_id'),
+      request(), catalogue('inventory_items', 'id,product_name,sku,category,sell_price,cost_price,purchase_price,discount,item_kind,track_stock,is_order_to_sale,quantity_on_hand'),
+      catalogue('products', 'id,name,category,price,cost_price,purchase_price,discount,inventory_item_id'),
     ]);
     customers = data.customers;
     select.innerHTML = '<option value="">Choose customer</option>' + data.customers.map(c => `<option value="${esc(c.id)}">${esc(`${c.first_name} ${c.last_name} · ${c.email}`)}</option>`).join('');
@@ -63,10 +63,17 @@
       if (row.dataset.token) {
         const item = items.find(i => i.token === row.dataset.token);
         if (!item) throw new Error('An item is no longer available. Remove it and choose another.');
-        cart.push({ id: item.id, ...(item.inventory_item_id ? { inventory_item_id: item.inventory_item_id } : {}), quantity });
-      } else custom.push({ name: row.querySelector('[data-description]').value, unit_amount: row.querySelector('[data-price]').value, quantity });
+        cart.push({ id: item.id, ...(item.inventory_item_id ? { inventory_item_id: item.inventory_item_id } : {}), quantity, ...lineValues(row) });
+      } else custom.push({ name: row.querySelector('[data-description]').value, quantity, ...lineValues(row) });
     }
     return { cart: math.normalizeCart(cart), custom_lines: custom };
+  }
+  function lineValues(row) {
+    return { unit_amount: row.querySelector('[data-price]').value, cost_price: row.querySelector('[data-cost]').value, discount_percent: row.querySelector('[data-line-discount]').value };
+  }
+  function priceControls(item, label) {
+    const cost = item?.purchase_price ?? item?.cost_price ?? 0;
+    return `<label><span class="invoice-mobile-label">Cost price</span><input aria-label="Cost price for ${esc(label)}" data-cost type="number" min="0" max="1000000" step="0.01" value="${esc(Number(cost).toFixed(2))}" required></label><label><span class="invoice-mobile-label">Sell price</span><input aria-label="Sell price for ${esc(label)}" data-price type="number" min="0" max="1000000" step="0.01" value="${esc(Number(item?.sell_price || 0).toFixed(2))}" required></label><label><span class="invoice-mobile-label">Discount %</span><input aria-label="Discount percent for ${esc(label)}" data-line-discount type="number" min="0" max="100" step="0.01" value="${esc(Number(item?.discount || 0))}" required></label>`;
   }
   function discount() { return { type: form.discount_type.value, value: form.discount_value.value }; }
   function total() {
@@ -75,17 +82,16 @@
       for (const row of lines.children) {
         const quantity = math.quantity(row.querySelector('[data-qty]').value);
         const item = items.find(i => i.token === row.dataset.token);
-        const unit = row.dataset.token ? (item ? Math.round(price(item) * 100) : NaN) : math.money(row.querySelector('[data-price]').value);
-        if (!Number.isFinite(unit)) throw new Error('A selected item is no longer available.');
-        const line = unit * quantity; cents += line;
-        row.querySelector('[data-line-total]').textContent = money(line / 100);
-        if (item) row.querySelector('[data-unit-price]').textContent = money(unit / 100);
+        if (row.dataset.token && !item) throw new Error('A selected item is no longer available.');
+        const priced = math.linePricing({ quantity, unitAmount: 0 }, lineValues(row));
+        cents += Math.round(priced.lineTotal * 100);
+        row.querySelector('[data-line-total]').textContent = money(priced.lineTotal);
       }
       const reduction = math.discountCents(cents, discount());
       panel.querySelector('[data-subtotal]').textContent = money(cents / 100);
       panel.querySelector('[data-discount-total]').textContent = '−' + money(reduction / 100);
       panel.querySelector('[data-grand-total]').textContent = money((cents - reduction) / 100);
-      panel.querySelector('[data-total]').textContent = 'Catalogue discounts included · Pickup';
+      panel.querySelector('[data-total]').textContent = 'Line discounts applied · Pickup';
     } catch (e) { panel.querySelector('[data-grand-total]').textContent = '—'; panel.querySelector('[data-total]').textContent = e.message; }
   }
   function addItem(token) {
@@ -100,14 +106,14 @@
     }
     if (lines.children.length >= 50) { message.textContent = 'Use up to 50 invoice lines.'; return; }
     const row = document.createElement('div'); row.className = 'invoice-line'; row.dataset.token = token;
-    row.innerHTML = `<div><strong>${esc(item.name)}</strong><small>${esc(item.sku || item.category || '')} · Catalogue item</small></div><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Quantity for ${esc(item.name)}" data-qty type="number" min="1" max="99" step="1" value="1" required></label><span class="invoice-unit" data-unit-price>${money(price(item))}</span><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove ${esc(item.name)}">Remove</button>`;
+    row.innerHTML = `<div><strong>${esc(item.name)}</strong><small>${esc(item.sku || item.category || '')} · Catalogue item</small></div><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Quantity for ${esc(item.name)}" data-qty type="number" min="1" max="99" step="1" value="1" required></label>${priceControls(item, item.name)}<strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove ${esc(item.name)}">Remove</button>`;
     lines.append(row); changed();
   }
   function addCustom() {
     if (busy) return;
     if (lines.children.length >= 50) { message.textContent = 'Use up to 50 invoice lines.'; return; }
     const row = document.createElement('div'); row.className = 'invoice-line invoice-line-custom';
-    row.innerHTML = '<label><span class="invoice-mobile-label">Description</span><input aria-label="Manual line description" data-description maxlength="200" required placeholder="Enter a description"><small>Manual line · No stock adjustment</small></label><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Manual line quantity" data-qty type="number" min="1" max="99" step="1" value="1" required></label><label><span class="invoice-mobile-label">Unit price ($)</span><input aria-label="Manual line unit price" data-price type="number" min="0" max="1000000" step="0.01" value="0.00" required></label><strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove manual line">Remove</button>';
+    row.innerHTML = `<label><span class="invoice-mobile-label">Description</span><input aria-label="Manual line description" data-description maxlength="200" required placeholder="Enter a description"><small>Manual line · No stock adjustment</small></label><label><span class="invoice-mobile-label">Quantity</span><input aria-label="Manual line quantity" data-qty type="number" min="1" max="99" step="1" value="1" required></label>${priceControls(null, 'manual line')}<strong data-line-total></strong><button type="button" class="btn btn-secondary" data-remove aria-label="Remove manual line">Remove</button>`;
     lines.append(row); row.querySelector('input').focus(); changed();
   }
   async function run(button, work, lock = false) {

@@ -282,4 +282,19 @@ test("invoice permissions, duplicate checkout, reservations and Xero payment upd
     assert.equal((await db.query('select * from stock_movements where related_id=$1', [first.id])).rows.length, 0);
   });
 
+  await t.test('raw cost snapshots are admin-only while the server retains access for customer history', async () => {
+    await db.exec('reset role');
+    await db.exec(read('supabase/migrations/20261022221647_invoice_line_cost_privacy.sql'));
+    const owned = await create({ ...payload, checkout_key_hash: randomUUID().replaceAll('-', '').repeat(2), checkout_digest: 'f'.repeat(64),
+      user_id: '00000000-0000-0000-0000-000000000002', customer_email: 'privatecost@example.com',
+      items: [{ name:'Service',quantity:1,unitAmount:25,purchase_price_at_sale:8,fulfilment_type:'service' }], total_amount:25 });
+    await db.exec("set role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000002',false)");
+    assert.equal((await db.query('select items from shop_orders where id=$1',[owned.id])).rows.length,0);
+    await db.exec("select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false)");
+    assert.equal((await db.query('select items from shop_orders where id=$1',[owned.id])).rows[0].items[0].purchase_price_at_sale,8);
+    await db.exec('reset role; set role service_role');
+    assert.equal((await db.query('select id from shop_orders where id=$1',[owned.id])).rows.length,1);
+    await db.exec('reset role');
+  });
+
 });

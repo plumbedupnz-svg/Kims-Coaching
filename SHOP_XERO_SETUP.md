@@ -92,3 +92,9 @@ Xero connection status now names missing server variables and an invalid encrypt
 ## Dedicated invoice workspace
 
 Admin → Invoices opens the invoice editor directly. Choose the billed customer, then add manual descriptions with quantity and unit price, stock on hand, or both. The stock picker starts with its on-hand filter enabled; untick it for services and other catalogue items. Customer email/phone are shown next to the account link. Invoice rows show description, quantity, unit price and amount, with discounts and totals grouped below. Invoice numbers and payment terms still come from the existing server/Xero settings; this redesign adds no SQL migration.
+
+## Per-line cost, sell price and discount
+
+Each invoice row has a private unit cost, unit sell price and percentage line discount. Catalogue values prefill stock rows; changes are invoice snapshots only and never rewrite inventory prices. Line discounts replace the prefilled catalogue percentage for that row. Discounted unit prices round to cents before multiplying quantity, and the invoice-wide discount applies afterwards. Xero receives the resulting sales amounts; costs and margins are never included in its customer invoice payload.
+
+Before releasing these controls, apply `supabase/migrations/20261022221647_invoice_line_cost_privacy.sql`. It restricts raw shop-order reads to administrators because item snapshots contain internal costs/margins. The customer-history API continues to read the verified customer's own orders on the server and returns an explicit sales-only item shape. No customer booking or payment link changes. Test the migration and API together on a test deployment before production.

@@ -647,3 +647,18 @@ test('Xero setup reports missing or invalid variable names without returning cre
   const valid = build({ XERO_CLIENT_ID: 'id', XERO_CLIENT_SECRET: 'secret', XERO_TOKEN_ENCRYPTION_KEY: Buffer.alloc(32, 1).toString('base64') });
   assert.equal(valid.configured(), true);
 });
+
+test('invoice-stage catalogue pricing is admin-only and Xero receives no cost snapshots', async () => {
+  const helpers = require('../api/stripe/_helpers');
+  const fn = load('api/stripe/create-checkout-session.js', { './_helpers': { ...helpers, restSelect: async table => table==='inventory_items' ? [{id:key,product_name:'Labour',sell_price:50,purchase_price:10,discount:0,item_kind:'service',track_stock:false,visible_in_shop:true,is_active:true}] : table==='shop_inventory_settings' ? [{tax_mode:'none'}] : [] } });
+  const body = {cart:[{id:key,quantity:2,unit_amount:'30',cost_price:'7.25',discount_percent:'25'}],checkout:{customer:{full_name:'Demo',email:'demo@example.com',phone:'0210000000'}}};
+  const admin = await fn.prepareShopOrder({body,adminSale:true});
+  assert.equal(admin.payload.total_amount,45); assert.equal(admin.items[0].purchase_price_at_sale,7.25);
+  assert.equal(admin.items[0].gross_profit_at_sale,30.5);
+  const publicOrder = await fn.prepareShopOrder({body});
+  assert.equal(publicOrder.payload.total_amount,100); assert.equal(publicOrder.items[0].purchase_price_at_sale,10);
+  const xero = load('lib/xero/invoices.js', { '../../api/stripe/_helpers': {getSiteUrl:()=> 'https://shop.example'} });
+  const payload = xero.invoicePayload({...order,...admin.payload},settings,key);
+  assert.equal(payload.LineItems[0].UnitAmount,22.5);
+  assert.doesNotMatch(JSON.stringify(payload), /cost_price|purchase_price|gross_profit/);
+});

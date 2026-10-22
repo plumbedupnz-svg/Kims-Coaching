@@ -610,7 +610,8 @@ async function prepareShopOrder({ user, body, strictSettings = false, adminSale 
   const settings = await getShopSettings(strictSettings);
   const customer = normalizeShopCustomer({ checkout, profile, user, requirePhone: !adminSale });
   const deliveryAddress = normalizeDeliveryAddress(checkout, customer);
-  const items = [...await getShopLineItems(cart, adminSale), ...custom];
+  const catalogueItems = await getShopLineItems(cart, adminSale);
+  const items = [...(adminSale ? catalogueItems.map((item, index) => invoice.linePricing(item, cart[index])) : catalogueItems), ...custom];
   const fulfilmentMethod = items.every(item => item.fulfilment_type === "service") ? "pickup" : checkout.fulfilment_method || checkout.fulfilmentMethod || "pickup";
   validateFulfilment(fulfilmentMethod, deliveryAddress);
   const subtotal = items.reduce((sum, item) => sum + item.lineTotal, 0);

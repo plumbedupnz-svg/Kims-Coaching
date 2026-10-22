@@ -29,3 +29,21 @@ test('invoice discounts support dollars and percentages with cent rounding and b
   assert.throws(() => math.discountCents(1000, { type: 'percent', value: 101 }), /100%/);
   assert.throws(() => math.discountCents(1000, { type: 'amount', value: -1 }));
 });
+
+test('line cost, sell price and discount produce exact snapshots without modifying the source', () => {
+  const original = { id: 'stock', quantity: 3, unitAmount: 20, purchase_price_at_sale: 8, fulfilment_type: 'stock' };
+  const priced = math.linePricing(original, { unit_amount: 25, cost_price: 9.25, discount_percent: 10 });
+  assert.equal(priced.unitAmount,22.5); assert.equal(priced.lineTotal,67.5);
+  assert.equal(priced.purchase_price_at_sale,9.25); assert.equal(priced.line_discount_amount,7.5);
+  assert.equal(priced.gross_profit_at_sale,39.75); assert.equal(priced.fulfilment_type,'stock');
+  assert.equal(original.unitAmount,20); assert.equal(original.purchase_price_at_sale,8);
+  assert.throws(() => math.linePricing(original, {discount_percent: 101}), /100%/);
+  assert.throws(() => math.linePricing(original, {cost_price: -1}), /Cost price/);
+  assert.throws(() => math.linePricing(original, {unit_amount: 1.001}), /decimal/);
+  assert.throws(() => math.normalizeCart([{id:'stock',quantity:1,unit_amount:20},{id:'stock',quantity:1,unit_amount:25}]), /same prices/);
+});
+test('manual lines save internal costs and apply per-line discounts once', () => {
+  const [row] = math.customLines([{name:'Grip fitting',quantity:2,unit_amount:25,cost_price:8,discount_percent:20}]);
+  assert.equal(row.unitAmount,20); assert.equal(row.lineTotal,40); assert.equal(row.purchase_price_at_sale,8);
+  assert.equal(row.gross_profit_at_sale,24); assert.equal(row.line_discount_percent,20);
+});
