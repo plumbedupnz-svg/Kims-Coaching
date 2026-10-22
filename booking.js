@@ -1,7 +1,7 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
   const hasConfig = Boolean(settings.url && settings.anonKey && window.supabase);
-  const client = hasConfig ? window.supabase.createClient(settings.url, settings.anonKey) : null;
+  const client = hasConfig ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey) : null;
   const calendarEl = document.querySelector("[data-booking-calendar]");
   const emptyEl = document.querySelector("[data-booking-empty]");
   const weekTitleEl = document.querySelector("[data-week-title]");

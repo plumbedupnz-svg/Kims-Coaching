@@ -1,6 +1,6 @@
 (function(){
  const panel=document.querySelector('[data-xero-accounting]'); if(!panel)return;
- const client=window.supabase?.createClient(window.KIMS_SUPABASE?.url,window.KIMS_SUPABASE?.anonKey);
+ const client=(window.KimsGetSupabaseClient || window.supabase?.createClient)?.(window.KIMS_SUPABASE?.url,window.KIMS_SUPABASE?.anonKey);
  const status=panel.querySelector('[data-accounting-status]'),list=panel.querySelector('[data-accounting-jobs]');
  async function api(body){
   const {data}=await client.auth.getSession(); if(!data.session)throw new Error('Sign in as an administrator.');

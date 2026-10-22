@@ -183,7 +183,7 @@ const tennisLevelOptions = ["Beginner", "Developing", "Interclub", "Tournament"]
 const supabaseSettings = window.KIMS_SUPABASE || {};
 const hasSupabaseConfig = Boolean(supabaseSettings.url && supabaseSettings.anonKey && window.supabase);
 const supabaseClient = hasSupabaseConfig
-  ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
+  ? (window.KimsGetSupabaseClient || window.supabase.createClient)(supabaseSettings.url, supabaseSettings.anonKey)
   : null;
 
 function escapeHtml(value = "") {
@@ -826,7 +826,7 @@ async function saveAdminProductToSupabase(product) {
       }
     }
     if (error) throw error;
-    const productResult = await supabaseClient.rpc("admin_list_products");
+    const productResult = await (window.KimsReadAdminRows ? window.KimsReadAdminRows(supabaseClient, "admin_list_products") : supabaseClient.rpc("admin_list_products"));
     if (productResult.error) throw productResult.error;
     const savedProduct = (productResult.data || []).find((row) => String(row.id) === String(productRowId));
     if (!savedProduct) throw new Error("Saved product could not be reloaded.");
@@ -844,7 +844,7 @@ async function saveAdminProductToSupabase(product) {
         })
         .eq("id", product.inventory_item_id);
       if (error) throw error;
-      const inventoryResult = await supabaseClient.rpc("admin_list_inventory_items");
+      const inventoryResult = await (window.KimsReadAdminRows ? window.KimsReadAdminRows(supabaseClient, "admin_list_inventory_items") : supabaseClient.rpc("admin_list_inventory_items"));
       if (inventoryResult.error) throw inventoryResult.error;
       inventoryItem = (inventoryResult.data || []).find((item) => item.id === product.inventory_item_id);
       if (!inventoryItem) throw new Error("Linked inventory item could not be reloaded.");
@@ -1055,7 +1055,7 @@ async function loadAdminInventoryLinkItems() {
 async function refreshOwnerProductsFromSupabase() {
   if (!supabaseClient || !isAdminProfile() || !ownerProductsListEl) return [];
   if (ownerProductsListEl) ownerProductsListEl.innerHTML = '<p class="helper-text">Loading products...</p>';
-  let { data, error } = await supabaseClient.rpc("admin_list_products");
+  let { data, error } = await (window.KimsReadAdminRows ? window.KimsReadAdminRows(supabaseClient, "admin_list_products") : supabaseClient.rpc("admin_list_products"));
   if (error && /function|schema cache|PGRST202|42883/i.test(error.message || "")) {
     const directResult = await supabaseClient
       .from("products")
@@ -3100,17 +3100,25 @@ async function init() {
     }
 
     if (supabaseClient) {
-      supabaseClient.auth.onAuthStateChange(async (event, session) => {
-        try {
-          currentUser = session?.user || null;
-          currentProfile = currentUser ? await loadProfile(currentUser) : null;
-          if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
-          renderAccountNavigation();
-          renderCustomerAccount();
-          if (ownerStatusEl) setOwnerUI();
-        } catch (error) {
-          handleAdminStartupError(error);
-        }
+      let authRevision = 0;
+      supabaseClient.auth.onAuthStateChange((event, session) => {
+        const revision = ++authRevision;
+        // Return before querying the profile: auth event delivery may own the session lock.
+        setTimeout(async () => {
+          try {
+            const user = session?.user || null;
+            const profile = user ? await loadProfile(user) : null;
+            if (revision !== authRevision) return;
+            currentUser = user;
+            currentProfile = profile;
+            if (event === "PASSWORD_RECOVERY") setAuthMode("reset");
+            renderAccountNavigation();
+            renderCustomerAccount();
+            if (ownerStatusEl) setOwnerUI();
+          } catch (error) {
+            handleAdminStartupError(error);
+          }
+        }, 0);
       });
     }
   } catch (error) {

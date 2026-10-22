@@ -2,7 +2,7 @@
   const listEl = document.querySelector("[data-shop-orders-list]");
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
 
   if (!listEl) return;

@@ -9,7 +9,7 @@
   const waitlistListEl = document.querySelector("[data-admin-waitlist-list]");
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
   const adminTabAliases = {
     "adult-coaching": "lessons",

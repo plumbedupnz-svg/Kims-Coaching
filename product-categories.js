@@ -17,7 +17,7 @@
   const addCategoryBtnEl = document.getElementById("add-category-btn");
   const supabaseSettings = window.KIMS_SUPABASE || {};
   const supabaseClient = supabaseSettings.url && supabaseSettings.anonKey && window.supabase
-    ? window.supabase.createClient(supabaseSettings.url, supabaseSettings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(supabaseSettings.url, supabaseSettings.anonKey)
     : null;
 
   let categories = [];

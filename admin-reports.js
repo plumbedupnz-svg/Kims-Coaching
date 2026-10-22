@@ -1,7 +1,7 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
 
   const sectionEl = document.querySelector('[data-admin-section="reports"]');

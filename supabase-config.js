@@ -3,6 +3,28 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
   anonKey: "sb_publishable_34HW1F0Asg7kEk8vEYCiLQ_9jO1jl4m"
 };
 
+// One browser client owns this page's auth session. All feature modules reuse it.
+(function () {
+  const clients = new Map();
+  window.KimsGetSupabaseClient = function (url, key) {
+    const identity = JSON.stringify([url, key]);
+    if (!clients.has(identity)) clients.set(identity, window.supabase.createClient(url, key));
+    return clients.get(identity);
+  };
+  // Image-heavy admin rows must not be JSON-encoded in one unbounded RPC response.
+  window.KimsReadAdminRows = async function (client, name, columns) {
+    const rows = [], size = 20;
+    for (let start = 0; ; start += size) {
+      let query = client.rpc(name);
+      if (columns) query = query.select(columns);
+      const result = await query.order('id').range(start, start + size - 1);
+      if (result.error) return { data: null, error: result.error };
+      rows.push(...(result.data || []));
+      if ((result.data || []).length < size) return { data: rows, error: null };
+    }
+  };
+})();
+
 (function () {
   const nav = document.querySelector("[data-nav-links]");
   if (!nav || nav.hasAttribute("data-storefront-nav")) return;
@@ -30,7 +52,7 @@ window.KIMS_SUPABASE = window.KIMS_SUPABASE || {
     const settings = window.KIMS_SUPABASE || {};
     if (!settings.url || !settings.anonKey) return;
 
-    const client = window.supabase.createClient(settings.url, settings.anonKey);
+    const client = window.KimsGetSupabaseClient(settings.url, settings.anonKey);
     const { data } = await client.auth.getSession();
     const user = data?.session?.user;
     if (!user) {

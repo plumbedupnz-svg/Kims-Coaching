@@ -1,7 +1,7 @@
 (function () {
   const settings = window.KIMS_SUPABASE || {};
   const client = settings.url && settings.anonKey && window.supabase
-    ? window.supabase.createClient(settings.url, settings.anonKey)
+    ? (window.KimsGetSupabaseClient || window.supabase.createClient)(settings.url, settings.anonKey)
     : null;
 
   const inventoryListEl = document.querySelector("[data-inventory-list]");
@@ -978,40 +978,16 @@
       return;
     }
 
-    let result = await client
-      .from("inventory_items")
-      .select("*")
-      .order("product_name", { ascending: true });
-    let source = "inventory_items direct select";
-
-    if (result.error) {
-      console.warn("Inventory direct select failed, retrying admin inventory RPC.", result.error.message);
-      source = "admin_list_inventory_items RPC";
-      updateInventoryDebug({ source, rpcError: result.error.message });
-      result = await client.rpc("admin_list_inventory_items");
-    } else if (!result.data?.length) {
-      const directResult = result;
-      const rpcResult = await client.rpc("admin_list_inventory_items");
-      if (!rpcResult.error && rpcResult.data?.length) {
-        source = "admin_list_inventory_items RPC after empty direct select";
-        result = rpcResult;
-      } else if (rpcResult.error) {
-        updateInventoryDebug({
-          source,
-          returnedRows: directResult.data?.length || 0,
-          activeRows: 0,
-          categoryRows: 0,
-          searchRows: 0,
-          rpcError: rpcResult.error.message
-        });
-      }
-    }
+    // Full admin rows include protected cost fields; use the guarded RPC directly.
+    const result = await (window.KimsReadAdminRows ? window.KimsReadAdminRows(client, "admin_list_inventory_items") : client.rpc("admin_list_inventory_items"));
+    const source = "admin_list_inventory_items RPC (paged)";
 
     if (result.error) {
       const message = `Could not load inventory: ${result.error.message}. If rows exist in Supabase, check the inventory_items RLS select policy and run notify pgrst, 'reload schema'.`;
       updateInventoryDebug({ source, returnedRows: 0, activeRows: 0, error: result.error.message });
       renderEmpty(inventoryListEl, message);
       renderEmpty(reviewListEl, message);
+      renderEmpty(inventoryDashboardEl, message);
       renderAdjustmentSelect();
       return;
     }
